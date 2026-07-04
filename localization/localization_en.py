@@ -2,6 +2,7 @@ TRANSLATIONS = {
     "app_title": "Python Explorer Pro",
     "back_button": "Back",
     "forward_button": "Forward",
+    "exit_button": "Exit",
     "search_hint": "Search...",
     "show_hidden_checkbox": "Show hidden",
     "name_column": "Name",

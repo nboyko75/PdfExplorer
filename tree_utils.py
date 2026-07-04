@@ -3,6 +3,7 @@ import wx
 
 from localization import tr
 from pdf_utils import optimize_pdf
+import image_utils
 
 
 def normalize_tree_path(path):
@@ -13,6 +14,7 @@ def normalize_tree_path(path):
 
 def init_tree_images(owner):
     owner.tree_images = wx.ImageList(16, 16)
+    owner.tree_icon_cache = {}
 
     root_bmp = wx.ArtProvider.GetBitmap(wx.ART_HARDDISK, wx.ART_OTHER, (16, 16))
     if not root_bmp.IsOk():
@@ -29,8 +31,27 @@ def init_tree_images(owner):
     owner.tree_icon_root = owner.tree_images.Add(root_bmp)
     owner.tree_icon_folder = owner.tree_images.Add(folder_bmp)
     owner.tree_icon_file = owner.tree_images.Add(file_bmp)
+    owner.tree_icon_cache["__folder__"] = owner.tree_icon_folder
+    owner.tree_icon_cache["__file__"] = owner.tree_icon_file
 
     owner.tree.AssignImageList(owner.tree_images)
+
+
+def get_tree_icon_index(owner, path, is_dir):
+    if is_dir:
+        return owner.tree_icon_cache["__folder__"]
+
+    ext = os.path.splitext(path)[1].lower()
+    if not ext:
+        return owner.tree_icon_cache["__file__"]
+
+    cached = owner.tree_icon_cache.get(ext)
+    if cached is not None:
+        return cached
+
+    bmp = image_utils.create_extension_icon_bitmap(ext)
+    owner.tree_icon_cache[ext] = owner.tree_images.Add(bmp)
+    return owner.tree_icon_cache[ext]
 
 
 def refresh_tree_placeholders(owner):
@@ -113,9 +134,11 @@ def populate_tree_node(owner, item, path):
     owner.tree.DeleteChildren(item)
 
     try:
-        entries = sorted(os.listdir(path))
+        entries = os.listdir(path)
     except (PermissionError, FileNotFoundError):
         return
+
+    entries.sort(key=lambda name: (not os.path.isdir(os.path.join(path, name)), name.lower()))
 
     for name in entries:
         if not owner.show_hidden and (name.startswith(".") or name.startswith("$")):
@@ -129,7 +152,7 @@ def populate_tree_node(owner, item, path):
             owner.tree.SetItemImage(child, owner.tree_icon_folder)
             owner.tree.AppendItem(child, tr("tree_expand_placeholder"))
         else:
-            owner.tree.SetItemImage(child, owner.tree_icon_file)
+            owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=False))
 
 
 def init_tree(owner):

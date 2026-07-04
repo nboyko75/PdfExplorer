@@ -2,6 +2,7 @@ TRANSLATIONS = {
     "app_title": "Провідник Python Pro",
     "back_button": "Назад",
     "forward_button": "Вперед",
+    "exit_button": "Вихід",
     "search_hint": "Пошук...",
     "show_hidden_checkbox": "Показати приховані",
     "name_column": "Назва",
