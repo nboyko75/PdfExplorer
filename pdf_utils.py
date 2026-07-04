@@ -1,5 +1,4 @@
 import os
-import tempfile
 import wx
 from window_tools import load_settings, update_settings
 
@@ -9,8 +8,9 @@ except ImportError:
     fitz = None
 
 
-DEFAULT_OPTIMIZE_IMAGE_WIDTH = 800
-DEFAULT_OPTIMIZE_IMAGE_QUALITY = 60
+DEFAULT_OPTIMIZE_IMAGE_WIDTH = 1200
+DEFAULT_OPTIMIZE_IMAGE_QUALITY = 70
+_PDF_SESSION_BYTES = {}
 
 
 def _get_optimize_pdf_settings():
@@ -45,14 +45,82 @@ def is_pdf_file(path):
     return isinstance(path, str) and path.lower().endswith(".pdf")
 
 
-def move_pdf_page(path, from_index, to_index):
+def _normalize_pdf_session_path(path):
+    return os.path.normpath(path)
+
+
+def _get_pdf_session_bytes(path):
+    return _PDF_SESSION_BYTES.get(_normalize_pdf_session_path(path))
+
+
+def _set_pdf_session_bytes(path, pdf_bytes):
+    _PDF_SESSION_BYTES[_normalize_pdf_session_path(path)] = pdf_bytes
+
+
+def has_unsaved_pdf_changes(path):
+    return isinstance(path, str) and _normalize_pdf_session_path(path) in _PDF_SESSION_BYTES
+
+
+def discard_pdf_changes(path):
+    if isinstance(path, str):
+        _PDF_SESSION_BYTES.pop(_normalize_pdf_session_path(path), None)
+
+
+def _read_pdf_bytes(path):
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+
+    session_bytes = _get_pdf_session_bytes(path)
+    if session_bytes is not None:
+        return session_bytes
+
+    with open(path, "rb") as handle:
+        return handle.read()
+
+
+def _open_pdf_document(path):
+    return fitz.open(stream=_read_pdf_bytes(path), filetype="pdf")
+
+
+def _store_pdf_document(path, doc, **save_kwargs):
+    _set_pdf_session_bytes(path, doc.tobytes(**save_kwargs))
+    return path
+
+
+def save_pdf(path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
 
-    doc = fitz.open(path)
+    session_bytes = _get_pdf_session_bytes(path)
+    if session_bytes is None:
+        return path
+
+    with open(path, "wb") as handle:
+        handle.write(session_bytes)
+
+    discard_pdf_changes(path)
+    return path
+
+
+def get_pdf_page_count(path):
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
+
+    doc = _open_pdf_document(path)
+    try:
+        return len(doc)
+    finally:
+        doc.close()
+
+
+def move_pdf_page(path, from_index, to_index):
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
+
+    doc = _open_pdf_document(path)
     try:
         page_count = len(doc)
         if not 0 <= from_index < page_count:
@@ -68,95 +136,55 @@ def move_pdf_page(path, from_index, to_index):
         order.insert(insert_at, page)
 
         new_doc = fitz.open()
-        temp_path = None
         try:
             for index in order:
                 new_doc.insert_pdf(doc, from_page=index, to_page=index)
 
-            temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".pdf")
-            os.close(temp_fd)
-            new_doc.save(temp_path)
+            return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
         finally:
             if not new_doc.is_closed:
                 new_doc.close()
-
-        # Close the original document before replacing the file on Windows.
-        doc.close()
-        doc = None
-
-        os.replace(temp_path, path)
-        return path
     finally:
-        if doc is not None:
-            doc.close()
-        if temp_path is not None and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+        doc.close()
 
 
 def rotate_pdf(path, angle=90):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
-
-    doc = fitz.open(path)
-    temp_path = None
+    doc = _open_pdf_document(path)
     try:
         for page in doc:
             page.set_rotation((page.rotation + angle) % 360)
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".pdf")
-        os.close(temp_fd)
-        doc.save(temp_path)
+        return _store_pdf_document(path, doc, garbage=4, deflate=True, clean=True)
     finally:
-        if doc is not None:
-            doc.close()
-
-    os.replace(temp_path, path)
-    return path
+        doc.close()
 
 
 def rotate_pdf_page(path, page_index, angle=90):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
-
-    doc = fitz.open(path)
-    temp_path = None
+    doc = _open_pdf_document(path)
     try:
         if not 0 <= page_index < len(doc):
             raise ValueError(f"Page index {page_index} is out of range")
         page = doc[page_index]
         page.set_rotation((page.rotation + angle) % 360)
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".pdf")
-        os.close(temp_fd)
-        doc.save(temp_path)
+        return _store_pdf_document(path, doc, garbage=4, deflate=True, clean=True)
     finally:
-        if doc is not None:
-            doc.close()
-
-    os.replace(temp_path, path)
-    return path
+        doc.close()
 
 
 def optimize_pdf(path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
-
     target_width, target_quality = _get_optimize_pdf_settings()
 
-    doc = fitz.open(path)
-    temp_path = None
+    doc = _open_pdf_document(path)
     try:
         processed_xrefs = set()
         for page in doc:
@@ -204,27 +232,17 @@ def optimize_pdf(path):
                     source_pix = None
                 pix = None
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".pdf")
-        os.close(temp_fd)
-        doc.save(temp_path, garbage=4, deflate=True, clean=True)
+        return _store_pdf_document(path, doc, garbage=4, deflate=True, clean=True)
     finally:
-        if doc is not None:
-            doc.close()
-
-    os.replace(temp_path, path)
-    return path
+        doc.close()
 
 
 def ajust_page_width(path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
-
-    doc = fitz.open(path)
+    doc = _open_pdf_document(path)
     new_doc = fitz.open()
-    temp_path = None
     try:
         if len(doc) == 0:
             return path
@@ -257,24 +275,18 @@ def ajust_page_width(path):
             new_page = new_doc.new_page(width=float(target_width), height=target_height)
             new_page.show_pdf_page(new_page.rect, doc, page_index)
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".pdf")
-        os.close(temp_fd)
-        new_doc.save(temp_path, garbage=4, deflate=True, clean=True)
+        return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
     finally:
-        if doc is not None:
-            doc.close()
+        doc.close()
         if not new_doc.is_closed:
             new_doc.close()
-
-    os.replace(temp_path, path)
-    return path
 
 
 def get_pdf_page_previews(path, max_height=300, max_pages=None):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
-    doc = fitz.open(path)
+    doc = _open_pdf_document(path)
     try:
         page_count = len(doc)
         shown_pages = page_count if max_pages is None else min(page_count, max_pages)
@@ -283,13 +295,12 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None):
         for index in range(shown_pages):
             page = doc[index]
             pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-            safe_name = os.path.basename(path).replace(" ", "_") or "pdf_page"
-            image_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_{index}.png")
-            pix.save(image_path)
-
-            image = wx.Image(image_path, wx.BITMAP_TYPE_PNG)
+            rgb_pix = pix if pix.n == 3 and not pix.alpha else fitz.Pixmap(fitz.csRGB, pix)
+            bitmap = wx.Bitmap.FromBuffer(rgb_pix.width, rgb_pix.height, rgb_pix.samples)
+            image = bitmap.ConvertToImage()
             if image.GetHeight() > max_height:
-                image = image.Rescale(max_height, int(image.GetHeight() * max_height / image.GetWidth()))
+                target_width = max(1, int(round(image.GetWidth() * (max_height / image.GetHeight()))))
+                image = image.Rescale(target_width, max_height)
 
             previews.append((index + 1, image.ConvertToBitmap()))
 

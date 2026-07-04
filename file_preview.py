@@ -3,7 +3,7 @@ import os
 import wx
 
 from localization import tr
-from pdf_utils import get_pdf_page_previews, is_pdf_file, ajust_page_width, optimize_pdf, rotate_pdf, rotate_pdf_page
+from pdf_utils import ajust_page_width, discard_pdf_changes, get_pdf_page_previews, has_unsaved_pdf_changes, is_pdf_file, optimize_pdf, rotate_pdf, rotate_pdf_page, save_pdf
 import image_utils
 import pdf_dragdrop
 
@@ -17,6 +17,7 @@ def build_file_preview_pane(owner, file_splitter):
     preview_button_size = (24, 24)
 
     owner.preview_edit_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FIND, tr("preview_edit_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_save_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FILE_SAVE, tr("preview_save_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_delete_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_DELETE, tr("preview_delete_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_out_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_MINUS, tr("preview_zoom_out_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_in_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_PLUS, tr("preview_zoom_in_button"), icon_size=preview_icon_size, button_size=preview_button_size)
@@ -36,6 +37,7 @@ def build_file_preview_pane(owner, file_splitter):
         owner.preview_rotate_all_right_btn.SetBitmapLabel(joined_toolbar_redo)
 
     owner.preview_toolbar.Add(owner.preview_edit_btn, 0, wx.RIGHT, 5)
+    owner.preview_toolbar.Add(owner.preview_save_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_delete_btn, 0, wx.RIGHT, 15)
     owner.preview_toolbar.Add(owner.preview_zoom_out_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_zoom_in_btn, 0, wx.RIGHT, 5)
@@ -46,6 +48,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_ajust_page_width_btn, 0)
 
+    owner.preview_save_btn.Enable(False)
     owner.preview_rotate_left_btn.Enable(False)
     owner.preview_rotate_right_btn.Enable(False)
 
@@ -53,7 +56,8 @@ def build_file_preview_pane(owner, file_splitter):
         owner.filePreview,
         style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL | wx.VSCROLL,
     )
-    owner.preview_text.SetValue(tr("preview_select_file"))
+    owner.preview_text.SetValue("")
+    owner.preview_text.Hide()
     owner.preview_text.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
 
     owner.pdf_pages_panel = wx.ScrolledWindow(owner.filePreview, style=wx.HSCROLL | wx.VSCROLL)
@@ -87,6 +91,7 @@ def build_file_preview_pane(owner, file_splitter):
 def bind_preview_events(owner):
     """Bind preview pane event handlers."""
     owner.preview_edit_btn.Bind(wx.EVT_BUTTON, on_preview_edit)
+    owner.preview_save_btn.Bind(wx.EVT_BUTTON, on_preview_save)
     owner.preview_delete_btn.Bind(wx.EVT_BUTTON, on_preview_delete)
     owner.preview_zoom_in_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_in)
     owner.preview_zoom_out_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_out)
@@ -103,6 +108,66 @@ def bind_preview_events(owner):
     owner.preview_rotate_all_right_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_all_right)
     owner.preview_optimize_btn.Bind(wx.EVT_BUTTON, on_preview_optimize)
     owner.preview_ajust_page_width_btn.Bind(wx.EVT_BUTTON, on_preview_ajust_page_width)
+
+
+def confirm_preview_change(owner, next_path):
+    current_path = getattr(owner, "current_preview_path", None)
+    if not is_pdf_file(current_path) or not has_unsaved_pdf_changes(current_path):
+        return True
+
+    if next_path and os.path.normpath(next_path) == os.path.normpath(current_path):
+        return True
+
+    dialog = wx.MessageDialog(
+        owner,
+        tr("confirm_save_selected_file"),
+        tr("app_title"),
+        wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
+    )
+    result = dialog.ShowModal()
+    dialog.Destroy()
+
+    if result == wx.ID_CANCEL:
+        return False
+
+    try:
+        if result == wx.ID_YES:
+            save_pdf(current_path)
+        else:
+            discard_pdf_changes(current_path)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        return False
+
+    return True
+
+
+def restore_list_selection(owner, path):
+    owner._restoring_list_selection = True
+    try:
+        for index in range(owner.list.GetItemCount()):
+            owner.list.SetItemState(index, 0, wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED)
+
+        if not path or os.path.dirname(path) != owner.path_box.GetValue():
+            return
+
+        target_name = os.path.basename(path)
+        for index in range(owner.list.GetItemCount()):
+            if owner.list.GetItemText(index) != target_name:
+                continue
+            owner.list.SetItemState(
+                index,
+                wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+                wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+            )
+            owner.list.EnsureVisible(index)
+            break
+    finally:
+        wx.CallAfter(_clear_list_selection_restore_flag, owner)
+
+
+def _clear_list_selection_restore_flag(owner):
+    owner._restoring_list_selection = False
 
 
 def get_pdf_page_panel_from_event(owner, event):
@@ -129,10 +194,16 @@ def update_rotate_page_buttons_state(owner):
     owner.preview_rotate_right_btn.Enable(can_rotate)
 
 
+def update_pdf_save_button_state(owner):
+    can_save = is_pdf_file(owner.current_preview_path) and has_unsaved_pdf_changes(owner.current_preview_path)
+    owner.preview_save_btn.Enable(can_save)
+
+
 def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     show_pdf_only = is_pdf
     show_pdf_or_image = is_pdf or is_image
 
+    owner.preview_save_btn.Show(show_pdf_only)
     owner.preview_rotate_all_left_btn.Show(show_pdf_only)
     owner.preview_rotate_all_right_btn.Show(show_pdf_only)
     owner.preview_optimize_btn.Show(show_pdf_only)
@@ -143,6 +214,7 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
 
     owner.preview_toolbar.Layout()
     owner.filePreview.Layout()
+    update_pdf_save_button_state(owner)
 
 
 def select_pdf_page(owner, page_panel):
@@ -263,11 +335,12 @@ def show_pdf_feed(owner, path):
                 )
                 owner.pdf_pages_sizer.Add(note, 0, wx.ALIGN_CENTER | wx.ALL, 3)
         except Exception as exc:
-            owner.preview_text.SetValue(tr("unable_preview_pdf", exc=exc))
-            owner.preview_text.Show(True)
+            _ = exc
             owner.pdf_pages_panel.Hide()
             owner.filePreview.Layout()
             return
+
+            update_pdf_save_button_state(owner)
 
     owner.preview_text.Show(False)
     owner.pdf_pages_panel.Show(True)
@@ -287,28 +360,23 @@ def show_file_preview(owner, path):
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0
     update_rotate_page_buttons_state(owner)
+    update_pdf_save_button_state(owner)
     owner.preview_text.Show(False)
     owner.pdf_pages_panel.Hide()
     owner.pdf_preview_container.Hide()
 
     if not path:
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-        owner.preview_text.SetValue(tr("preview_select_file"))
-        owner.preview_text.Show(True)
         owner.filePreview.Layout()
         return
 
     if os.path.isdir(path):
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-        owner.preview_text.SetValue(tr("folder_selected", path=path))
-        owner.preview_text.Show(True)
         owner.filePreview.Layout()
         return
 
     if not os.path.isfile(path):
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-        owner.preview_text.SetValue(tr("no_preview_available"))
-        owner.preview_text.Show(True)
         owner.filePreview.Layout()
         return
 
@@ -332,19 +400,15 @@ def show_file_preview(owner, path):
             with open(path, "r", encoding="latin-1") as handle:
                 content = handle.read(12000)
         except Exception as exc:
-            owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
-            owner.preview_text.Show(True)
+            _ = exc
             owner.filePreview.Layout()
             return
     except Exception as exc:
-        owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
-        owner.preview_text.Show(True)
+        _ = exc
         owner.filePreview.Layout()
         return
 
     if not content.strip():
-        owner.preview_text.SetValue(tr("empty_file"))
-        owner.preview_text.Show(True)
         owner.filePreview.Layout()
         return
 
@@ -358,10 +422,15 @@ def show_file_preview(owner, path):
 
 # Preview action handlers
 
+
+def _get_preview_owner_from_event(event):
+    owner = event.GetEventObject()
+    while owner is not None and not hasattr(owner, "current_preview_path"):
+        owner = owner.GetParent() if hasattr(owner, "GetParent") else None
+    return owner
+
 def on_preview_edit(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'current_preview_path'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner and owner.current_preview_path and os.path.isfile(owner.current_preview_path):
         try:
             os.startfile(owner.current_preview_path)
@@ -372,9 +441,7 @@ def on_preview_edit(event):
 
 
 def on_preview_delete(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'current_preview_path'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if not owner or not owner.current_preview_path or not os.path.isfile(owner.current_preview_path):
         wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return
@@ -386,6 +453,7 @@ def on_preview_delete(event):
     )
     if dialog.ShowModal() == wx.ID_YES:
         try:
+            discard_pdf_changes(owner.current_preview_path)
             os.remove(owner.current_preview_path)
             show_file_preview(owner, None)
             owner.load_folder(owner.path_box.GetValue())
@@ -394,10 +462,23 @@ def on_preview_delete(event):
     dialog.Destroy()
 
 
+def on_preview_save(event):
+    owner = _get_preview_owner_from_event(event)
+    if not owner or not is_pdf_file(owner.current_preview_path):
+        wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+    try:
+        with owner.busy_cursor():
+            save_pdf(owner.current_preview_path)
+            update_pdf_save_button_state(owner)
+            show_pdf_feed(owner, owner.current_preview_path)
+            owner.load_folder(owner.path_box.GetValue())
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+
+
 def on_preview_zoom_in(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if is_pdf_file(owner.current_preview_path):
             with owner.busy_cursor():
@@ -418,9 +499,7 @@ def on_preview_zoom_in(event):
 
 
 def on_preview_zoom_out(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if is_pdf_file(owner.current_preview_path):
             with owner.busy_cursor():
@@ -441,9 +520,7 @@ def on_preview_zoom_out(event):
 
 
 def on_preview_rotate(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if not is_pdf_file(owner.current_preview_path):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
@@ -457,9 +534,7 @@ def on_preview_rotate(event):
 
 
 def on_preview_rotate_all_left(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if not is_pdf_file(owner.current_preview_path):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
@@ -473,9 +548,7 @@ def on_preview_rotate_all_left(event):
 
 
 def on_preview_rotate_left(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if is_pdf_file(owner.current_preview_path):
             page_index = get_selected_pdf_page_index(owner)
@@ -554,9 +627,7 @@ def on_preview_rotate_buttons_wheel(event):
 
 
 def on_preview_rotate_right(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if is_pdf_file(owner.current_preview_path):
             page_index = get_selected_pdf_page_index(owner)
@@ -586,9 +657,7 @@ def on_preview_rotate_right(event):
 
 
 def on_preview_rotate_all_right(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if not is_pdf_file(owner.current_preview_path):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
@@ -602,9 +671,7 @@ def on_preview_rotate_all_right(event):
 
 
 def on_preview_optimize(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if not is_pdf_file(owner.current_preview_path):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
@@ -612,15 +679,15 @@ def on_preview_optimize(event):
         try:
             with owner.busy_cursor():
                 optimize_pdf(owner.current_preview_path)
+                save_pdf(owner.current_preview_path)
+                update_pdf_save_button_state(owner)
                 show_pdf_feed(owner, owner.current_preview_path)
         except Exception as exc:
             wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
 def on_preview_ajust_page_width(event):
-    owner = event.GetEventObject().GetParent()
-    while owner and not hasattr(owner, 'pdf_preview_zoom'):
-        owner = owner.GetParent()
+    owner = _get_preview_owner_from_event(event)
     if owner:
         if not is_pdf_file(owner.current_preview_path):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
@@ -628,6 +695,8 @@ def on_preview_ajust_page_width(event):
         try:
             with owner.busy_cursor():
                 ajust_page_width(owner.current_preview_path)
+                save_pdf(owner.current_preview_path)
+                update_pdf_save_button_state(owner)
                 show_pdf_feed(owner, owner.current_preview_path)
         except Exception as exc:
             wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
@@ -651,6 +720,9 @@ def on_preview_right_click(event):
 
     edit_item = menu.Append(-1, tr("preview_edit_button"))
     set_menu_icon(edit_item, wx.ART_FIND)
+    save_item = menu.Append(-1, tr("preview_save_button"))
+    save_art_id = wx.ART_FLOPPY if hasattr(wx, "ART_FLOPPY") else wx.ART_FILE_SAVE
+    set_menu_icon(save_item, save_art_id)
     delete_item = menu.Append(-1, tr("preview_delete_button"))
     set_menu_icon(delete_item, wx.ART_DELETE)
     menu.AppendSeparator()
@@ -675,7 +747,10 @@ def on_preview_right_click(event):
     ajust_page_width_item = menu.Append(-1, tr("preview_ajust_page_width_button"))
     set_menu_icon(ajust_page_width_item, wx.ART_REPORT_VIEW)
 
+    save_item.Enable(is_pdf_file(owner.current_preview_path) and has_unsaved_pdf_changes(owner.current_preview_path))
+
     owner.Bind(wx.EVT_MENU, on_preview_edit, edit_item)
+    owner.Bind(wx.EVT_MENU, on_preview_save, save_item)
     owner.Bind(wx.EVT_MENU, on_preview_delete, delete_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_in, zoom_in_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_out, zoom_out_item)

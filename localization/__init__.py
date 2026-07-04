@@ -29,6 +29,7 @@ TRANSLATIONS: Dict[str, str] = {
     "unable_move_pdf_page": "Unable to move PDF page.\n{exc}",
     "drop_overlay_label": "Drop on page {page_index}",
     "preview_edit_button": "Open",
+    "preview_save_button": "Save",
     "preview_delete_button": "Delete",
     "preview_zoom_in_button": "Zoom In",
     "preview_zoom_out_button": "Zoom Out",
@@ -40,6 +41,7 @@ TRANSLATIONS: Dict[str, str] = {
     "preview_optimize_button": "Optimize",
     "preview_ajust_page_width_button": "Ajust page width",
     "select_pdf_page": "Select a page first.",
+    "confirm_save_selected_file": "Save changes to selected file?",
     "confirm_delete": "Delete {path}?",
     "insert_before": "Insert before",
     "insert_after": "Insert after",
@@ -50,8 +52,11 @@ TRANSLATIONS: Dict[str, str] = {
     "file_type_file": "File",
     "file_size_unit_kb": "KB",
     "tree_optimize_all_pdf": "Optimize all PDF",
+    "tree_adjust_page_width_all_pdf": "Adjust page width all",
     "tree_no_folder_selected": "Select a folder in the tree first.",
+    "tree_no_folder_or_pdf_selected": "Select a folder or PDF file in the tree first.",
     "tree_optimize_all_done": "Optimized: {optimized_count}\nFailed: {failed_count}",
+    "tree_adjust_page_width_all_done": "Adjusted: {adjusted_count}\nFailed: {failed_count}",
 }
 
 

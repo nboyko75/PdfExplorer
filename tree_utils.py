@@ -2,7 +2,7 @@ import os
 import wx
 
 from localization import tr
-from pdf_utils import optimize_pdf
+from pdf_utils import ajust_page_width, optimize_pdf, save_pdf
 import image_utils
 
 
@@ -181,6 +181,14 @@ def on_tree_expand(owner, event):
 def on_tree_select(owner, event):
     item = event.GetItem()
     path = normalize_tree_path(owner.tree.GetItemData(item))
+
+    if getattr(owner, "_syncing_tree_from_path", False):
+        return
+
+    if hasattr(owner, "confirm_preview_change") and not owner.confirm_preview_change(path):
+        event.Veto()
+        return
+
     owner.show_file_preview(path)
 
     if path and os.path.isdir(path):
@@ -189,6 +197,7 @@ def on_tree_select(owner, event):
 
 def on_tree_right_click(owner, event):
     path = _resolve_tree_context_path(owner, event)
+    is_supported_target = _is_folder_or_single_pdf(path)
 
     menu = wx.Menu()
     optimize_item = menu.Append(-1, tr("tree_optimize_all_pdf"))
@@ -196,10 +205,22 @@ def on_tree_right_click(owner, event):
     if optimize_bmp.IsOk():
         optimize_item.SetBitmap(optimize_bmp)
 
+    adjust_item = menu.Append(-1, tr("tree_adjust_page_width_all_pdf"))
+    adjust_bmp = wx.ArtProvider.GetBitmap(wx.ART_REPORT_VIEW, wx.ART_MENU, (16, 16))
+    if adjust_bmp.IsOk():
+        adjust_item.SetBitmap(adjust_bmp)
+
+    optimize_item.Enable(is_supported_target)
+    adjust_item.Enable(is_supported_target)
+
     def handle_optimize_all(_):
         optimize_all_pdf_in_path(owner, path)
 
+    def handle_adjust_all(_):
+        adjust_page_width_all_pdf_in_path(owner, path)
+
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
+    owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
 
     popup_window = owner.tree
     if event is not None:
@@ -216,8 +237,8 @@ def on_tree_right_click(owner, event):
 
 def optimize_all_pdf_in_path(owner, path):
     base_path = normalize_tree_path(path)
-    if not base_path or not os.path.isdir(base_path):
-        wx.MessageBox(tr("tree_no_folder_selected"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+    if not _is_folder_or_single_pdf(base_path):
+        wx.MessageBox(tr("tree_no_folder_or_pdf_selected"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return
 
     optimized_count = 0
@@ -225,22 +246,67 @@ def optimize_all_pdf_in_path(owner, path):
 
     cursor_ctx = owner.busy_cursor() if hasattr(owner, "busy_cursor") else _nullcontext()
     with cursor_ctx:
-        for root, _, filenames in os.walk(base_path):
-            for filename in filenames:
-                if not filename.lower().endswith(".pdf"):
-                    continue
-                file_path = os.path.join(root, filename)
-                try:
-                    optimize_pdf(file_path)
-                    optimized_count += 1
-                except Exception:
-                    failed_count += 1
+        for file_path in _iter_pdf_targets(base_path):
+            try:
+                optimize_pdf(file_path)
+                save_pdf(file_path)
+                optimized_count += 1
+            except Exception:
+                failed_count += 1
 
     wx.MessageBox(
         tr("tree_optimize_all_done", optimized_count=optimized_count, failed_count=failed_count),
         tr("tree_optimize_all_pdf"),
         wx.OK | wx.ICON_INFORMATION,
     )
+
+
+def adjust_page_width_all_pdf_in_path(owner, path):
+    base_path = normalize_tree_path(path)
+    if not _is_folder_or_single_pdf(base_path):
+        wx.MessageBox(tr("tree_no_folder_or_pdf_selected"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+
+    adjusted_count = 0
+    failed_count = 0
+
+    cursor_ctx = owner.busy_cursor() if hasattr(owner, "busy_cursor") else _nullcontext()
+    with cursor_ctx:
+        for file_path in _iter_pdf_targets(base_path):
+            try:
+                ajust_page_width(file_path)
+                save_pdf(file_path)
+                adjusted_count += 1
+            except Exception:
+                failed_count += 1
+
+    wx.MessageBox(
+        tr("tree_adjust_page_width_all_done", adjusted_count=adjusted_count, failed_count=failed_count),
+        tr("tree_adjust_page_width_all_pdf"),
+        wx.OK | wx.ICON_INFORMATION,
+    )
+
+
+def _is_pdf_file_path(path):
+    return isinstance(path, str) and path.lower().endswith(".pdf") and os.path.isfile(path)
+
+
+def _is_folder_or_single_pdf(path):
+    return isinstance(path, str) and (os.path.isdir(path) or _is_pdf_file_path(path))
+
+
+def _iter_pdf_targets(path):
+    if _is_pdf_file_path(path):
+        yield path
+        return
+
+    if not os.path.isdir(path):
+        return
+
+    for root, _, filenames in os.walk(path):
+        for filename in filenames:
+            if filename.lower().endswith(".pdf"):
+                yield os.path.join(root, filename)
 
 
 def _resolve_tree_context_path(owner, event):

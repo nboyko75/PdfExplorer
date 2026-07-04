@@ -1,7 +1,7 @@
 import wx
 
 from localization import tr
-from pdf_utils import get_pdf_page_previews, is_pdf_file, move_pdf_page
+from pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_page
 
 
 class PdfPageDropTarget(wx.DropTarget):
@@ -198,7 +198,7 @@ def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
                 return
 
             try:
-                page_count, _, _ = get_pdf_page_previews(owner.current_pdf_path, max_pages=1)
+                page_count = get_pdf_page_count(owner.current_pdf_path)
             except Exception:
                 page_count = None
 

@@ -85,13 +85,13 @@ class FileExplorer(wx.Frame):
         self.language_combo = wx.ComboBox(panel, choices=["EN", "UA"], style=wx.CB_READONLY)
         self.language_combo.SetValue("UA" if self.current_locale == "uk" else "EN")
 
-        toolbar.Add(self.back_btn, 0, wx.RIGHT, 5)
-        toolbar.Add(self.forward_btn, 0, wx.RIGHT, 5)
-        toolbar.Add(self.exit_btn, 0, wx.RIGHT, 10)
-        toolbar.Add(self.path_box, 1, wx.RIGHT, 10)
-        toolbar.Add(self.search_box, 0, wx.RIGHT, 10)
-        toolbar.Add(self.hidden_chk, 0, wx.RIGHT, 10)
-        toolbar.Add(self.language_combo, 0)
+        toolbar.Add(self.back_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
+        toolbar.Add(self.forward_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
+        toolbar.Add(self.exit_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
+        toolbar.Add(self.path_box, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
+        toolbar.Add(self.search_box, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
+        toolbar.Add(self.hidden_chk, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
+        toolbar.Add(self.language_combo, 0, wx.ALIGN_CENTER_VERTICAL)
 
         # ===== Split view =====
         splitter = wx.SplitterWindow(panel)
@@ -166,6 +166,7 @@ class FileExplorer(wx.Frame):
         size_col.SetText(tr("size_column"))
         self.list.SetColumn(2, size_col)
         self.preview_edit_btn.SetToolTip(tr("preview_edit_button"))
+        self.preview_save_btn.SetToolTip(tr("preview_save_button"))
         self.preview_delete_btn.SetToolTip(tr("preview_delete_button"))
         self.preview_zoom_in_btn.SetToolTip(tr("preview_zoom_in_button"))
         self.preview_zoom_out_btn.SetToolTip(tr("preview_zoom_out_button"))
@@ -199,6 +200,9 @@ class FileExplorer(wx.Frame):
 
     def show_file_preview(self, path):
         file_preview.show_file_preview(self, path)
+
+    def confirm_preview_change(self, path):
+        return file_preview.confirm_preview_change(self, path)
 
     def show_pdf_feed(self, path):
         file_preview.show_pdf_feed(self, path)
@@ -278,7 +282,7 @@ class FileExplorer(wx.Frame):
         self.language_combo.Bind(wx.EVT_COMBOBOX, self.on_language_change)
 
         self.tree.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.on_tree_expand)
-        self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_select)
+        self.tree.Bind(wx.EVT_TREE_SEL_CHANGING, self.on_tree_select)
         self.tree.Bind(wx.EVT_CONTEXT_MENU, self.on_tree_right_click)
         self.list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_select)
         self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open_item)
@@ -297,9 +301,18 @@ class FileExplorer(wx.Frame):
         return tree_utils.on_tree_right_click(self, event)
 
     def on_list_select(self, event):
+        if getattr(self, "_restoring_list_selection", False):
+            return
+
         index = event.GetIndex()
         name = self.list.GetItemText(index)
         path = os.path.join(self.path_box.GetValue(), name)
+
+        previous_path = self.current_preview_path
+        if not file_preview.confirm_preview_change(self, path):
+            wx.CallAfter(file_preview.restore_list_selection, self, previous_path)
+            return
+
         file_preview.show_file_preview(self, path)
 
     def on_right_click(self, event):
@@ -320,7 +333,16 @@ class FileExplorer(wx.Frame):
             self.open_path(path)
 
     def on_path_enter(self, event):
-        self.open_path(self.path_box.GetValue())
+        path = self.path_box.GetValue()
+        if not self.open_path(path):
+            return
+
+        if os.path.isdir(path):
+            self._syncing_tree_from_path = True
+            try:
+                self.select_tree_item_by_path(path)
+            finally:
+                self._syncing_tree_from_path = False
 
     def on_exit(self, _):
         self.Close()

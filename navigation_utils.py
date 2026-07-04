@@ -13,15 +13,19 @@ def save_last_folder(owner):
 
 def open_path(owner, path, add_history=True):
     if not os.path.isdir(path):
-        return
+        return False
+
+    if hasattr(owner, "confirm_preview_change") and not owner.confirm_preview_change(path):
+        return False
 
     if add_history:
         owner.history = owner.history[:owner.history_index + 1]
         owner.history.append(path)
         owner.history_index += 1
 
-    owner.path_box.SetValue(path)
+    owner.path_box.ChangeValue(path)
     owner.load_folder(path)
+    return True
 
 
 def go_back(owner, _):
