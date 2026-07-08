@@ -2,7 +2,7 @@ import os
 from contextlib import contextmanager
 import wx
 
-from file_operations.pdf_utils import get_pdf_page_previews, is_pdf_file, move_pdf_page
+from file_operations.pdf_utils import discard_pdf_changes, get_pdf_page_previews, get_unsaved_pdf_paths, is_pdf_file, move_pdf_page, save_pdf
 from localization import tr, load_locale, available_locales
 from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
 import controls.tree_utils as tree_utils
@@ -143,6 +143,34 @@ class FileExplorer(wx.Frame):
         navigation_utils.save_last_folder(self)
 
     def on_close(self, event):
+        unsaved_pdf_paths = get_unsaved_pdf_paths()
+        if unsaved_pdf_paths:
+            dialog = wx.MessageDialog(
+                self,
+                tr("confirm_save_before_exit", count=len(unsaved_pdf_paths)),
+                tr("app_title"),
+                wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
+            )
+            result = dialog.ShowModal()
+            dialog.Destroy()
+
+            if result == wx.ID_CANCEL:
+                event.Veto()
+                return
+
+            try:
+                with self.busy_cursor():
+                    if result == wx.ID_YES:
+                        for path in unsaved_pdf_paths:
+                            save_pdf(path)
+                    else:
+                        for path in unsaved_pdf_paths:
+                            discard_pdf_changes(path)
+            except Exception as exc:
+                wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+                event.Veto()
+                return
+
         try:
             save_window_geometry(self)
             self.save_last_folder()

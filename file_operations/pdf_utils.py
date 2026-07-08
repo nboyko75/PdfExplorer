@@ -238,6 +238,10 @@ def has_unsaved_pdf_changes(path):
     return isinstance(path, str) and _normalize_pdf_session_path(path) in _PDF_SESSION_BYTES
 
 
+def get_unsaved_pdf_paths():
+    return sorted(_PDF_SESSION_BYTES.keys())
+
+
 def discard_pdf_changes(path):
     if isinstance(path, str):
         _PDF_SESSION_BYTES.pop(_normalize_pdf_session_path(path), None)

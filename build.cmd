@@ -3,19 +3,25 @@ setlocal
 
 set "PROJECT_DIR=%~dp0"
 set "DIST_DIR=%PROJECT_DIR%dist"
-set "IMAGES_DIST_DIR=%DIST_DIR%images"
-set "IMAGES_PROJECT_DIR=%PROJECT_DIR%images"
+set "IMAGES_DIST_DIR=%DIST_DIR%\images"
+set "IMAGES_PROJECT_DIR=%PROJECT_DIR%\images"
+set "LOCALIZATION_DIST_DIR=%DIST_DIR%\localization"
+set "LOCALIZATION_PROJECT_DIR=%PROJECT_DIR%\localization"
 set "SETTINGS_FILE=.pdf_explorer_settings.json"
 
 if not exist "%IMAGES_DIST_DIR%" (
 	mkdir "%IMAGES_DIST_DIR%"
 )
-copy /Y "%IMAGES_PROJECT_DIR%\*.bmp" "%IMAGES_DIST_DIR%" >nul
-copy /Y "%IMAGES_PROJECT_DIR%\*.ico" "%IMAGES_DIST_DIR%" >nul
-
+copy /Y "%IMAGES_PROJECT_DIR%\*.*" "%IMAGES_DIST_DIR%" >nul
 echo images are copied to "%IMAGES_DIST_DIR%"
 
-pyinstaller --onefile --windowed --icon="%IMAGES_PROJECT_DIR%\main.ico" "%PROJECT_DIR%main.py"
+if not exist "%LOCALIZATION_DIST_DIR%" (
+	mkdir "%LOCALIZATION_DIST_DIR%"
+)
+copy /Y "%LOCALIZATION_PROJECT_DIR%\localization*.*" "%LOCALIZATION_DIST_DIR%" >nul
+echo images are copied to "%LOCALIZATION_DIST_DIR%"
+
+pyinstaller --onefile --windowed --name PdfExplorer --icon="%IMAGES_PROJECT_DIR%\main.ico" --add-data "images;images" --add-data "localization;localization" "%PROJECT_DIR%main.py"
 
 if errorlevel 1 (
 	exit /b %errorlevel%

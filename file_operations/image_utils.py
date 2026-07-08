@@ -16,6 +16,7 @@ class IconManager:
     def __init__(self, images_dir=None, icon_files=None):
         project_root = os.path.dirname(os.path.dirname(__file__))
         self.images_dir = images_dir or os.path.join(project_root, "images")
+
         self._bitmap_cache = {}
         mapping = dict(self.DEFAULT_ICON_FILES)
         if icon_files:
