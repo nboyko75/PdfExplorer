@@ -18,9 +18,9 @@ def build_file_preview_pane(owner, file_splitter):
     icon_manager = owner.icon_manager
     owner.filePreview.icon_manager = icon_manager
 
-    owner.preview_edit_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FIND, tr("preview_edit_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    ## owner.preview_edit_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FIND, tr("preview_edit_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_save_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "save", tr("preview_save_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_delete_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_DELETE, tr("preview_delete_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    ## owner.preview_delete_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_DELETE, tr("preview_delete_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_out_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_MINUS, tr("preview_zoom_out_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_in_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_PLUS, tr("preview_zoom_in_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_rotate_all_left_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_UNDO, tr("preview_rotate_all_left_button"), icon_size=preview_icon_size, button_size=preview_button_size)
@@ -39,9 +39,9 @@ def build_file_preview_pane(owner, file_splitter):
     if joined_toolbar_redo.IsOk():
         owner.preview_rotate_all_right_btn.SetBitmapLabel(joined_toolbar_redo)
 
-    owner.preview_toolbar.Add(owner.preview_edit_btn, 0, wx.RIGHT, 5)
+    ## owner.preview_toolbar.Add(owner.preview_edit_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_save_btn, 0, wx.RIGHT, 5)
-    owner.preview_toolbar.Add(owner.preview_delete_btn, 0, wx.RIGHT, 15)
+    ## owner.preview_toolbar.Add(owner.preview_delete_btn, 0, wx.RIGHT, 15)
     owner.preview_toolbar.Add(owner.preview_zoom_out_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_zoom_in_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_rotate_all_left_btn, 0, wx.RIGHT, 5)
@@ -89,14 +89,15 @@ def build_file_preview_pane(owner, file_splitter):
     preview_sizer.Add(owner.pdf_preview_container, 1, wx.EXPAND | wx.ALL, 5)
     owner.filePreview.SetSizer(preview_sizer)
 
-    file_splitter.SplitHorizontally(owner.list, owner.filePreview, 400)
+    top_pane = getattr(owner, "list_host_panel", owner.list)
+    file_splitter.SplitHorizontally(top_pane, owner.filePreview, 400)
 
 
 def bind_preview_events(owner):
     """Bind preview pane event handlers."""
-    owner.preview_edit_btn.Bind(wx.EVT_BUTTON, on_preview_edit)
+    ## owner.preview_edit_btn.Bind(wx.EVT_BUTTON, on_preview_edit)
     owner.preview_save_btn.Bind(wx.EVT_BUTTON, on_preview_save)
-    owner.preview_delete_btn.Bind(wx.EVT_BUTTON, on_preview_delete)
+    ## owner.preview_delete_btn.Bind(wx.EVT_BUTTON, on_preview_delete)
     owner.preview_zoom_in_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_in)
     owner.preview_zoom_out_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_out)
     owner.preview_rotate_all_left_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_all_left)
@@ -281,8 +282,8 @@ def show_pdf_feed(owner, path):
             gap_width = 22
             page_height = 180
             if previews:
-                first_bitmap = previews[0][1]
-                page_height = max(160, first_bitmap.GetSize().y)
+                tallest_preview_height = max(bitmap.GetSize().y for _, bitmap in previews)
+                page_height = max(160, tallest_preview_height)
 
             leading_gap = wx.Panel(owner.pdf_pages_panel, size=(gap_width, page_height), style=wx.BORDER_NONE)
             leading_gap.SetMinSize((gap_width, page_height))
@@ -776,12 +777,12 @@ def on_preview_right_click(event):
         if bitmap.IsOk():
             item.SetBitmap(bitmap)            
 
-    edit_item = menu.Append(-1, tr("preview_edit_button"))
-    set_menu_icon(edit_item, wx.ART_FIND)
+    ## edit_item = menu.Append(-1, tr("preview_edit_button"))
+    ## set_menu_icon(edit_item, wx.ART_FIND)
     save_item = menu.Append(-1, tr("preview_save_button"))
     set_menu_icon2(save_item, icon_manager, "save")
-    delete_item = menu.Append(-1, tr("preview_delete_button"))
-    set_menu_icon(delete_item, wx.ART_DELETE)
+    ## delete_item = menu.Append(-1, tr("preview_delete_button"))
+    ## set_menu_icon(delete_item, wx.ART_DELETE)
     menu.AppendSeparator()
     zoom_in_item = menu.Append(-1, tr("preview_zoom_in_button"))
     set_menu_icon(zoom_in_item, wx.ART_PLUS)
@@ -809,9 +810,9 @@ def on_preview_right_click(event):
     save_item.Enable(is_pdf_file(owner.current_preview_path) and has_unsaved_pdf_changes(owner.current_preview_path))
     remove_page_item.Enable(is_pdf_file(owner.current_preview_path) and get_selected_pdf_page_index(owner) is not None)
 
-    owner.Bind(wx.EVT_MENU, on_preview_edit, edit_item)
+    ## owner.Bind(wx.EVT_MENU, on_preview_edit, edit_item)
     owner.Bind(wx.EVT_MENU, on_preview_save, save_item)
-    owner.Bind(wx.EVT_MENU, on_preview_delete, delete_item)
+    ## owner.Bind(wx.EVT_MENU, on_preview_delete, delete_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_in, zoom_in_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_out, zoom_out_item)
     owner.Bind(wx.EVT_MENU, on_preview_rotate_all_left, rotate_all_left_item)

@@ -10,6 +10,26 @@ import file_operations.image_utils as image_utils
 import file_operations.pdf_dragdrop as pdf_dragdrop
 import controls.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
+import controls.filelist as filelist
+
+
+LANGUAGE_CHOICES = [
+    ("EN", "en"),
+    ("UA", "uk"),
+    ("DE", "de"),
+    ("FR", "fr"),
+    ("ES", "es"),
+    ("IT", "it"),
+    ("PT-BR", "pt_br"),
+    ("JA", "ja"),
+    ("KO", "ko"),
+    ("ZH-CN", "zh_cn"),
+    ("RU", "ru"),
+]
+LANGUAGE_LABEL_BY_CODE = {code: label for label, code in LANGUAGE_CHOICES}
+LANGUAGE_CODE_BY_LABEL = {label: code for label, code in LANGUAGE_CHOICES}
+LANGUAGE_CHOICES_SORTED = sorted(LANGUAGE_CHOICES, key=lambda item: item[0])
+SUPPORTED_LOCALES = set(LANGUAGE_LABEL_BY_CODE.keys())
 
 
 class FileExplorer(wx.Frame):
@@ -28,11 +48,14 @@ class FileExplorer(wx.Frame):
         self.current_preview_path = None
         self.current_image_preview = None
         self.current_image_zoom = 1.0
+        self.list_sort_column = None
+        self.list_sort_direction = 0
         settings = load_settings()
         saved_locale = str(settings.get("ui_locale", "uk")).lower()
+        saved_locale = saved_locale.replace("-", "_")
         if saved_locale == "ua":
             saved_locale = "uk"
-        self.current_locale = saved_locale if saved_locale in ("en", "uk") else "uk"
+        self.current_locale = saved_locale if saved_locale in SUPPORTED_LOCALES else "uk"
         self.pdf_preview_zoom = 1.0
 
         load_locale(self.current_locale)
@@ -82,8 +105,8 @@ class FileExplorer(wx.Frame):
         self.search_box.SetHint(tr("search_hint"))
 
         self.hidden_chk = wx.CheckBox(panel, label=tr("show_hidden_checkbox"))
-        self.language_combo = wx.ComboBox(panel, choices=["EN", "UA"], style=wx.CB_READONLY)
-        self.language_combo.SetValue("UA" if self.current_locale == "uk" else "EN")
+        self.language_combo = wx.ComboBox(panel, choices=[label for label, _ in LANGUAGE_CHOICES_SORTED], style=wx.CB_READONLY)
+        self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
 
         toolbar.Add(self.back_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         toolbar.Add(self.forward_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
@@ -103,13 +126,49 @@ class FileExplorer(wx.Frame):
 
         self.fileSplitter = wx.SplitterWindow(self.filePanel)
 
-        self.list = wx.ListCtrl(self.fileSplitter, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+        self.icon_manager = image_utils.IconManager()
+
+        self.list_host_panel = wx.Panel(self.fileSplitter)
+        self.list_toolbar = wx.BoxSizer(wx.HORIZONTAL)
+
+        list_btn_icon_size = (16, 16)
+        list_btn_size = (24, 24)
+        self.list_open_btn = image_utils.create_bitmap_button(
+            self.list_host_panel,
+            wx.ART_FIND,
+            tr("context_open"),
+            icon_size=list_btn_icon_size,
+            button_size=list_btn_size,
+        )
+        self.list_rename_btn = image_utils.create_bitmap_button(
+            self.list_host_panel,
+            wx.ART_EDIT,
+            tr("context_rename"),
+            icon_size=list_btn_icon_size,
+            button_size=list_btn_size,
+        )
+        self.list_delete_btn = image_utils.create_bitmap_button(
+            self.list_host_panel,
+            wx.ART_DELETE,
+            tr("context_delete"),
+            icon_size=list_btn_icon_size,
+            button_size=list_btn_size,
+        )
+
+        self.list_toolbar.Add(self.list_open_btn, 0, wx.RIGHT, 5)
+        self.list_toolbar.Add(self.list_rename_btn, 0, wx.RIGHT, 5)
+        self.list_toolbar.Add(self.list_delete_btn, 0)
+
+        self.list = wx.ListCtrl(self.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
         self.list.InsertColumn(0, tr("name_column"), width=450)
         self.list.InsertColumn(1, tr("type_column"), width=120)
         self.list.InsertColumn(2, tr("size_column"), width=120)
         image_utils.init_list_images(self)
 
-        self.icon_manager = image_utils.IconManager()
+        list_host_sizer = wx.BoxSizer(wx.VERTICAL)
+        list_host_sizer.Add(self.list_toolbar, 0, wx.EXPAND | wx.ALL, 4)
+        list_host_sizer.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        self.list_host_panel.SetSizer(list_host_sizer)
 
         file_preview.build_file_preview_pane(self, self.fileSplitter)
 
@@ -185,19 +244,18 @@ class FileExplorer(wx.Frame):
         self.exit_btn.SetToolTip(tr("exit_button"))
         self.search_box.SetHint(tr("search_hint"))
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
-        self.language_combo.SetValue("UA" if self.current_locale == "uk" else "EN")
-        name_col = self.list.GetColumn(0)
-        name_col.SetText(tr("name_column"))
-        self.list.SetColumn(0, name_col)
-        type_col = self.list.GetColumn(1)
-        type_col.SetText(tr("type_column"))
-        self.list.SetColumn(1, type_col)
-        size_col = self.list.GetColumn(2)
-        size_col.SetText(tr("size_column"))
-        self.list.SetColumn(2, size_col)
-        self.preview_edit_btn.SetToolTip(tr("preview_edit_button"))
+        self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
+        for index, key in enumerate(("name_column", "type_column", "size_column")):
+            column = self.list.GetColumn(index)
+            column.SetMask(wx.LIST_MASK_TEXT)
+            column.SetText(tr(key))
+            if hasattr(column, "SetImage"):
+                column.SetImage(-1)
+            self.list.SetColumn(index, column)
+        self.update_list_sort_header_icons()
+        ## self.preview_edit_btn.SetToolTip(tr("preview_edit_button"))
         self.preview_save_btn.SetToolTip(tr("preview_save_button"))
-        self.preview_delete_btn.SetToolTip(tr("preview_delete_button"))
+        ## self.preview_delete_btn.SetToolTip(tr("preview_delete_button"))
         self.preview_zoom_in_btn.SetToolTip(tr("preview_zoom_in_button"))
         self.preview_zoom_out_btn.SetToolTip(tr("preview_zoom_out_button"))
         self.preview_rotate_all_left_btn.SetToolTip(tr("preview_rotate_all_left_button"))
@@ -207,6 +265,9 @@ class FileExplorer(wx.Frame):
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_ajust_page_width_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
+        self.list_open_btn.SetToolTip(tr("context_open"))
+        self.list_rename_btn.SetToolTip(tr("context_rename"))
+        self.list_delete_btn.SetToolTip(tr("context_delete"))
         self.refresh_tree_placeholders()
         self.load_folder(self.path_box.GetValue())
         file_preview.show_file_preview(self, self.current_preview_path)
@@ -239,8 +300,8 @@ class FileExplorer(wx.Frame):
         file_preview.show_pdf_feed(self, path)
 
     def on_language_change(self, event):
-        value = self.language_combo.GetValue().upper()
-        self.current_locale = "uk" if value == "UA" else "en"
+        value = self.language_combo.GetValue()
+        self.current_locale = LANGUAGE_CODE_BY_LABEL.get(value, "en")
         update_settings({"ui_locale": self.current_locale})
         load_locale(self.current_locale)
         self.refresh_locale()
@@ -298,26 +359,7 @@ class FileExplorer(wx.Frame):
         navigation_utils.load_folder(self, path)
 
     def refresh_list_item_size(self, path):
-        if not isinstance(path, str) or not os.path.isfile(path):
-            return False
-
-        current_folder = os.path.normpath(self.path_box.GetValue())
-        item_folder = os.path.normpath(os.path.dirname(path))
-        if current_folder != item_folder:
-            return False
-
-        target_name = os.path.basename(path)
-        try:
-            size_text = f"{os.path.getsize(path)//1024} {tr('file_size_unit_kb')}"
-        except Exception:
-            size_text = ""
-
-        for index in range(self.list.GetItemCount()):
-            if self.list.GetItemText(index) == target_name:
-                self.list.SetItem(index, 2, size_text)
-                return True
-
-        return False
+        return filelist.refresh_list_item_size(self, path)
 
     def on_preview_resize(self, event):
         image_utils.refresh_image_preview_bitmap(self)
@@ -340,6 +382,10 @@ class FileExplorer(wx.Frame):
         self.list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_select)
         self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open_item)
         self.list.Bind(wx.EVT_RIGHT_DOWN, self.on_right_click)
+        self.list.Bind(wx.EVT_LIST_COL_CLICK, self.on_list_column_click)
+        self.list_open_btn.Bind(wx.EVT_BUTTON, self.on_list_open)
+        self.list_rename_btn.Bind(wx.EVT_BUTTON, self.on_list_rename)
+        self.list_delete_btn.Bind(wx.EVT_BUTTON, self.on_list_delete)
 
         file_preview.bind_preview_events(self)
         self.filePreview.Bind(wx.EVT_SIZE, self.on_preview_resize)
@@ -354,36 +400,31 @@ class FileExplorer(wx.Frame):
         return tree_utils.on_tree_right_click(self, event)
 
     def on_list_select(self, event):
-        if getattr(self, "_restoring_list_selection", False):
-            return
-
-        index = event.GetIndex()
-        name = self.list.GetItemText(index)
-        path = os.path.join(self.path_box.GetValue(), name)
-
-        previous_path = self.current_preview_path
-        if not file_preview.confirm_preview_change(self, path):
-            wx.CallAfter(file_preview.restore_list_selection, self, previous_path)
-            return
-
-        file_preview.show_file_preview(self, path)
+        filelist.on_list_select(self, event)
 
     def on_right_click(self, event):
-        menu = wx.Menu()
+        filelist.on_right_click(self, event)
 
-        open_item = menu.Append(-1, tr("context_open"))
-        rename_item = menu.Append(-1, tr("context_rename"))
-        delete_item = menu.Append(-1, tr("context_delete"))
+    def get_selected_list_path(self):
+        return filelist.get_selected_list_path(self)
 
-        self.PopupMenu(menu)
-        menu.Destroy()
+    def on_list_open(self, _):
+        filelist.on_list_open(self, _)
+
+    def on_list_rename(self, _):
+        filelist.on_list_rename(self, _)
+
+    def on_list_delete(self, _):
+        filelist.on_list_delete(self, _)
 
     def on_open_item(self, event):
-        name = event.GetText()
-        path = os.path.join(self.path_box.GetValue(), name)
+        filelist.on_open_item(self, event)
 
-        if os.path.isdir(path):
-            self.open_path(path)
+    def on_list_column_click(self, event):
+        filelist.on_list_column_click(self, event)
+
+    def update_list_sort_header_icons(self):
+        filelist.update_list_sort_header_icons(self)
 
     def on_path_enter(self, event):
         path = self.path_box.GetValue()

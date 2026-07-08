@@ -520,17 +520,29 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None):
         shown_pages = page_count if max_pages is None else min(page_count, max_pages)
         previews = []
 
+        if shown_pages <= 0:
+            return page_count, shown_pages, previews
+
+        # Use a single scale for all pages so different original page widths/heights
+        # remain visible in the preview strip.
+        max_page_height = 0.0
+        for index in range(shown_pages):
+            page_height = float(doc[index].rect.height)
+            if page_height > max_page_height:
+                max_page_height = page_height
+
+        common_scale = 1.0
+        if max_page_height > 0 and max_height > 0:
+            common_scale = min(1.0, float(max_height) / max_page_height)
+
+        render_scale = max(0.05, common_scale * 2.0)
+
         for index in range(shown_pages):
             page = doc[index]
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            pix = page.get_pixmap(matrix=fitz.Matrix(render_scale, render_scale))
             rgb_pix = pix if pix.n == 3 and not pix.alpha else fitz.Pixmap(fitz.csRGB, pix)
             bitmap = wx.Bitmap.FromBuffer(rgb_pix.width, rgb_pix.height, rgb_pix.samples)
-            image = bitmap.ConvertToImage()
-            if image.GetHeight() > max_height:
-                target_width = max(1, int(round(image.GetWidth() * (max_height / image.GetHeight()))))
-                image = image.Rescale(target_width, max_height)
-
-            previews.append((index + 1, image.ConvertToBitmap()))
+            previews.append((index + 1, bitmap))
 
         return page_count, shown_pages, previews
     finally:

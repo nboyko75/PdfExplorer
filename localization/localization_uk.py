@@ -1,5 +1,5 @@
 TRANSLATIONS = {
-    "app_title": "Провідник Python Pro",
+    "app_title": "Pdf Провідник",
     "back_button": "Назад",
     "forward_button": "Вперед",
     "exit_button": "Вихід",
