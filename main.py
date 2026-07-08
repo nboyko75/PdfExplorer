@@ -158,6 +158,7 @@ class FileExplorer(wx.Frame):
         self.list_toolbar.Add(self.list_open_btn, 0, wx.RIGHT, 5)
         self.list_toolbar.Add(self.list_rename_btn, 0, wx.RIGHT, 5)
         self.list_toolbar.Add(self.list_delete_btn, 0)
+        self.update_list_toolbar_buttons()
 
         self.list = wx.ListCtrl(self.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
         self.list.InsertColumn(0, tr("name_column"), width=450)
@@ -299,6 +300,12 @@ class FileExplorer(wx.Frame):
     def show_pdf_feed(self, path):
         file_preview.show_pdf_feed(self, path)
 
+    def get_pdf_page_panel_from_event(self, event):
+        return file_preview.get_pdf_page_panel_from_event(self, event)
+
+    def get_selected_pdf_page_index(self):
+        return file_preview.get_selected_pdf_page_index(self)
+
     def on_language_change(self, event):
         value = self.language_combo.GetValue()
         self.current_locale = LANGUAGE_CODE_BY_LABEL.get(value, "en")
@@ -380,6 +387,7 @@ class FileExplorer(wx.Frame):
         self.tree.Bind(wx.EVT_TREE_SEL_CHANGING, self.on_tree_select)
         self.tree.Bind(wx.EVT_CONTEXT_MENU, self.on_tree_right_click)
         self.list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_select)
+        self.list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_deselect)
         self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open_item)
         self.list.Bind(wx.EVT_RIGHT_DOWN, self.on_right_click)
         self.list.Bind(wx.EVT_LIST_COL_CLICK, self.on_list_column_click)
@@ -401,6 +409,9 @@ class FileExplorer(wx.Frame):
 
     def on_list_select(self, event):
         filelist.on_list_select(self, event)
+
+    def on_list_deselect(self, event):
+        filelist.on_list_deselect(self, event)
 
     def on_right_click(self, event):
         filelist.on_right_click(self, event)
@@ -425,6 +436,9 @@ class FileExplorer(wx.Frame):
 
     def update_list_sort_header_icons(self):
         filelist.update_list_sort_header_icons(self)
+
+    def update_list_toolbar_buttons(self):
+        filelist.update_list_toolbar_buttons(self)
 
     def on_path_enter(self, event):
         path = self.path_box.GetValue()

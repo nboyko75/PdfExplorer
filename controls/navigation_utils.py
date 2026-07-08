@@ -93,24 +93,30 @@ def load_folder(owner, path):
 
     sort_column = getattr(owner, "list_sort_column", None)
     sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
-    if sort_column is not None and sort_direction in (-1, 1):
-        reverse = sort_direction < 0
 
+    def _row_sort_key(row):
         if sort_column == 0:
-            key_func = lambda row: (row["name_ci"], row["original_index"])
-        elif sort_column == 1:
-            key_func = lambda row: (row["type_ci"], row["name_ci"], row["original_index"])
-        elif sort_column == 2:
-            key_func = lambda row: (
+            return (row["name_ci"], row["original_index"])
+        if sort_column == 1:
+            return (row["type_ci"], row["name_ci"], row["original_index"])
+        if sort_column == 2:
+            return (
                 row["size_kb"] is None,
                 row["size_kb"] if row["size_kb"] is not None else -1,
                 row["name_ci"],
                 row["original_index"],
             )
-        else:
-            key_func = lambda row: row["original_index"]
+        return row["original_index"]
 
-        row_data = sorted(row_data, key=key_func, reverse=reverse)
+    folders = [row for row in row_data if row["is_dir"]]
+    files = [row for row in row_data if not row["is_dir"]]
+
+    if sort_column is not None and sort_direction in (-1, 1):
+        reverse = sort_direction < 0
+        folders = sorted(folders, key=_row_sort_key, reverse=reverse)
+        files = sorted(files, key=_row_sort_key, reverse=reverse)
+
+    row_data = folders + files
 
     for row in row_data:
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
@@ -119,3 +125,5 @@ def load_folder(owner, path):
 
     if hasattr(owner, "update_list_sort_header_icons"):
         owner.update_list_sort_header_icons()
+    if hasattr(owner, "update_list_toolbar_buttons"):
+        owner.update_list_toolbar_buttons()

@@ -8,31 +8,59 @@ from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 import controls.file_preview as file_preview
 
 
-def _get_sort_header_bitmap(direction):
+def _get_sort_header_image_index(owner, direction):
+    list_images = getattr(owner, "list_images", None)
+    icon_cache = getattr(owner, "list_icon_cache", None)
+    if list_images is None or icon_cache is None:
+        return -1
+
+    cache_key = "__sort_up__" if direction > 0 else "__sort_down__"
+    cached_index = icon_cache.get(cache_key)
+    if cached_index is not None:
+        return cached_index
+
     art_id = wx.ART_GO_UP if direction > 0 else wx.ART_GO_DOWN
     bitmap = wx.ArtProvider.GetBitmap(art_id, wx.ART_MENU, (16, 16))
-    if bitmap is not None and bitmap.IsOk():
-        return bitmap
-    return None
+    if bitmap is None or not bitmap.IsOk():
+        return -1
+
+    icon_cache[cache_key] = list_images.Add(bitmap)
+    return icon_cache[cache_key]
 
 
 def update_list_sort_header_icons(owner):
     sort_column = getattr(owner, "list_sort_column", None)
     sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
-    sort_bitmap = _get_sort_header_bitmap(sort_direction) if sort_column is not None and sort_direction in (-1, 1) else None
+    sort_image_index = (
+        _get_sort_header_image_index(owner, sort_direction)
+        if sort_column is not None and sort_direction in (-1, 1)
+        else -1
+    )
 
     for index in range(owner.list.GetColumnCount()):
         column = owner.list.GetColumn(index)
-        column.SetMask(wx.LIST_MASK_TEXT)
+        column.SetMask(wx.LIST_MASK_TEXT | wx.LIST_MASK_IMAGE)
         if hasattr(column, "SetImage"):
             column.SetImage(-1)
 
-        if index == sort_column and sort_bitmap is not None:
-            column.SetMask(wx.LIST_MASK_TEXT | wx.LIST_MASK_IMAGE)
+        if index == sort_column and sort_image_index >= 0:
             if hasattr(column, "SetImage"):
-                column.SetImage(sort_bitmap)
+                column.SetImage(sort_image_index)
 
         owner.list.SetColumn(index, column)
+
+
+def update_list_toolbar_buttons(owner):
+    if not hasattr(owner, "list") or owner.list is None:
+        return
+
+    selected_path = get_selected_list_path(owner)
+    has_selected_file = bool(selected_path and os.path.isfile(selected_path))
+
+    for button_name in ("list_open_btn", "list_rename_btn", "list_delete_btn"):
+        button = getattr(owner, button_name, None)
+        if button is not None:
+            button.Enable(has_selected_file)
 
 
 def refresh_list_item_size(owner, path):
@@ -60,6 +88,7 @@ def refresh_list_item_size(owner, path):
 
 def on_list_select(owner, event):
     if getattr(owner, "_restoring_list_selection", False):
+        update_list_toolbar_buttons(owner)
         return
 
     index = event.GetIndex()
@@ -69,9 +98,15 @@ def on_list_select(owner, event):
     previous_path = owner.current_preview_path
     if not file_preview.confirm_preview_change(owner, path):
         wx.CallAfter(file_preview.restore_list_selection, owner, previous_path)
+        wx.CallAfter(update_list_toolbar_buttons, owner)
         return
 
     file_preview.show_file_preview(owner, path)
+    update_list_toolbar_buttons(owner)
+
+
+def on_list_deselect(owner, _):
+    update_list_toolbar_buttons(owner)
 
 
 def on_right_click(owner, event):

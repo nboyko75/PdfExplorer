@@ -61,8 +61,13 @@ class PdfPageDropTarget(wx.DropTarget):
                     insert_before = True
 
             if self.owner:
-                self.owner.handle_pdf_page_drop(self.page_index, self.data.GetText(), insert_before=insert_before)
-        except Exception:
+                owner_drop_handler = getattr(self.owner, "handle_pdf_page_drop", None)
+                if callable(owner_drop_handler):
+                    owner_drop_handler(self.page_index, self.data.GetText(), insert_before=insert_before)
+                else:
+                    handle_pdf_page_drop(self.owner, self.page_index, self.data.GetText(), insert_before=insert_before)
+        except Exception as exc:
+            ## wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
             pass
         return wx.DragCopy
 
@@ -155,11 +160,23 @@ def hide_drop_frame(owner):
         owner.drop_frame.Hide()
 
 
+def _get_page_panel_from_event(event):
+    obj = event.GetEventObject()
+    while obj is not None and not hasattr(obj, "page_index"):
+        obj = obj.GetParent()
+    return obj
+
+
 def on_pdf_page_drag_motion(owner, event):
     if not event.Dragging() or not event.LeftIsDown():
         return
 
-    page_panel = owner.get_pdf_page_panel_from_event(event)
+    get_page_panel = getattr(owner, "get_pdf_page_panel_from_event", None)
+    if callable(get_page_panel):
+        page_panel = get_page_panel(event)
+    else:
+        page_panel = _get_page_panel_from_event(event)
+
     if page_panel is None or page_panel is not getattr(owner, "_pdf_drag_start_panel", None):
         return
 
@@ -211,16 +228,15 @@ def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
                 to_index = max(0, min(to_index, page_count - 1))
 
             move_pdf_page(owner.current_pdf_path, source_index, to_index)
+            
             if source_index < to_index:
                 result_index = to_index - 1
             else:
                 result_index = to_index
 
-            try:
-                owner.undo_stack.append((owner.current_pdf_path, source_index, result_index))
-            except Exception:
-                pass
-            owner.show_pdf_feed(owner.current_pdf_path)
+            refresh_feed = getattr(owner, "show_pdf_feed", None)
+            if callable(refresh_feed):
+                wx.CallAfter(refresh_feed, owner.current_pdf_path)
     except Exception as exc:
         wx.MessageBox(
             tr("unable_move_pdf_page", exc=exc),
