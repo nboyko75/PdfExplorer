@@ -1,8 +1,8 @@
 import os
 
-import image_utils
+import file_operations.image_utils as image_utils
 from localization import tr
-from window_tools import update_settings
+from controls.window_tools import update_settings
 
 
 def save_last_folder(owner):

@@ -1,13 +1,23 @@
 import json
 import os
+import sys
 
-SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".pdf_explorer_settings.json")
+
+def _get_app_base_dir():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _get_settings_file_path():
+    return os.path.join(_get_app_base_dir(), ".pdf_explorer_settings.json")
 
 
 def load_settings():
+    settings_file = _get_settings_file_path()
     try:
-        if os.path.isfile(SETTINGS_FILE):
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as handle:
+        if os.path.isfile(settings_file):
+            with open(settings_file, "r", encoding="utf-8") as handle:
                 return json.load(handle)
     except Exception:
         pass
@@ -15,8 +25,10 @@ def load_settings():
 
 
 def save_settings(settings):
+    settings_file = _get_settings_file_path()
     try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as handle:
+        os.makedirs(os.path.dirname(settings_file), exist_ok=True)
+        with open(settings_file, "w", encoding="utf-8") as handle:
             json.dump(settings, handle)
     except Exception:
         pass

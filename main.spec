@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['main.py'],
+    ['D:\\Projects\\PdfExplorer\\main.py'],
     pathex=[],
     binaries=[],
     datas=[],

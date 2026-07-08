@@ -15,10 +15,12 @@ def build_file_preview_pane(owner, file_splitter):
 
     preview_icon_size = (16, 16)
     preview_button_size = (24, 24)
+    icon_manager = owner.icon_manager
+    owner.filePreview.icon_manager = icon_manager
 
     owner.preview_edit_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FIND, tr("preview_edit_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_save_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FILE_SAVE, tr("preview_save_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_delete_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_DELETE, tr("preview_delete_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_save_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "save", tr("preview_save_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_delete_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "delete", tr("preview_delete_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_out_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_MINUS, tr("preview_zoom_out_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_in_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_PLUS, tr("preview_zoom_in_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_rotate_all_left_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_UNDO, tr("preview_rotate_all_left_button"), icon_size=preview_icon_size, button_size=preview_button_size)
@@ -26,7 +28,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_rotate_right_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REDO, tr("preview_rotate_right_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_rotate_all_right_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REDO, tr("preview_rotate_all_right_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_remove_page_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_DELETE, tr("preview_remove_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_optimize_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_TICK_MARK, tr("preview_optimize_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_optimize_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "ok", tr("preview_optimize_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_ajust_page_width_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REPORT_VIEW, tr("preview_ajust_page_width_button"), icon_size=preview_icon_size, button_size=preview_button_size)
 
     joined_toolbar_undo = image_utils.create_joined_art_bitmap(wx.ART_UNDO, client=wx.ART_TOOLBAR, size=(16, 16))
@@ -759,6 +761,7 @@ def on_preview_right_click(event):
     if not owner:
         return
 
+    icon_manager = getattr(owner, "icon_manager", None)
     menu = wx.Menu()
 
     def set_menu_icon(item, art_id=None, bitmap=None):
@@ -767,13 +770,18 @@ def on_preview_right_click(event):
         if bitmap.IsOk():
             item.SetBitmap(bitmap)
 
+    def set_menu_icon2(item, icon_manager, icon_name, bitmap=None):
+        if bitmap is None:
+            bitmap = icon_manager.get_bitmap(icon_name, size=(16, 16))
+        if bitmap.IsOk():
+            item.SetBitmap(bitmap)            
+
     edit_item = menu.Append(-1, tr("preview_edit_button"))
     set_menu_icon(edit_item, wx.ART_FIND)
     save_item = menu.Append(-1, tr("preview_save_button"))
-    save_art_id = wx.ART_FLOPPY if hasattr(wx, "ART_FLOPPY") else wx.ART_FILE_SAVE
-    set_menu_icon(save_item, save_art_id)
+    set_menu_icon2(save_item, icon_manager, "save")
     delete_item = menu.Append(-1, tr("preview_delete_button"))
-    set_menu_icon(delete_item, wx.ART_DELETE)
+    set_menu_icon2(delete_item, icon_manager, "delete")
     menu.AppendSeparator()
     zoom_in_item = menu.Append(-1, tr("preview_zoom_in_button"))
     set_menu_icon(zoom_in_item, wx.ART_PLUS)
@@ -794,7 +802,7 @@ def on_preview_right_click(event):
     set_menu_icon(remove_page_item, wx.ART_DELETE)
     menu.AppendSeparator()
     optimize_item = menu.Append(-1, tr("preview_optimize_button"))
-    set_menu_icon(optimize_item, wx.ART_TICK_MARK)
+    set_menu_icon2(optimize_item, icon_manager, "ok")
     ajust_page_width_item = menu.Append(-1, tr("preview_ajust_page_width_button"))
     set_menu_icon(ajust_page_width_item, wx.ART_REPORT_VIEW)
  

@@ -2,14 +2,14 @@ import os
 from contextlib import contextmanager
 import wx
 
-from pdf_utils import get_pdf_page_previews, is_pdf_file, move_pdf_page
+from file_operations.pdf_utils import get_pdf_page_previews, is_pdf_file, move_pdf_page
 from localization import tr, load_locale, available_locales
-from window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
-import tree_utils
-import image_utils
-import pdf_dragdrop
-import navigation_utils
-import file_preview
+from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
+import controls.tree_utils as tree_utils
+import file_operations.image_utils as image_utils
+import file_operations.pdf_dragdrop as pdf_dragdrop
+import controls.navigation_utils as navigation_utils
+import controls.file_preview as file_preview
 
 
 class FileExplorer(wx.Frame):
@@ -109,6 +109,8 @@ class FileExplorer(wx.Frame):
         self.list.InsertColumn(2, tr("size_column"), width=120)
         image_utils.init_list_images(self)
 
+        self.icon_manager = image_utils.IconManager()
+
         file_preview.build_file_preview_pane(self, self.fileSplitter)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -176,6 +178,7 @@ class FileExplorer(wx.Frame):
         self.preview_rotate_all_right_btn.SetToolTip(tr("preview_rotate_all_right_button"))
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_ajust_page_width_button"))
+        self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
         self.refresh_tree_placeholders()
         self.load_folder(self.path_box.GetValue())
         file_preview.show_file_preview(self, self.current_preview_path)
@@ -265,6 +268,28 @@ class FileExplorer(wx.Frame):
     # ---------------- LIST ----------------
     def load_folder(self, path):
         navigation_utils.load_folder(self, path)
+
+    def refresh_list_item_size(self, path):
+        if not isinstance(path, str) or not os.path.isfile(path):
+            return False
+
+        current_folder = os.path.normpath(self.path_box.GetValue())
+        item_folder = os.path.normpath(os.path.dirname(path))
+        if current_folder != item_folder:
+            return False
+
+        target_name = os.path.basename(path)
+        try:
+            size_text = f"{os.path.getsize(path)//1024} {tr('file_size_unit_kb')}"
+        except Exception:
+            size_text = ""
+
+        for index in range(self.list.GetItemCount()):
+            if self.list.GetItemText(index) == target_name:
+                self.list.SetItem(index, 2, size_text)
+                return True
+
+        return False
 
     def on_preview_resize(self, event):
         image_utils.refresh_image_preview_bitmap(self)

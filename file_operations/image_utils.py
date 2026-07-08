@@ -1,7 +1,127 @@
 import ctypes
 import os
+import tempfile
+import xml.etree.ElementTree as ET
 
 import wx
+
+
+class IconManager:
+    """Load an SVG sprite once and render named symbols as wx.Bitmap."""
+
+    DEFAULT_ICON_INDEX = {
+        "save": 0,
+        "open": 1,
+        "delete": 2,
+        "ok": 3,
+    }
+
+    def __init__(self, sprite_path=None, icon_index=None):
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        self.sprite_path = sprite_path or os.path.join(project_root, "images", "icons01.svg")
+
+        if not os.path.isfile(self.sprite_path):
+            raise FileNotFoundError(self.sprite_path)
+
+        self._tree = ET.parse(self.sprite_path)
+        self._root = self._tree.getroot()
+        self._view_box = self._root.attrib.get("viewBox", "0 0 64 64")
+        self._groups = [child for child in list(self._root) if self._local_name(child.tag) == "g"]
+        if not self._groups:
+            raise RuntimeError("No top-level <g> symbols found in sprite")
+
+        self._bitmap_cache = {}
+        mapping = dict(self.DEFAULT_ICON_INDEX)
+        if icon_index:
+            mapping.update(icon_index)
+        self.icon_index = self._build_index(mapping)
+
+    @staticmethod
+    def _local_name(tag):
+        if not isinstance(tag, str):
+            return ""
+        return tag.split("}", 1)[-1]
+
+    def _build_index(self, mapping):
+        result = {}
+        for name, symbol_ref in mapping.items():
+            normalized_name = str(name).strip().lower()
+            if isinstance(symbol_ref, int):
+                if symbol_ref < 0 or symbol_ref >= len(self._groups):
+                    raise IndexError(f"Icon index {symbol_ref} for '{name}' is out of range")
+                symbol = self._groups[symbol_ref]
+            elif isinstance(symbol_ref, str):
+                symbol = None
+                for group in self._groups:
+                    if group.attrib.get("id") == symbol_ref:
+                        symbol = group
+                        break
+                if symbol is None:
+                    raise KeyError(f"Symbol id '{symbol_ref}' not found for '{name}'")
+            else:
+                raise TypeError("Icon mapping values must be int index or str symbol id")
+
+            result[normalized_name] = symbol
+        return result
+
+    def _build_symbol_svg(self, symbol):
+        group_markup = ET.tostring(symbol, encoding="unicode")
+        return (
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+            f"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{self._view_box}\">"
+            f"{group_markup}"
+            "</svg>"
+        )
+
+    @staticmethod
+    def _normalize_size(size):
+        if not (isinstance(size, tuple) and len(size) == 2):
+            raise TypeError("size must be a tuple(width, height)")
+        return max(1, int(size[0])), max(1, int(size[1]))
+
+    @staticmethod
+    def _render_svg_to_bitmap(svg_markup, size):
+        try:
+            import wx.svg as wxsvg
+        except Exception as exc:
+            raise RuntimeError("wx.svg module is unavailable") from exc
+
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile("w", suffix=".svg", delete=False, encoding="utf-8") as handle:
+                handle.write(svg_markup)
+                temp_path = handle.name
+
+            svg_image = wxsvg.SVGimage.CreateFromFile(temp_path)
+            if svg_image is None:
+                raise RuntimeError("Unable to load generated SVG")
+
+            bitmap = svg_image.ConvertToScaledBitmap(wx.Size(size[0], size[1]))
+            if bitmap is None or not bitmap.IsOk():
+                raise RuntimeError("Unable to render generated SVG")
+            return bitmap
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+    def get_bitmap(self, icon_name, size=(16, 16)):
+        if icon_name not in self.icon_index:
+            raise KeyError(f"Unknown icon name: {icon_name}")
+
+        normalized_size = self._normalize_size(size)
+        cache_key = (icon_name, normalized_size)
+        cached = self._bitmap_cache.get(cache_key)
+        if cached is not None and cached.IsOk():
+            return cached
+
+        symbol = self.icon_index[icon_name]
+        symbol_svg = self._build_symbol_svg(symbol)
+        bitmap = self._render_svg_to_bitmap(symbol_svg, normalized_size)
+        self._bitmap_cache[cache_key] = bitmap
+        return bitmap
 
 
 def can_preview_image(path):
@@ -107,6 +227,14 @@ def rotate_image_file(path, clockwise=True):
 
 def create_bitmap_button(parent, art_id, tooltip=None, icon_size=(24, 24), button_size=(32, 32)):
     bmp = wx.ArtProvider.GetBitmap(art_id, wx.ART_TOOLBAR, icon_size)
+    button = wx.BitmapButton(parent, bitmap=bmp, size=button_size)
+    if tooltip:
+        button.SetToolTip(tooltip)
+    return button
+
+
+def create_bitmap_button2(parent, icon_manager, icon_name, tooltip=None, icon_size=(24, 24), button_size=(32, 32)):
+    bmp = icon_manager.get_bitmap(icon_name, size=icon_size)
     button = wx.BitmapButton(parent, bitmap=bmp, size=button_size)
     if tooltip:
         button.SetToolTip(tooltip)

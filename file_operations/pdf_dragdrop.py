@@ -1,7 +1,7 @@
 import wx
 
 from localization import tr
-from pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_page
+from file_operations.pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_page
 
 
 class PdfPageDropTarget(wx.DropTarget):
