@@ -1,77 +1,36 @@
 import ctypes
 import os
-import tempfile
-import xml.etree.ElementTree as ET
 
 import wx
 
 
 class IconManager:
-    """Load an SVG sprite once and render named symbols as wx.Bitmap."""
+    """Load preview toolbar icons from BMP files and cache scaled bitmaps."""
 
-    DEFAULT_ICON_INDEX = {
-        "save": 0,
-        "open": 1,
-        "delete": 2,
-        "ok": 3,
+    DEFAULT_ICON_FILES = {
+        "save": "save.bmp",
+        "delete": "delete.bmp",
+        "ok": "ok.bmp",
     }
 
-    def __init__(self, sprite_path=None, icon_index=None):
+    def __init__(self, images_dir=None, icon_files=None):
         project_root = os.path.dirname(os.path.dirname(__file__))
-        self.sprite_path = sprite_path or os.path.join(project_root, "images", "icons01.svg")
-
-        if not os.path.isfile(self.sprite_path):
-            raise FileNotFoundError(self.sprite_path)
-
-        self._tree = ET.parse(self.sprite_path)
-        self._root = self._tree.getroot()
-        self._view_box = self._root.attrib.get("viewBox", "0 0 64 64")
-        self._groups = [child for child in list(self._root) if self._local_name(child.tag) == "g"]
-        if not self._groups:
-            raise RuntimeError("No top-level <g> symbols found in sprite")
-
+        self.images_dir = images_dir or os.path.join(project_root, "images")
         self._bitmap_cache = {}
-        mapping = dict(self.DEFAULT_ICON_INDEX)
-        if icon_index:
-            mapping.update(icon_index)
-        self.icon_index = self._build_index(mapping)
-
-    @staticmethod
-    def _local_name(tag):
-        if not isinstance(tag, str):
-            return ""
-        return tag.split("}", 1)[-1]
+        mapping = dict(self.DEFAULT_ICON_FILES)
+        if icon_files:
+            mapping.update(icon_files)
+        self.icon_files = self._build_index(mapping)
 
     def _build_index(self, mapping):
         result = {}
-        for name, symbol_ref in mapping.items():
+        for name, file_ref in mapping.items():
             normalized_name = str(name).strip().lower()
-            if isinstance(symbol_ref, int):
-                if symbol_ref < 0 or symbol_ref >= len(self._groups):
-                    raise IndexError(f"Icon index {symbol_ref} for '{name}' is out of range")
-                symbol = self._groups[symbol_ref]
-            elif isinstance(symbol_ref, str):
-                symbol = None
-                for group in self._groups:
-                    if group.attrib.get("id") == symbol_ref:
-                        symbol = group
-                        break
-                if symbol is None:
-                    raise KeyError(f"Symbol id '{symbol_ref}' not found for '{name}'")
-            else:
-                raise TypeError("Icon mapping values must be int index or str symbol id")
-
-            result[normalized_name] = symbol
+            icon_path = file_ref if os.path.isabs(file_ref) else os.path.join(self.images_dir, file_ref)
+            if not os.path.isfile(icon_path):
+                raise FileNotFoundError(icon_path)
+            result[normalized_name] = icon_path
         return result
-
-    def _build_symbol_svg(self, symbol):
-        group_markup = ET.tostring(symbol, encoding="unicode")
-        return (
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-            f"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{self._view_box}\">"
-            f"{group_markup}"
-            "</svg>"
-        )
 
     @staticmethod
     def _normalize_size(size):
@@ -80,35 +39,23 @@ class IconManager:
         return max(1, int(size[0])), max(1, int(size[1]))
 
     @staticmethod
-    def _render_svg_to_bitmap(svg_markup, size):
-        try:
-            import wx.svg as wxsvg
-        except Exception as exc:
-            raise RuntimeError("wx.svg module is unavailable") from exc
+    def _load_bitmap(icon_path, size):
+        image = wx.Image(icon_path, wx.BITMAP_TYPE_BMP)
+        if image is None or not image.IsOk():
+            raise RuntimeError(f"Unable to load bitmap: {icon_path}")
 
-        temp_path = None
-        try:
-            with tempfile.NamedTemporaryFile("w", suffix=".svg", delete=False, encoding="utf-8") as handle:
-                handle.write(svg_markup)
-                temp_path = handle.name
+        if image.GetWidth() != size[0] or image.GetHeight() != size[1]:
+            image = image.Scale(size[0], size[1], wx.IMAGE_QUALITY_HIGH)
+            if not image.IsOk():
+                raise RuntimeError(f"Unable to scale bitmap: {icon_path}")
 
-            svg_image = wxsvg.SVGimage.CreateFromFile(temp_path)
-            if svg_image is None:
-                raise RuntimeError("Unable to load generated SVG")
-
-            bitmap = svg_image.ConvertToScaledBitmap(wx.Size(size[0], size[1]))
-            if bitmap is None or not bitmap.IsOk():
-                raise RuntimeError("Unable to render generated SVG")
-            return bitmap
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
+        bitmap = image.ConvertToBitmap()
+        if bitmap is None or not bitmap.IsOk():
+            raise RuntimeError(f"Unable to create bitmap: {icon_path}")
+        return bitmap
 
     def get_bitmap(self, icon_name, size=(16, 16)):
-        if icon_name not in self.icon_index:
+        if icon_name not in self.icon_files:
             raise KeyError(f"Unknown icon name: {icon_name}")
 
         normalized_size = self._normalize_size(size)
@@ -117,9 +64,8 @@ class IconManager:
         if cached is not None and cached.IsOk():
             return cached
 
-        symbol = self.icon_index[icon_name]
-        symbol_svg = self._build_symbol_svg(symbol)
-        bitmap = self._render_svg_to_bitmap(symbol_svg, normalized_size)
+        icon_path = self.icon_files[icon_name]
+        bitmap = self._load_bitmap(icon_path, normalized_size)
         self._bitmap_cache[cache_key] = bitmap
         return bitmap
 

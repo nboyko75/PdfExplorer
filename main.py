@@ -257,7 +257,7 @@ class FileExplorer(wx.Frame):
 
     # ---------------- NAVIGATION ----------------
     def open_path(self, path, add_history=True):
-        navigation_utils.open_path(self, path, add_history=add_history)
+        return navigation_utils.open_path(self, path, add_history=add_history)
 
     def go_back(self, _):
         navigation_utils.go_back(self, _)
