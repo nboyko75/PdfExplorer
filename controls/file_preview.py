@@ -3,7 +3,7 @@ import os
 import wx
 
 from localization import tr
-from file_operations.pdf_utils import ajust_page_width, discard_pdf_changes, get_pdf_page_previews, has_unsaved_pdf_changes, is_pdf_file, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf
+from file_operations.pdf_utils import ajust_page_width, discard_pdf_changes, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf
 import file_operations.image_utils as image_utils
 import file_operations.pdf_dragdrop as pdf_dragdrop
 
@@ -27,6 +27,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_rotate_left_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_UNDO, tr("preview_rotate_left_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_rotate_right_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REDO, tr("preview_rotate_right_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_rotate_all_right_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REDO, tr("preview_rotate_all_right_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_move_page_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_GO_FORWARD, tr("preview_move_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_remove_page_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "delete", tr("preview_remove_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_optimize_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "ok", tr("preview_optimize_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_ajust_page_width_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REPORT_VIEW, tr("preview_ajust_page_width_button"), icon_size=preview_icon_size, button_size=preview_button_size)
@@ -48,6 +49,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_rotate_left_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_rotate_right_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_rotate_all_right_btn, 0, wx.RIGHT, 5)
+    owner.preview_toolbar.Add(owner.preview_move_page_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_remove_page_btn, 0, wx.RIGHT, 15)
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_ajust_page_width_btn, 0)
@@ -56,6 +58,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_rotate_left_btn.Enable(False)
     owner.preview_rotate_right_btn.Enable(False)
     owner.preview_remove_page_btn.Enable(False)
+    owner.preview_move_page_btn.Enable(False)
 
     owner.preview_text = wx.TextCtrl(
         owner.filePreview,
@@ -111,6 +114,7 @@ def bind_preview_events(owner):
     owner.pdf_preview_container.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.pdf_preview.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.preview_rotate_all_right_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_all_right)
+    owner.preview_move_page_btn.Bind(wx.EVT_BUTTON, on_preview_move_page)
     owner.preview_optimize_btn.Bind(wx.EVT_BUTTON, on_preview_optimize)
     owner.preview_ajust_page_width_btn.Bind(wx.EVT_BUTTON, on_preview_ajust_page_width)
     owner.preview_remove_page_btn.Bind(wx.EVT_BUTTON, on_preview_remove_page)
@@ -189,7 +193,7 @@ def get_selected_pdf_page_index(owner):
     return getattr(owner.selected_pdf_page_panel, "page_index", None)
 
 
-def update_rotate_page_buttons_state(owner):
+def update_page_buttons_state(owner):
     can_select_pdf_page = (
         is_pdf_file(owner.current_preview_path)
         and get_selected_pdf_page_index(owner) is not None
@@ -199,6 +203,7 @@ def update_rotate_page_buttons_state(owner):
     can_rotate = can_rotate_selected_page or can_rotate_image
     owner.preview_rotate_left_btn.Enable(can_rotate)
     owner.preview_rotate_right_btn.Enable(can_rotate)
+    owner.preview_move_page_btn.Enable(can_select_pdf_page) 
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
 
 
@@ -216,6 +221,7 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     owner.preview_rotate_all_right_btn.Show(show_pdf_only)
     owner.preview_optimize_btn.Show(show_pdf_only)
     owner.preview_ajust_page_width_btn.Show(show_pdf_only)
+    owner.preview_move_page_btn.Show(show_pdf_only)
     owner.preview_remove_page_btn.Show(show_pdf_only)
 
     owner.preview_rotate_left_btn.Show(show_pdf_or_image)
@@ -237,7 +243,7 @@ def select_pdf_page(owner, page_panel):
     owner.selected_pdf_page_panel = page_panel
     owner.selected_pdf_page_panel.SetBackgroundColour(wx.Colour(200, 230, 255))
     owner.selected_pdf_page_panel.Refresh()
-    update_rotate_page_buttons_state(owner)
+    update_page_buttons_state(owner)
 
 
 def on_pdf_page_select(owner, event):
@@ -267,7 +273,7 @@ def clear_pdf_feed(owner):
     """Clear the PDF feed display."""
     owner.pdf_pages_sizer.Clear(True)
     owner.selected_pdf_page_panel = None
-    update_rotate_page_buttons_state(owner)
+    update_page_buttons_state(owner)
 
 
 def show_pdf_feed(owner, path):
@@ -369,7 +375,7 @@ def show_file_preview(owner, path):
     owner.selected_pdf_page_panel = None
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0
-    update_rotate_page_buttons_state(owner)
+    update_page_buttons_state(owner)
     update_pdf_save_button_state(owner)
     owner.preview_text.Show(False)
     owner.pdf_pages_panel.Hide()
@@ -713,11 +719,131 @@ def on_preview_remove_page(event, owner=None):
                     ## save_pdf(owner.current_preview_path)
                     ## owner.refresh_list_item_size(owner.current_preview_path)
                     show_pdf_feed(owner, owner.current_preview_path)
-                    update_rotate_page_buttons_state(owner)
+                    update_page_buttons_state(owner)
                     update_pdf_save_button_state(owner)
             except Exception as exc:
                 wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
         dialog.Destroy()
+
+
+def _show_move_page_dialog(owner, page_count, default_source_page_no):
+    dialog = wx.Dialog(owner, title=tr("move_page_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    panel = wx.Panel(dialog)
+
+    source_label = wx.StaticText(panel, label=tr("move_page_source_label"))
+    source_spin = wx.SpinCtrl(panel, min=1, max=page_count, initial=default_source_page_no)
+
+    destination_label = wx.StaticText(panel, label=tr("move_page_destination_label"))
+    destination_choice = wx.Choice(
+        panel,
+        choices=[
+            tr("move_page_at_begin"),
+            tr("move_page_before"),
+            tr("move_page_after"),
+            tr("move_page_at_end"),
+        ],
+    )
+    destination_choice.SetSelection(3)
+
+    destination_page_label = wx.StaticText(panel, label=tr("move_page_destination_page_label"))
+    destination_page_spin = wx.SpinCtrl(panel, min=1, max=page_count, initial=default_source_page_no)
+
+    def update_destination_page_state(_):
+        mode = destination_choice.GetSelection()
+        needs_page_number = mode in (1, 2)
+        destination_page_label.Enable(needs_page_number)
+        destination_page_spin.Enable(needs_page_number)
+
+    destination_choice.Bind(wx.EVT_CHOICE, update_destination_page_state)
+    update_destination_page_state(None)
+
+    fields = wx.FlexGridSizer(cols=2, hgap=8, vgap=8)
+    fields.Add(source_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    fields.Add(source_spin, 1, wx.EXPAND)
+    fields.Add(destination_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    fields.Add(destination_choice, 1, wx.EXPAND)
+    fields.Add(destination_page_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    fields.Add(destination_page_spin, 1, wx.EXPAND)
+    fields.AddGrowableCol(1, 1)
+
+    ok_btn = wx.Button(panel, wx.ID_OK)
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    button_sizer.AddStretchSpacer()
+    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
+    button_sizer.Add(cancel_btn, 0)
+
+    root_sizer = wx.BoxSizer(wx.VERTICAL)
+    root_sizer.Add(fields, 1, wx.EXPAND | wx.ALL, 12)
+    root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+    panel.SetSizer(root_sizer)
+
+    dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+    dialog_sizer.Add(panel, 1, wx.EXPAND)
+    dialog.SetSizerAndFit(dialog_sizer)
+
+    if dialog.ShowModal() != wx.ID_OK:
+        dialog.Destroy()
+        return None
+
+    result = {
+        "source_page_no": source_spin.GetValue(),
+        "destination_mode": destination_choice.GetSelection(),
+        "destination_page_no": destination_page_spin.GetValue(),
+    }
+    dialog.Destroy()
+    return result
+
+
+def _resolve_move_destination_index(page_count, destination_mode, destination_page_no):
+    if destination_mode == 0:
+        return 0
+    if destination_mode == 1:
+        return max(0, min(page_count - 1, destination_page_no - 1))
+    if destination_mode == 2:
+        return max(0, min(page_count - 1, destination_page_no))
+    return page_count - 1
+
+
+def on_preview_move_page(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner is None or not is_pdf_file(owner.current_preview_path):
+        wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+
+    try:
+        page_count = get_pdf_page_count(owner.current_preview_path)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        return
+
+    if page_count <= 0:
+        return
+
+    selected_index = get_selected_pdf_page_index(owner)
+    default_source_page_no = (selected_index + 1) if selected_index is not None else 1
+    dialog_result = _show_move_page_dialog(owner, page_count, default_source_page_no)
+    if dialog_result is None:
+        return
+
+    source_index = dialog_result["source_page_no"] - 1
+    destination_index = _resolve_move_destination_index(
+        page_count,
+        dialog_result["destination_mode"],
+        dialog_result["destination_page_no"],
+    )
+
+    if source_index == destination_index:
+        return
+
+    try:
+        with owner.busy_cursor():
+            move_pdf_page(owner.current_preview_path, source_index, destination_index)
+            show_pdf_feed(owner, owner.current_preview_path)
+            update_page_buttons_state(owner)
+            update_pdf_save_button_state(owner)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
 def on_preview_optimize(event):
@@ -799,6 +925,8 @@ def on_preview_right_click(event):
     rotate_all_right_item = menu.Append(-1, tr("preview_rotate_all_right_button"))
     joined_menu_redo = image_utils.create_joined_art_bitmap(wx.ART_REDO, client=wx.ART_MENU, size=(16, 16))
     set_menu_icon(rotate_all_right_item, bitmap=joined_menu_redo)
+    move_page_item = menu.Append(-1, tr("preview_move_page_button"))
+    set_menu_icon(move_page_item, wx.ART_GO_FORWARD)
     remove_page_item = menu.Append(-1, tr("preview_remove_page_button"))
     set_menu_icon2(remove_page_item, icon_manager, "delete")
     menu.AppendSeparator()
@@ -809,6 +937,7 @@ def on_preview_right_click(event):
  
     save_item.Enable(is_pdf_file(owner.current_preview_path) and has_unsaved_pdf_changes(owner.current_preview_path))
     remove_page_item.Enable(is_pdf_file(owner.current_preview_path) and get_selected_pdf_page_index(owner) is not None)
+    move_page_item.Enable(is_pdf_file(owner.current_preview_path))
 
     ## owner.Bind(wx.EVT_MENU, on_preview_edit, edit_item)
     owner.Bind(wx.EVT_MENU, on_preview_save, save_item)
@@ -819,6 +948,7 @@ def on_preview_right_click(event):
     owner.Bind(wx.EVT_MENU, on_preview_rotate_left, rotate_left_item)
     owner.Bind(wx.EVT_MENU, on_preview_rotate_right, rotate_right_item)
     owner.Bind(wx.EVT_MENU, on_preview_rotate_all_right, rotate_all_right_item)
+    owner.Bind(wx.EVT_MENU, on_preview_move_page, move_page_item)
     owner.Bind(wx.EVT_MENU, lambda evt: on_preview_remove_page(evt, owner=owner), remove_page_item)
     owner.Bind(wx.EVT_MENU, on_preview_optimize, optimize_item)
     owner.Bind(wx.EVT_MENU, on_preview_ajust_page_width, ajust_page_width_item)

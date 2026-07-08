@@ -266,6 +266,7 @@ class FileExplorer(wx.Frame):
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_ajust_page_width_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
+        self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
         self.list_open_btn.SetToolTip(tr("context_open"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
         self.list_delete_btn.SetToolTip(tr("context_delete"))

@@ -313,7 +313,7 @@ def move_pdf_page(path, from_index, to_index):
 
         order = list(range(page_count))
         page = order.pop(from_index)
-        insert_at = to_index - 1 if from_index < to_index else to_index
+        insert_at = to_index
         order.insert(insert_at, page)
 
         new_doc = fitz.open()
