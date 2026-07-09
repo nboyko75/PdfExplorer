@@ -1,4 +1,5 @@
 import os
+import sys
 from contextlib import contextmanager
 import wx
 
@@ -33,7 +34,7 @@ SUPPORTED_LOCALES = set(LANGUAGE_LABEL_BY_CODE.keys())
 
 
 class FileExplorer(wx.Frame):
-    def __init__(self):
+    def __init__(self, initial_path=None):
         super().__init__(None, title=tr("app_title"), size=(1400, 900))
 
         self.history = []
@@ -64,11 +65,15 @@ class FileExplorer(wx.Frame):
 
         restore_window_geometry(self, settings)
 
+        opened_initial_path = False
+        if initial_path:
+            opened_initial_path = self.open_location(initial_path, add_history=False)
+
         last_folder = settings.get("last_folder")
-        if last_folder and os.path.isdir(last_folder):
+        if not opened_initial_path and last_folder and os.path.isdir(last_folder):
             self.open_path(last_folder, add_history=False)
             wx.CallAfter(self.select_tree_item_by_path, last_folder)
-        else:
+        elif not opened_initial_path:
             self.open_path(os.path.expanduser("~"))
 
         # global key hook for undo
@@ -356,6 +361,40 @@ class FileExplorer(wx.Frame):
     def open_path(self, path, add_history=True):
         return navigation_utils.open_path(self, path, add_history=add_history)
 
+    def open_location(self, path, add_history=True):
+        if not isinstance(path, str) or not path:
+            return False
+
+        normalized_path = os.path.abspath(path)
+        if os.path.isdir(normalized_path):
+            return self.open_path(normalized_path, add_history=add_history)
+
+        if os.path.isfile(normalized_path) and is_pdf_file(normalized_path):
+            return self.open_pdf_file(normalized_path, add_history=add_history)
+
+        return False
+
+    def open_pdf_file(self, path, add_history=True):
+        normalized_path = os.path.abspath(path)
+        parent_folder = os.path.dirname(normalized_path)
+        if not parent_folder or not os.path.isdir(parent_folder):
+            return False
+
+        if not self.open_path(parent_folder, add_history=add_history):
+            return False
+
+        self._syncing_tree_from_path = True
+        try:
+            self.select_tree_item_by_path(parent_folder)
+        finally:
+            self._syncing_tree_from_path = False
+
+        if not self.select_list_item_by_path(normalized_path):
+            return False
+
+        file_preview.show_file_preview(self, normalized_path)
+        return True
+
     def go_back(self, _):
         navigation_utils.go_back(self, _)
 
@@ -368,6 +407,9 @@ class FileExplorer(wx.Frame):
 
     def refresh_list_item_size(self, path):
         return filelist.refresh_list_item_size(self, path)
+
+    def select_list_item_by_path(self, path):
+        return filelist.select_list_item_by_path(self, path)
 
     def on_preview_resize(self, event):
         image_utils.refresh_image_preview_bitmap(self)
@@ -443,7 +485,7 @@ class FileExplorer(wx.Frame):
 
     def on_path_enter(self, event):
         path = self.path_box.GetValue()
-        if not self.open_path(path):
+        if not self.open_location(path):
             return
 
         if os.path.isdir(path):
@@ -467,6 +509,7 @@ class FileExplorer(wx.Frame):
 if __name__ == "__main__":
     app = wx.App(False)
     wx.InitAllImageHandlers()
-    frame = FileExplorer()
+    initial_path = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else None
+    frame = FileExplorer(initial_path=initial_path)
     frame.Show()
     app.MainLoop()

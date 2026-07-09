@@ -86,6 +86,41 @@ def refresh_list_item_size(owner, path):
     return False
 
 
+def select_list_item_by_path(owner, path):
+    if not isinstance(path, str) or not os.path.isfile(path):
+        return False
+
+    current_folder = os.path.normpath(owner.path_box.GetValue())
+    item_folder = os.path.normpath(os.path.dirname(path))
+    if current_folder != item_folder:
+        return False
+
+    target_name = os.path.basename(path)
+
+    owner._restoring_list_selection = True
+    try:
+        for index in range(owner.list.GetItemCount()):
+            owner.list.SetItemState(index, 0, wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED)
+
+        for index in range(owner.list.GetItemCount()):
+            if owner.list.GetItemText(index) != target_name:
+                continue
+
+            owner.list.SetItemState(
+                index,
+                wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+                wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED,
+            )
+            owner.list.EnsureVisible(index)
+            update_list_toolbar_buttons(owner)
+            return True
+    finally:
+        owner._restoring_list_selection = False
+
+    update_list_toolbar_buttons(owner)
+    return False
+
+
 def on_list_select(owner, event):
     if getattr(owner, "_restoring_list_selection", False):
         update_list_toolbar_buttons(owner)

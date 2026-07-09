@@ -38,4 +38,14 @@ if exist "%PROJECT_DIR%%SETTINGS_FILE%" (
 )
 echo Settings file prepared: "%DIST_DIR%\%SETTINGS_FILE%"
 
+if exist "%PROJECT_DIR%register_pdf_association.cmd" (
+	copy /Y "%PROJECT_DIR%register_pdf_association.cmd" "%DIST_DIR%\register_pdf_association.cmd" >nul
+	echo PDF association helper copied to "%DIST_DIR%\register_pdf_association.cmd"
+)
+
+if exist "%PROJECT_DIR%unregister_pdf_association.cmd" (
+	copy /Y "%PROJECT_DIR%unregister_pdf_association.cmd" "%DIST_DIR%\unregister_pdf_association.cmd" >nul
+	echo PDF association uninstall helper copied to "%DIST_DIR%\unregister_pdf_association.cmd"
+)
+
 endlocal                                                                            
