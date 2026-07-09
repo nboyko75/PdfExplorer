@@ -58,12 +58,15 @@ class FileExplorer(wx.Frame):
             saved_locale = "uk"
         self.current_locale = saved_locale if saved_locale in SUPPORTED_LOCALES else "uk"
         self.pdf_preview_zoom = 1.0
+        self.main_splitter = None
 
         load_locale(self.current_locale)
         self.build_ui()
         self.bind_events()
 
         restore_window_geometry(self, settings)
+        self.restore_splitter_positions(settings)
+        wx.CallAfter(self.restore_splitter_positions, settings)
 
         opened_initial_path = False
         if initial_path:
@@ -122,12 +125,12 @@ class FileExplorer(wx.Frame):
         toolbar.Add(self.language_combo, 0, wx.ALIGN_CENTER_VERTICAL)
 
         # ===== Split view =====
-        splitter = wx.SplitterWindow(panel)
+        self.main_splitter = wx.SplitterWindow(panel)
 
-        self.tree = wx.TreeCtrl(splitter, style=wx.TR_HAS_BUTTONS)
+        self.tree = wx.TreeCtrl(self.main_splitter, style=wx.TR_HAS_BUTTONS)
         self.init_tree_images()
-        self.filePanel = wx.Panel(splitter)
-        splitter.SplitVertically(self.tree, self.filePanel, 320)
+        self.filePanel = wx.Panel(self.main_splitter)
+        self.main_splitter.SplitVertically(self.tree, self.filePanel, 320)
 
         self.fileSplitter = wx.SplitterWindow(self.filePanel)
 
@@ -183,7 +186,7 @@ class FileExplorer(wx.Frame):
         self.filePanel.SetSizer(sizer)
 
         main_sizer.Add(toolbar, 0, wx.EXPAND | wx.ALL, 5)
-        main_sizer.Add(splitter, 1, wx.EXPAND)
+        main_sizer.Add(self.main_splitter, 1, wx.EXPAND)
 
         panel.SetSizer(main_sizer)
 
@@ -206,6 +209,35 @@ class FileExplorer(wx.Frame):
 
     def save_last_folder(self):
         navigation_utils.save_last_folder(self)
+
+    def save_splitter_positions(self):
+        main_sash = None
+        preview_sash = None
+
+        if self.main_splitter is not None and self.main_splitter.IsSplit():
+            main_sash = int(self.main_splitter.GetSashPosition())
+
+        if self.fileSplitter is not None and self.fileSplitter.IsSplit():
+            preview_sash = int(self.fileSplitter.GetSashPosition())
+
+        update_settings(
+            {
+                "main_splitter_sash": main_sash,
+                "preview_splitter_sash": preview_sash,
+            }
+        )
+
+    def restore_splitter_positions(self, settings=None):
+        if settings is None:
+            settings = load_settings()
+
+        main_sash = settings.get("main_splitter_sash")
+        if isinstance(main_sash, int) and self.main_splitter is not None and self.main_splitter.IsSplit():
+            self.main_splitter.SetSashPosition(max(100, main_sash))
+
+        preview_sash = settings.get("preview_splitter_sash")
+        if isinstance(preview_sash, int) and self.fileSplitter is not None and self.fileSplitter.IsSplit():
+            self.fileSplitter.SetSashPosition(max(100, preview_sash))
 
     def on_close(self, event):
         unsaved_pdf_paths = get_unsaved_pdf_paths()
@@ -237,6 +269,7 @@ class FileExplorer(wx.Frame):
                 return
 
         try:
+            self.save_splitter_positions()
             save_window_geometry(self)
             self.save_last_folder()
         except Exception:
