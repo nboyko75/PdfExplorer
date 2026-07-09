@@ -2,7 +2,7 @@ import os
 import wx
 
 from localization import tr
-from file_operations.pdf_utils import ajust_page_width, optimize_pdf, save_pdf
+from file_operations.pdf_utils import adjust_page_width, optimize_pdf, save_pdf
 import file_operations.image_utils as image_utils
 
 
@@ -276,7 +276,7 @@ def adjust_page_width_all_pdf_in_path(owner, path):
     with cursor_ctx:
         for file_path in _iter_pdf_targets(base_path):
             try:
-                ajust_page_width(file_path)
+                adjust_page_width(file_path)
                 save_pdf(file_path)
                 if hasattr(owner, "refresh_list_item_size"):
                     owner.refresh_list_item_size(file_path)

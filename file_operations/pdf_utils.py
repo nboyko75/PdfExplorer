@@ -465,7 +465,7 @@ def optimize_pdf(path):
         doc.close()
 
 
-def ajust_page_width(path):
+def adjust_page_width(path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 

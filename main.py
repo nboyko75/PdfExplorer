@@ -59,6 +59,10 @@ class FileExplorer(wx.Frame):
         self.current_locale = saved_locale if saved_locale in SUPPORTED_LOCALES else "uk"
         self.pdf_preview_zoom = 1.0
         self.main_splitter = None
+        saved_page_view_mode = str(settings.get("pdf_page_view_mode", "1_page_wide"))
+        if saved_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
+            saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
+        self.pdf_page_view_mode = saved_page_view_mode
 
         load_locale(self.current_locale)
         self.build_ui()
@@ -224,6 +228,7 @@ class FileExplorer(wx.Frame):
             {
                 "main_splitter_sash": main_sash,
                 "preview_splitter_sash": preview_sash,
+                "pdf_page_view_mode": self.pdf_page_view_mode,
             }
         )
 
@@ -301,8 +306,9 @@ class FileExplorer(wx.Frame):
         self.preview_rotate_left_btn.SetToolTip(tr("preview_rotate_left_button"))
         self.preview_rotate_right_btn.SetToolTip(tr("preview_rotate_right_button"))
         self.preview_rotate_all_right_btn.SetToolTip(tr("preview_rotate_all_right_button"))
+        file_preview.sync_pdf_page_view_mode_controls(self)
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
-        self.preview_ajust_page_width_btn.SetToolTip(tr("preview_ajust_page_width_button"))
+        self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
         self.list_open_btn.SetToolTip(tr("context_open"))
@@ -311,6 +317,20 @@ class FileExplorer(wx.Frame):
         self.refresh_tree_placeholders()
         self.load_folder(self.path_box.GetValue())
         file_preview.show_file_preview(self, self.current_preview_path)
+
+    def set_pdf_page_view_mode(self, mode, refresh_preview=True):
+        if mode not in file_preview.VALID_PAGE_VIEW_MODES:
+            return
+
+        if self.pdf_page_view_mode == mode:
+            file_preview.sync_pdf_page_view_mode_controls(self)
+            return
+
+        self.pdf_page_view_mode = mode
+        file_preview.sync_pdf_page_view_mode_controls(self)
+
+        if refresh_preview and is_pdf_file(self.current_preview_path):
+            file_preview.show_pdf_feed(self, self.current_preview_path)
 
     def create_drag_overlay(self):
         return pdf_dragdrop.create_drag_overlay(self)
@@ -446,6 +466,18 @@ class FileExplorer(wx.Frame):
 
     def on_preview_resize(self, event):
         image_utils.refresh_image_preview_bitmap(self)
+
+        if is_pdf_file(self.current_preview_path):
+            if not getattr(self, "_pdf_preview_resize_refresh_pending", False):
+                self._pdf_preview_resize_refresh_pending = True
+
+                def _refresh_pdf_preview_after_resize():
+                    self._pdf_preview_resize_refresh_pending = False
+                    if is_pdf_file(self.current_preview_path):
+                        file_preview.show_pdf_feed(self, self.current_preview_path)
+
+                wx.CallAfter(_refresh_pdf_preview_after_resize)
+
         event.Skip()
 
     # --------- EVENTS ----------------
