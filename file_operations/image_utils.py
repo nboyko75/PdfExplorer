@@ -11,6 +11,8 @@ class IconManager:
         "save": "save.bmp",
         "delete": "delete.bmp",
         "ok": "ok.bmp",
+        "up": "up.bmp",
+        "snow": "snow.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):

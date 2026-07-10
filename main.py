@@ -61,12 +61,12 @@ class FileExplorer(wx.Frame):
         self.main_splitter = None
         saved_page_view_mode = str(settings.get("pdf_page_view_mode", "1_page_wide"))
         if saved_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
-            saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
+            saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_TALL
         self.pdf_page_view_mode = saved_page_view_mode
         if saved_page_view_mode in file_preview.FIXED_PAGE_VIEW_MODES:
             self.pdf_page_view_selected_mode = saved_page_view_mode
         else:
-            self.pdf_page_view_selected_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
+            self.pdf_page_view_selected_mode = file_preview.PAGE_VIEW_MODE_1_TALL
 
         load_locale(self.current_locale)
         self.build_ui()
@@ -233,10 +233,10 @@ class FileExplorer(wx.Frame):
             persisted_page_view_mode = getattr(
                 self,
                 "pdf_page_view_selected_mode",
-                file_preview.PAGE_VIEW_MODE_1_WIDE,
+                file_preview.PAGE_VIEW_MODE_1_TALL,
             )
         if persisted_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
-            persisted_page_view_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
+            persisted_page_view_mode = file_preview.PAGE_VIEW_MODE_1_TALL
 
         update_settings(
             {
@@ -316,10 +316,8 @@ class FileExplorer(wx.Frame):
         ## self.preview_delete_btn.SetToolTip(tr("preview_delete_button"))
         self.preview_zoom_in_btn.SetToolTip(tr("preview_zoom_in_button"))
         self.preview_zoom_out_btn.SetToolTip(tr("preview_zoom_out_button"))
-        self.preview_rotate_all_left_btn.SetToolTip(tr("preview_rotate_all_left_button"))
-        self.preview_rotate_left_btn.SetToolTip(tr("preview_rotate_left_button"))
-        self.preview_rotate_right_btn.SetToolTip(tr("preview_rotate_right_button"))
-        self.preview_rotate_all_right_btn.SetToolTip(tr("preview_rotate_all_right_button"))
+        self.preview_rotate_menu_btn.SetToolTip(tr("preview_rotate_button"))
+        self.preview_auto_rotate_btn.SetToolTip(tr("preview_auto_rotate_button"))
         file_preview.sync_pdf_page_view_mode_controls(self)
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))

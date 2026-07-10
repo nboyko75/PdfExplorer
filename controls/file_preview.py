@@ -1,9 +1,8 @@
 import os
-
 import wx
 
 from localization import tr
-from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf
+from file_operations.pdf_utils import adjust_page_width, auto_rotate_pdf, discard_pdf_changes, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf
 import file_operations.image_utils as image_utils
 import file_operations.pdf_dragdrop as pdf_dragdrop
 
@@ -32,22 +31,12 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_zoom_out_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_MINUS, tr("preview_zoom_out_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_zoom_in_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_PLUS, tr("preview_zoom_in_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_page_view_mode_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_LIST_VIEW, tr("preview_show_mode"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_rotate_all_left_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_UNDO, tr("preview_rotate_all_left_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_rotate_left_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_UNDO, tr("preview_rotate_left_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_rotate_right_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REDO, tr("preview_rotate_right_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_rotate_all_right_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REDO, tr("preview_rotate_all_right_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_rotate_menu_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "snow", tr("preview_rotate_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_auto_rotate_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "up", tr("preview_auto_rotate_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_move_page_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_GO_FORWARD, tr("preview_move_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_remove_page_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "delete", tr("preview_remove_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_adjust_page_width_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REPORT_VIEW, tr("preview_adjust_page_width_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_optimize_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "ok", tr("preview_optimize_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-
-    joined_toolbar_undo = image_utils.create_joined_art_bitmap(wx.ART_UNDO, client=wx.ART_TOOLBAR, size=(16, 16))
-    if joined_toolbar_undo.IsOk():
-        owner.preview_rotate_all_left_btn.SetBitmapLabel(joined_toolbar_undo)
-
-    joined_toolbar_redo = image_utils.create_joined_art_bitmap(wx.ART_REDO, client=wx.ART_TOOLBAR, size=(16, 16))
-    if joined_toolbar_redo.IsOk():
-        owner.preview_rotate_all_right_btn.SetBitmapLabel(joined_toolbar_redo)
 
     ## owner.preview_toolbar.Add(owner.preview_edit_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_save_btn, 0, wx.RIGHT, 5)
@@ -55,18 +44,15 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_zoom_out_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_zoom_in_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_page_view_mode_btn, 0, wx.RIGHT, 10)
-    owner.preview_toolbar.Add(owner.preview_rotate_all_left_btn, 0, wx.RIGHT, 5)
-    owner.preview_toolbar.Add(owner.preview_rotate_left_btn, 0, wx.RIGHT, 5)
-    owner.preview_toolbar.Add(owner.preview_rotate_right_btn, 0, wx.RIGHT, 5)
-    owner.preview_toolbar.Add(owner.preview_rotate_all_right_btn, 0, wx.RIGHT, 5)
+    owner.preview_toolbar.Add(owner.preview_rotate_menu_btn, 0, wx.RIGHT, 5)
+    owner.preview_toolbar.Add(owner.preview_auto_rotate_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_move_page_btn, 0, wx.RIGHT, 5)
     owner.preview_toolbar.Add(owner.preview_remove_page_btn, 0, wx.RIGHT, 15)
     owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0)
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 5)
 
     owner.preview_save_btn.Enable(False)
-    owner.preview_rotate_left_btn.Enable(False)
-    owner.preview_rotate_right_btn.Enable(False)
+    owner.preview_rotate_menu_btn.Enable(False)
     owner.preview_remove_page_btn.Enable(False)
     owner.preview_move_page_btn.Enable(False)
 
@@ -113,17 +99,13 @@ def bind_preview_events(owner):
     ## owner.preview_delete_btn.Bind(wx.EVT_BUTTON, on_preview_delete)
     owner.preview_zoom_in_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_in)
     owner.preview_zoom_out_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_out)
-    owner.preview_rotate_all_left_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_all_left)
-    owner.preview_rotate_left_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_left)
-    owner.preview_rotate_right_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_right)
-    owner.preview_rotate_left_btn.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
-    owner.preview_rotate_right_btn.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
+    owner.preview_rotate_menu_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_menu)
     owner.filePreview.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.preview_text.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.pdf_pages_panel.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.pdf_preview_container.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.pdf_preview.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
-    owner.preview_rotate_all_right_btn.Bind(wx.EVT_BUTTON, on_preview_rotate_all_right)
+    owner.preview_auto_rotate_btn.Bind(wx.EVT_BUTTON, on_preview_auto_rotate)
     owner.preview_page_view_mode_btn.Bind(wx.EVT_BUTTON, on_preview_page_view_mode_menu)
     owner.preview_move_page_btn.Bind(wx.EVT_BUTTON, on_preview_move_page)
     owner.preview_optimize_btn.Bind(wx.EVT_BUTTON, on_preview_optimize)
@@ -212,8 +194,7 @@ def update_page_buttons_state(owner):
     can_rotate_selected_page = can_select_pdf_page
     can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
     can_rotate = can_rotate_selected_page or can_rotate_image
-    owner.preview_rotate_left_btn.Enable(can_rotate)
-    owner.preview_rotate_right_btn.Enable(can_rotate)
+    owner.preview_rotate_menu_btn.Enable(is_pdf_file(owner.current_preview_path) or can_rotate_image)
     owner.preview_move_page_btn.Enable(can_select_pdf_page) 
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
 
@@ -228,16 +209,13 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     show_pdf_or_image = is_pdf or is_image
 
     owner.preview_save_btn.Show(show_pdf_only)
-    owner.preview_rotate_all_left_btn.Show(show_pdf_only)
-    owner.preview_rotate_all_right_btn.Show(show_pdf_only)
+    owner.preview_rotate_menu_btn.Show(show_pdf_or_image)
+    owner.preview_auto_rotate_btn.Show(show_pdf_only)
     owner.preview_optimize_btn.Show(show_pdf_only)
     owner.preview_adjust_page_width_btn.Show(show_pdf_only)
     owner.preview_move_page_btn.Show(show_pdf_only)
     owner.preview_remove_page_btn.Show(show_pdf_only)
     owner.preview_page_view_mode_btn.Show(show_pdf_only)
-
-    owner.preview_rotate_left_btn.Show(show_pdf_or_image)
-    owner.preview_rotate_right_btn.Show(show_pdf_or_image)
 
     owner.preview_toolbar.Layout()
     owner.filePreview.Layout()
@@ -249,15 +227,15 @@ def _get_preview_layout_mode(owner):
     if selected_mode in FIXED_PAGE_VIEW_MODES:
         return selected_mode
 
-    return PAGE_VIEW_MODE_1_WIDE
+    return PAGE_VIEW_MODE_1_TALL
 
 
 def sync_pdf_page_view_mode_controls(owner):
-    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
     if current_mode in FIXED_PAGE_VIEW_MODES:
         owner.pdf_page_view_selected_mode = current_mode
 
-    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_WIDE)
+    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_TALL)
     if selected_mode not in FIXED_PAGE_VIEW_MODES:
         selected_mode = PAGE_VIEW_MODE_1_WIDE
 
@@ -307,12 +285,12 @@ def build_page_view_mode_menu(owner, menu):
     show_1_page_tall_item = menu.AppendRadioItem(-1, tr("preview_show_1_page_tall"))
     show_manual_scale_item = menu.AppendRadioItem(-1, tr("preview_show_manual_scale"))
 
-    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
-    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_WIDE)
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
+    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_TALL)
     if selected_mode not in FIXED_PAGE_VIEW_MODES:
-        selected_mode = PAGE_VIEW_MODE_1_WIDE
+        selected_mode = PAGE_VIEW_MODE_1_TALL
 
-    show_1_page_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_WIDE)
+    show_1_page_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_TALL)
     show_2_pages_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_2_WIDE)
     show_1_page_tall_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_TALL)
     show_manual_scale_item.Check(current_mode == PAGE_VIEW_MODE_MANUAL)
@@ -337,7 +315,65 @@ def on_preview_page_view_mode_menu(event):
     menu = wx.Menu()
     build_page_view_mode_menu(owner, menu)
     sync_pdf_page_view_mode_controls(owner)
-    owner.preview_page_view_mode_btn.PopupMenu(menu)
+    anchor = (0, owner.preview_page_view_mode_btn.GetSize().GetHeight())
+    owner.preview_page_view_mode_btn.PopupMenu(menu, anchor)
+    menu.Destroy()
+
+
+def build_rotation_menu(owner, menu):
+    ## icon_manager = getattr(owner, "icon_manager", None)
+
+    rotate_all_left_item = menu.Append(-1, tr("preview_rotate_all_left_button"))
+    joined_menu_undo = image_utils.create_joined_art_bitmap(wx.ART_UNDO, client=wx.ART_MENU, size=(16, 16))
+    if joined_menu_undo.IsOk():
+        rotate_all_left_item.SetBitmap(joined_menu_undo)
+
+    rotate_left_item = menu.Append(-1, tr("preview_rotate_left_button"))
+    left_bitmap = wx.ArtProvider.GetBitmap(wx.ART_UNDO, wx.ART_MENU, (16, 16))
+    if left_bitmap.IsOk():
+        rotate_left_item.SetBitmap(left_bitmap)
+
+    rotate_right_item = menu.Append(-1, tr("preview_rotate_right_button"))
+    right_bitmap = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
+    if right_bitmap.IsOk():
+        rotate_right_item.SetBitmap(right_bitmap)
+
+    rotate_all_right_item = menu.Append(-1, tr("preview_rotate_all_right_button"))
+    joined_menu_redo = image_utils.create_joined_art_bitmap(wx.ART_REDO, client=wx.ART_MENU, size=(16, 16))
+    if joined_menu_redo.IsOk():
+        rotate_all_right_item.SetBitmap(joined_menu_redo)
+
+    is_pdf_preview = is_pdf_file(owner.current_preview_path)
+    can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
+    can_rotate_single = (is_pdf_preview and get_selected_pdf_page_index(owner) is not None) or can_rotate_image
+
+    rotate_all_left_item.Enable(is_pdf_preview)
+    rotate_all_right_item.Enable(is_pdf_preview)
+    rotate_left_item.Enable(can_rotate_single)
+    rotate_right_item.Enable(can_rotate_single)
+
+    owner.Bind(wx.EVT_MENU, on_preview_rotate_all_left, rotate_all_left_item)
+    owner.Bind(wx.EVT_MENU, on_preview_rotate_left, rotate_left_item)
+    owner.Bind(wx.EVT_MENU, on_preview_rotate_right, rotate_right_item)
+    owner.Bind(wx.EVT_MENU, on_preview_rotate_all_right, rotate_all_right_item)
+
+    return {
+        "rotate_all_left_item": rotate_all_left_item,
+        "rotate_left_item": rotate_left_item,
+        "rotate_right_item": rotate_right_item,
+        "rotate_all_right_item": rotate_all_right_item,
+    }
+
+
+def on_preview_rotate_menu(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner is None:
+        return
+
+    menu = wx.Menu()
+    build_rotation_menu(owner, menu)
+    anchor = (0, owner.preview_rotate_menu_btn.GetSize().GetHeight())
+    owner.preview_rotate_menu_btn.PopupMenu(menu, anchor)
     menu.Destroy()
 
 
@@ -345,7 +381,7 @@ def _compute_pdf_preview_max_height(owner):
     max_bitmap_width, max_bitmap_height = _compute_pdf_page_fit_constraints(owner)
     mode = _get_preview_layout_mode(owner)
     portrait_width_ratio = 0.707
-    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
     zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
 
     if mode == PAGE_VIEW_MODE_1_TALL:
@@ -385,7 +421,7 @@ def _compute_pdf_page_fit_constraints(owner):
     per_page_vertical = page_panel_inner_margin + page_panel_border + label_height + hscroll_height
 
     if mode == PAGE_VIEW_MODE_2_WIDE:
-        available_width = client_width - (gap_width * 3) - (per_page_horizontal * 2) - vscroll_width ## - fit_safety_margin
+        available_width = client_width - (gap_width * 3) - (per_page_horizontal * 2) - vscroll_width + fit_safety_margin
         max_bitmap_width = max(80, available_width // 2)
     else:
         available_width = client_width - (gap_width * 2) - per_page_horizontal - vscroll_width + fit_safety_margin
@@ -510,7 +546,7 @@ def show_pdf_feed(owner, path):
             page_count, shown_pages, previews = get_pdf_page_previews(path, max_height=max_height)
             max_bitmap_width, max_bitmap_height = _compute_pdf_page_fit_constraints(owner)
             mode = _get_preview_layout_mode(owner)
-            current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+            current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
             zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
 
             max_bitmap_width = max(80, int(round(max_bitmap_width * zoom_scale)))
@@ -876,20 +912,10 @@ def on_preview_rotate_buttons_wheel(event):
         return
 
     owner = event.GetEventObject()
-    while owner is not None and not hasattr(owner, "preview_rotate_left_btn"):
+    while owner is not None and not hasattr(owner, "preview_rotate_menu_btn"):
         owner = owner.GetParent() if hasattr(owner, "GetParent") else None
 
     if owner is not None:
-        if _is_mouse_over(owner.preview_rotate_left_btn):
-            zoom_func = on_preview_zoom_in if event.GetWheelRotation() > 0 else on_preview_zoom_out
-            for _ in range(_wheel_steps(event)):
-                zoom_func(event)
-            return
-        if _is_mouse_over(owner.preview_rotate_right_btn):
-            zoom_func = on_preview_zoom_in if event.GetWheelRotation() > 0 else on_preview_zoom_out
-            for _ in range(_wheel_steps(event)):
-                zoom_func(event)
-            return
 
         # Allow wheel-zoom while cursor is over the preview image area.
         if _is_mouse_over(getattr(owner, "pdf_preview", None)) or _is_mouse_over(getattr(owner, "pdf_preview_container", None)):
@@ -940,6 +966,20 @@ def on_preview_rotate_all_right(event):
         try:
             with owner.busy_cursor():
                 rotate_pdf(owner.current_preview_path, 90)
+                show_pdf_feed(owner, owner.current_preview_path)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+
+
+def on_preview_auto_rotate(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner:
+        if not is_pdf_file(owner.current_preview_path):
+            wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+            return
+        try:
+            with owner.busy_cursor():
+                auto_rotate_pdf(owner.current_preview_path)
                 show_pdf_feed(owner, owner.current_preview_path)
         except Exception as exc:
             wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
@@ -1098,6 +1138,9 @@ def on_preview_move_page(event):
 
 
 def on_preview_optimize(event):
+    ## Auto-rotate the PDF before optimizing to avoid cutting page.
+    on_preview_auto_rotate(event)
+
     owner = _get_preview_owner_from_event(event)
     if owner:
         if not is_pdf_file(owner.current_preview_path):
@@ -1168,16 +1211,9 @@ def on_preview_right_click(event):
     menu.AppendSeparator()
     build_page_view_mode_menu(owner, menu)
     menu.AppendSeparator()
-    rotate_all_left_item = menu.Append(-1, tr("preview_rotate_all_left_button"))
-    joined_menu_undo = image_utils.create_joined_art_bitmap(wx.ART_UNDO, client=wx.ART_MENU, size=(16, 16))
-    set_menu_icon(rotate_all_left_item, bitmap=joined_menu_undo)
-    rotate_left_item = menu.Append(-1, tr("preview_rotate_left_button"))
-    set_menu_icon(rotate_left_item, wx.ART_UNDO)
-    rotate_right_item = menu.Append(-1, tr("preview_rotate_right_button"))
-    set_menu_icon(rotate_right_item, wx.ART_REDO)
-    rotate_all_right_item = menu.Append(-1, tr("preview_rotate_all_right_button"))
-    joined_menu_redo = image_utils.create_joined_art_bitmap(wx.ART_REDO, client=wx.ART_MENU, size=(16, 16))
-    set_menu_icon(rotate_all_right_item, bitmap=joined_menu_redo)
+    rotation_menu_items = build_rotation_menu(owner, menu)
+    auto_rotate_item = menu.Append(-1, tr("preview_auto_rotate_button"))
+    set_menu_icon2(auto_rotate_item, icon_manager, "up")
     menu.AppendSeparator()
     move_page_item = menu.Append(-1, tr("preview_move_page_button"))
     set_menu_icon(move_page_item, wx.ART_GO_FORWARD)
@@ -1192,16 +1228,14 @@ def on_preview_right_click(event):
     save_item.Enable(is_pdf_file(owner.current_preview_path) and has_unsaved_pdf_changes(owner.current_preview_path))
     remove_page_item.Enable(is_pdf_file(owner.current_preview_path) and get_selected_pdf_page_index(owner) is not None)
     move_page_item.Enable(is_pdf_file(owner.current_preview_path))
+    auto_rotate_item.Enable(is_pdf_file(owner.current_preview_path))
 
     ## owner.Bind(wx.EVT_MENU, on_preview_edit, edit_item)
     owner.Bind(wx.EVT_MENU, on_preview_save, save_item)
     ## owner.Bind(wx.EVT_MENU, on_preview_delete, delete_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_in, zoom_in_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_out, zoom_out_item)
-    owner.Bind(wx.EVT_MENU, on_preview_rotate_all_left, rotate_all_left_item)
-    owner.Bind(wx.EVT_MENU, on_preview_rotate_left, rotate_left_item)
-    owner.Bind(wx.EVT_MENU, on_preview_rotate_right, rotate_right_item)
-    owner.Bind(wx.EVT_MENU, on_preview_rotate_all_right, rotate_all_right_item)
+    owner.Bind(wx.EVT_MENU, on_preview_auto_rotate, auto_rotate_item)
     owner.Bind(wx.EVT_MENU, on_preview_move_page, move_page_item)
     owner.Bind(wx.EVT_MENU, lambda evt: on_preview_remove_page(evt, owner=owner), remove_page_item)
     owner.Bind(wx.EVT_MENU, on_preview_optimize, optimize_item)

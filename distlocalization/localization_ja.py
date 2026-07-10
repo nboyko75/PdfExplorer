@@ -40,6 +40,7 @@ TRANSLATIONS = {
     "preview_rotate_left_button": "左回転",
     "preview_rotate_right_button": "右回転",
     "preview_rotate_all_right_button": "すべて右回転",
+    "preview_auto_rotate_button": "Auto rotate",
     "preview_optimize_button": "最適化",
     "preview_adjust_page_width_button": "ページ幅を調整",
     "preview_remove_page_button": "ページを削除",

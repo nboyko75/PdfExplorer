@@ -40,6 +40,7 @@ TRANSLATIONS = {
     "preview_rotate_left_button": "Повернути ліворуч",
     "preview_rotate_right_button": "Повернути праворуч",
     "preview_rotate_all_right_button": "Повернути все праворуч",
+    "preview_auto_rotate_button": "Auto rotate",
     "preview_optimize_button": "Оптимізувати",
     "preview_adjust_page_width_button": "Підігнати ширину сторінок",
     "preview_remove_page_button": "Видалити сторінку",

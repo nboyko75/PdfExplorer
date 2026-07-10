@@ -40,6 +40,7 @@ TRANSLATIONS = {
     "preview_rotate_left_button": "向左旋转",
     "preview_rotate_right_button": "向右旋转",
     "preview_rotate_all_right_button": "全部向右旋转",
+    "preview_auto_rotate_button": "自动旋转",
     "preview_optimize_button": "优化",
     "preview_adjust_page_width_button": "调整页面宽度",
     "preview_remove_page_button": "删除页面",

@@ -343,6 +343,21 @@ def rotate_pdf(path, angle=90):
         doc.close()
 
 
+def auto_rotate_pdf(path):
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
+
+    doc = _open_pdf_document(path)
+    try:
+        for page in doc:
+            if page.rotation != 0:
+                page.set_rotation(0)
+
+        return _store_pdf_document(path, doc, garbage=4, deflate=True, clean=True)
+    finally:
+        doc.close()
+
+
 def rotate_pdf_page(path, page_index, angle=90):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
@@ -399,7 +414,13 @@ def optimize_pdf(path):
 
                 source_pix = pix
                 if pix.alpha:
-                    source_pix = fitz.Pixmap(fitz.csRGB, pix)
+                    try:
+                        source_pix = fitz.Pixmap(fitz.csRGB, pix)
+                    except Exception:
+                        # Some image streams cannot be converted while changing alpha.
+                        # Skip this image and continue optimizing others.
+                        pix = None
+                        continue
 
                 if source_pix.width <= 0 or source_pix.height <= 0:
                     if source_pix is not pix:
@@ -432,7 +453,13 @@ def optimize_pdf(path):
                 scaled_pix = source_pix
                 resized = source_pix.width != target_w or source_pix.height != target_h
                 if resized:
-                    scaled_pix = fitz.Pixmap(source_pix, target_w, target_h)
+                    try:
+                        scaled_pix = fitz.Pixmap(source_pix, target_w, target_h)
+                    except Exception:
+                        pix = None
+                        if source_pix is not pix:
+                            source_pix = None
+                        continue
 
                 if advanced_settings["compress_only_if_resized"] and not resized:
                     if scaled_pix is not source_pix:
@@ -442,12 +469,20 @@ def optimize_pdf(path):
                     pix = None
                     continue
 
-                jpeg_bytes = _encode_pixmap_bytes(
-                    scaled_pix,
-                    is_monochrome,
-                    advanced_settings,
-                    target_quality,
-                )
+                try:
+                    jpeg_bytes = _encode_pixmap_bytes(
+                        scaled_pix,
+                        is_monochrome,
+                        advanced_settings,
+                        target_quality,
+                    )
+                except Exception:
+                    if scaled_pix is not source_pix:
+                        scaled_pix = None
+                    if source_pix is not pix:
+                        source_pix = None
+                    pix = None
+                    continue
 
                 try:
                     page.replace_image(xref, stream=jpeg_bytes)

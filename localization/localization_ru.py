@@ -40,6 +40,7 @@ TRANSLATIONS = {
     "preview_rotate_left_button": "Повернуть влево",
     "preview_rotate_right_button": "Повернуть вправо",
     "preview_rotate_all_right_button": "Повернуть все вправо",
+    "preview_auto_rotate_button": "Автоматическое вращение",
     "preview_optimize_button": "Оптимизировать",
     "preview_adjust_page_width_button": "Подогнать ширину страницы",
     "preview_remove_page_button": "Удалить страницу",

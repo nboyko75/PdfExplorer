@@ -40,6 +40,7 @@ TRANSLATIONS = {
     "preview_rotate_left_button": "Ruota a sinistra",
     "preview_rotate_right_button": "Ruota a destra",
     "preview_rotate_all_right_button": "Ruota tutto a destra",
+    "preview_auto_rotate_button": "Auto rotate",
     "preview_optimize_button": "Ottimizza",
     "preview_adjust_page_width_button": "Adatta larghezza pagina",
     "preview_remove_page_button": "Rimuovi pagina",
