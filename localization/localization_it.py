@@ -34,6 +34,7 @@ TRANSLATIONS = {
     "preview_show_1_page_wide": "Mostra 1 pagina in larghezza",
     "preview_show_2_pages_wide": "Mostra 2 pagine in larghezza",
     "preview_show_1_page_tall": "Mostra 1 pagina in altezza",
+    "preview_show_manual_scale": "Scala manuale",
     "preview_rotate_button": "Ruota",
     "preview_rotate_all_left_button": "Ruota tutto a sinistra",
     "preview_rotate_left_button": "Ruota a sinistra",

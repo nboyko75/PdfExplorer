@@ -63,6 +63,10 @@ class FileExplorer(wx.Frame):
         if saved_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
             saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
         self.pdf_page_view_mode = saved_page_view_mode
+        if saved_page_view_mode in file_preview.FIXED_PAGE_VIEW_MODES:
+            self.pdf_page_view_selected_mode = saved_page_view_mode
+        else:
+            self.pdf_page_view_selected_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
 
         load_locale(self.current_locale)
         self.build_ui()
@@ -224,11 +228,21 @@ class FileExplorer(wx.Frame):
         if self.fileSplitter is not None and self.fileSplitter.IsSplit():
             preview_sash = int(self.fileSplitter.GetSashPosition())
 
+        persisted_page_view_mode = self.pdf_page_view_mode
+        if persisted_page_view_mode == file_preview.PAGE_VIEW_MODE_MANUAL:
+            persisted_page_view_mode = getattr(
+                self,
+                "pdf_page_view_selected_mode",
+                file_preview.PAGE_VIEW_MODE_1_WIDE,
+            )
+        if persisted_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
+            persisted_page_view_mode = file_preview.PAGE_VIEW_MODE_1_WIDE
+
         update_settings(
             {
                 "main_splitter_sash": main_sash,
                 "preview_splitter_sash": preview_sash,
-                "pdf_page_view_mode": self.pdf_page_view_mode,
+                "pdf_page_view_mode": persisted_page_view_mode,
             }
         )
 
@@ -327,6 +341,8 @@ class FileExplorer(wx.Frame):
             return
 
         self.pdf_page_view_mode = mode
+        if mode in file_preview.FIXED_PAGE_VIEW_MODES:
+            self.pdf_page_view_selected_mode = mode
         file_preview.sync_pdf_page_view_mode_controls(self)
 
         if refresh_preview and is_pdf_file(self.current_preview_path):

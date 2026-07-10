@@ -34,6 +34,7 @@ TRANSLATIONS = {
     "preview_show_1_page_wide": "按宽度显示 1 页",
     "preview_show_2_pages_wide": "按宽度显示 2 页",
     "preview_show_1_page_tall": "按高度显示 1 页",
+    "preview_show_manual_scale": "手动缩放",
     "preview_rotate_button": "旋转",
     "preview_rotate_all_left_button": "全部向左旋转",
     "preview_rotate_left_button": "向左旋转",

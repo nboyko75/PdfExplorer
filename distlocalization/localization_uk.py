@@ -34,6 +34,7 @@ TRANSLATIONS = {
     "preview_show_1_page_wide": "Показати 1 сторінку по ширині",
     "preview_show_2_pages_wide": "Показати 2 сторінки по ширині",
     "preview_show_1_page_tall": "Показати 1 сторінку по висоті",
+    "preview_show_manual_scale": "Ручний масштаб",
     "preview_rotate_button": "Повернути",
     "preview_rotate_all_left_button": "Повернути все ліворуч",
     "preview_rotate_left_button": "Повернути ліворуч",

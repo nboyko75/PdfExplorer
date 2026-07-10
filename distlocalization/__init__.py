@@ -37,6 +37,7 @@ TRANSLATIONS: Dict[str, str] = {
     "preview_show_1_page_wide": "Show 1 page wide",
     "preview_show_2_pages_wide": "Show 2 pages wide",
     "preview_show_1_page_tall": "Show 1 page tall",
+    "preview_show_manual_scale": "Manual scale",
     "preview_rotate_button": "Rotate",
     "preview_rotate_all_left_button": "Rotate All Left",
     "preview_rotate_left_button": "Rotate Left",

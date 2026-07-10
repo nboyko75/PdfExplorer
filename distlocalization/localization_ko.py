@@ -34,6 +34,7 @@ TRANSLATIONS = {
     "preview_show_1_page_wide": "가로 1페이지 보기",
     "preview_show_2_pages_wide": "가로 2페이지 보기",
     "preview_show_1_page_tall": "세로 1페이지 보기",
+    "preview_show_manual_scale": "수동 배율",
     "preview_rotate_button": "회전",
     "preview_rotate_all_left_button": "전체 왼쪽 회전",
     "preview_rotate_left_button": "왼쪽 회전",

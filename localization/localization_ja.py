@@ -34,6 +34,7 @@ TRANSLATIONS = {
     "preview_show_1_page_wide": "横に1ページ表示",
     "preview_show_2_pages_wide": "横に2ページ表示",
     "preview_show_1_page_tall": "縦に1ページ表示",
+    "preview_show_manual_scale": "手動スケール",
     "preview_rotate_button": "回転",
     "preview_rotate_all_left_button": "すべて左回転",
     "preview_rotate_left_button": "左回転",

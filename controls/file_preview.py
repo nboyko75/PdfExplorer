@@ -11,7 +11,9 @@ import file_operations.pdf_dragdrop as pdf_dragdrop
 PAGE_VIEW_MODE_1_WIDE = "1_page_wide"
 PAGE_VIEW_MODE_2_WIDE = "2_pages_wide"
 PAGE_VIEW_MODE_1_TALL = "1_page_tall"
-VALID_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_1_TALL}
+PAGE_VIEW_MODE_MANUAL = "manual"
+FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_1_TALL}
+VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
 
 
 def build_file_preview_pane(owner, file_splitter):
@@ -127,7 +129,6 @@ def bind_preview_events(owner):
     owner.preview_optimize_btn.Bind(wx.EVT_BUTTON, on_preview_optimize)
     owner.preview_adjust_page_width_btn.Bind(wx.EVT_BUTTON, on_preview_adjust_page_width)
     owner.preview_remove_page_btn.Bind(wx.EVT_BUTTON, on_preview_remove_page)
-    sync_pdf_page_view_mode_controls(owner)
 
 
 def confirm_preview_change(owner, next_path):
@@ -243,22 +244,40 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     update_pdf_save_button_state(owner)
 
 
+def _get_preview_layout_mode(owner):
+    selected_mode = getattr(owner, "pdf_page_view_selected_mode", None)
+    if selected_mode in FIXED_PAGE_VIEW_MODES:
+        return selected_mode
+
+    return PAGE_VIEW_MODE_1_WIDE
+
+
 def sync_pdf_page_view_mode_controls(owner):
-    mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
-    if mode not in VALID_PAGE_VIEW_MODES:
-        mode = PAGE_VIEW_MODE_1_WIDE
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    if current_mode in FIXED_PAGE_VIEW_MODES:
+        owner.pdf_page_view_selected_mode = current_mode
 
-    if mode == PAGE_VIEW_MODE_2_WIDE:
-        owner.preview_page_view_mode_btn.SetToolTip(tr("preview_show_2_pages_wide"))
-    elif mode == PAGE_VIEW_MODE_1_TALL:
-        owner.preview_page_view_mode_btn.SetToolTip(tr("preview_show_1_page_tall"))
+    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_WIDE)
+    if selected_mode not in FIXED_PAGE_VIEW_MODES:
+        selected_mode = PAGE_VIEW_MODE_1_WIDE
+
+    if current_mode == PAGE_VIEW_MODE_MANUAL:
+        tooltip_text = tr("preview_show_manual_scale")
+    elif selected_mode == PAGE_VIEW_MODE_1_WIDE:
+        tooltip_text = tr("preview_show_1_page_wide")
+    elif selected_mode == PAGE_VIEW_MODE_2_WIDE:
+        tooltip_text = tr("preview_show_2_pages_wide")
+    elif selected_mode == PAGE_VIEW_MODE_1_TALL:
+        tooltip_text = tr("preview_show_1_page_tall")
     else:
-        owner.preview_page_view_mode_btn.SetToolTip(tr("preview_show_1_page_wide"))
+        tooltip_text = tr("preview_show_1_page_wide")
 
+    owner.preview_page_view_mode_btn.SetToolTip(tooltip_text)
 
 def _set_pdf_page_view_mode(owner, mode):
     if owner is None or not hasattr(owner, "set_pdf_page_view_mode"):
         return
+    owner.pdf_page_view_selected_mode = mode
     owner.set_pdf_page_view_mode(mode, refresh_preview=True)
 
 
@@ -277,24 +296,37 @@ def on_preview_show_1_page_tall(event):
     _set_pdf_page_view_mode(owner, PAGE_VIEW_MODE_1_TALL)
 
 
+def on_preview_show_manual_scale(event):
+    owner = _get_preview_owner_from_event(event)
+    _set_pdf_page_view_mode(owner, PAGE_VIEW_MODE_MANUAL)
+
+
 def build_page_view_mode_menu(owner, menu):
     show_1_page_wide_item = menu.AppendRadioItem(-1, tr("preview_show_1_page_wide"))
     show_2_pages_wide_item = menu.AppendRadioItem(-1, tr("preview_show_2_pages_wide"))
     show_1_page_tall_item = menu.AppendRadioItem(-1, tr("preview_show_1_page_tall"))
+    show_manual_scale_item = menu.AppendRadioItem(-1, tr("preview_show_manual_scale"))
 
-    mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
-    show_1_page_wide_item.Check(mode == PAGE_VIEW_MODE_1_WIDE)
-    show_2_pages_wide_item.Check(mode == PAGE_VIEW_MODE_2_WIDE)
-    show_1_page_tall_item.Check(mode == PAGE_VIEW_MODE_1_TALL)
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_WIDE)
+    if selected_mode not in FIXED_PAGE_VIEW_MODES:
+        selected_mode = PAGE_VIEW_MODE_1_WIDE
+
+    show_1_page_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_WIDE)
+    show_2_pages_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_2_WIDE)
+    show_1_page_tall_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_TALL)
+    show_manual_scale_item.Check(current_mode == PAGE_VIEW_MODE_MANUAL)
 
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
     show_1_page_wide_item.Enable(is_pdf_preview)
     show_2_pages_wide_item.Enable(is_pdf_preview)
     show_1_page_tall_item.Enable(is_pdf_preview)
+    show_manual_scale_item.Enable(is_pdf_preview)
 
     owner.Bind(wx.EVT_MENU, on_preview_show_1_page_wide, show_1_page_wide_item)
     owner.Bind(wx.EVT_MENU, on_preview_show_2_pages_wide, show_2_pages_wide_item)
     owner.Bind(wx.EVT_MENU, on_preview_show_1_page_tall, show_1_page_tall_item)
+    owner.Bind(wx.EVT_MENU, on_preview_show_manual_scale, show_manual_scale_item)
 
 
 def on_preview_page_view_mode_menu(event):
@@ -304,25 +336,26 @@ def on_preview_page_view_mode_menu(event):
 
     menu = wx.Menu()
     build_page_view_mode_menu(owner, menu)
+    sync_pdf_page_view_mode_controls(owner)
     owner.preview_page_view_mode_btn.PopupMenu(menu)
     menu.Destroy()
 
 
 def _compute_pdf_preview_max_height(owner):
     max_bitmap_width, max_bitmap_height = _compute_pdf_page_fit_constraints(owner)
-    mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    mode = _get_preview_layout_mode(owner)
     portrait_width_ratio = 0.707
-    zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0)))
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
 
     if mode == PAGE_VIEW_MODE_1_TALL:
         base_height = max_bitmap_height
-        max_height = min(int(base_height * zoom_scale), base_height)
     else:
         page_width = max_bitmap_width
         base_height = int(page_width / portrait_width_ratio)
-        max_height = min(int(base_height * zoom_scale), base_height)
+    max_height = int(base_height * zoom_scale)
 
-    return max(100, min(2000, max_height))
+    return max(80, min(6000, max_height))
 
 
 def _compute_pdf_page_fit_constraints(owner):
@@ -331,7 +364,7 @@ def _compute_pdf_page_fit_constraints(owner):
 
     client_width = max(panel_size.x, preview_size.x - 24, 320)
     client_height = max(panel_size.y, preview_size.y - 24, 220)
-    mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+    mode = _get_preview_layout_mode(owner)
 
     # Keep in sync with show_pdf_feed layout chrome.
     gap_width = 22
@@ -339,7 +372,7 @@ def _compute_pdf_page_fit_constraints(owner):
     page_panel_inner_margin = 6  # wx.ALL, 3 on bitmap in page panel sizer.
     page_panel_border = 4        # wx.BORDER_SIMPLE around page panel.
     label_height = max(20, int(owner.pdf_pages_panel.GetCharHeight()) + 8)
-    fit_safety_margin = 12
+    fit_safety_margin = 24
 
     vscroll_width = wx.SystemSettings.GetMetric(wx.SYS_VSCROLL_X)
     if vscroll_width < 0:
@@ -355,11 +388,11 @@ def _compute_pdf_page_fit_constraints(owner):
         available_width = client_width - (gap_width * 3) - (per_page_horizontal * 2) - vscroll_width ## - fit_safety_margin
         max_bitmap_width = max(80, available_width // 2)
     else:
-        available_width = client_width - (gap_width * 2) - per_page_horizontal - vscroll_width ## - fit_safety_margin
+        available_width = client_width - (gap_width * 2) - per_page_horizontal - vscroll_width + fit_safety_margin
         max_bitmap_width = max(80, available_width)
 
     if mode == PAGE_VIEW_MODE_1_TALL:
-        available_height = client_height - per_page_vertical - 2 * fit_safety_margin
+        available_height = client_height - per_page_vertical - fit_safety_margin
         max_bitmap_height = max(80, available_height)
     else:
         max_bitmap_height = 2000
@@ -476,7 +509,12 @@ def show_pdf_feed(owner, path):
             max_height = _compute_pdf_preview_max_height(owner)
             page_count, shown_pages, previews = get_pdf_page_previews(path, max_height=max_height)
             max_bitmap_width, max_bitmap_height = _compute_pdf_page_fit_constraints(owner)
-            mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+            mode = _get_preview_layout_mode(owner)
+            current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_WIDE)
+            zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
+
+            max_bitmap_width = max(80, int(round(max_bitmap_width * zoom_scale)))
+            max_bitmap_height = max(80, min(6000, int(round(max_bitmap_height * zoom_scale))))
 
             preferred_scale = None
             if mode in (PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE):
@@ -718,6 +756,7 @@ def on_preview_zoom_in(event):
         if is_pdf_file(owner.current_preview_path):
             with owner.busy_cursor():
                 owner.pdf_preview_zoom = min(owner.pdf_preview_zoom * 1.25, 3.0)
+                owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
                 show_pdf_feed(owner, owner.current_preview_path)
             return
 
@@ -739,6 +778,7 @@ def on_preview_zoom_out(event):
         if is_pdf_file(owner.current_preview_path):
             with owner.busy_cursor():
                 owner.pdf_preview_zoom = max(owner.pdf_preview_zoom / 1.25, 0.4)
+                owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
                 show_pdf_feed(owner, owner.current_preview_path)
             return
 
