@@ -12,6 +12,7 @@ import file_operations.pdf_dragdrop as pdf_dragdrop
 import controls.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
+import controls.scanform as scanform
 
 
 LANGUAGE_CHOICES = [
@@ -556,7 +557,7 @@ class FileExplorer(wx.Frame):
         return filelist.get_selected_list_path(self)
 
     def on_scan_form(self, _=None):
-        wx.MessageBox("Scan form", "Scan", style=wx.OK | wx.ICON_INFORMATION)
+        scanform.on_scan_form(self)
 
     def on_list_scan(self, _):
         filelist.on_list_scan(self, _)
