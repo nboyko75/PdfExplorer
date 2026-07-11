@@ -129,6 +129,12 @@ def _show_scan_dialog(owner):
 
     scan_btn = wx.Button(panel, wx.ID_OK, tr("scan_button"))
     cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("scan_cancel_button"))
+    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
+    if ok_bmp.IsOk():
+        scan_btn.SetBitmap(ok_bmp)
+    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
+    if cancel_bmp.IsOk():
+        cancel_btn.SetBitmap(cancel_bmp)
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
     button_sizer.Add(scan_btn, 0, wx.RIGHT, 8)

@@ -332,7 +332,7 @@ class FileExplorer(wx.Frame):
         file_preview.sync_pdf_page_view_mode_controls(self)
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))
-        self.preview_import_from_file_btn.SetToolTip(tr("preview_import_from_file_button"))
+        self.preview_import_from_file_btn.SetToolTip(tr("preview_import_button"))
         self.preview_export_pages_btn.SetToolTip(tr("preview_export_pages_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))

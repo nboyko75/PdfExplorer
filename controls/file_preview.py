@@ -26,7 +26,7 @@ def build_file_preview_pane(owner, file_splitter):
     icon_manager = owner.icon_manager
     owner.filePreview.icon_manager = icon_manager
 
-    owner.preview_import_from_file_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FILE_OPEN, tr("preview_import_from_file_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_import_from_file_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_FILE_OPEN, tr("preview_import_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     export_art_id = getattr(wx, "ART_FILE_SAVE_AS", wx.ART_FILE_SAVE)
     owner.preview_export_pages_btn = image_utils.create_bitmap_button(owner.filePreview, export_art_id, tr("preview_export_pages_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_save_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "save", tr("preview_save_button"), icon_size=preview_icon_size, button_size=preview_button_size)
@@ -99,6 +99,8 @@ def build_file_preview_pane(owner, file_splitter):
 
 def bind_preview_events(owner):
     """Bind preview pane event handlers."""
+    owner.preview_import_from_file_btn.Bind(wx.EVT_BUTTON, on_preview_import_menu)
+    owner.preview_export_pages_btn.Bind(wx.EVT_BUTTON, on_preview_export_pages)
     owner.preview_save_btn.Bind(wx.EVT_BUTTON, on_preview_save_menu)
     owner.preview_cancel_btn.Bind(wx.EVT_BUTTON, on_preview_cancel)
     owner.preview_zoom_in_btn.Bind(wx.EVT_BUTTON, on_preview_zoom_in)
@@ -110,8 +112,6 @@ def bind_preview_events(owner):
     owner.pdf_preview_container.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.pdf_preview.Bind(wx.EVT_MOUSEWHEEL, on_preview_rotate_buttons_wheel)
     owner.preview_page_view_mode_btn.Bind(wx.EVT_BUTTON, on_preview_page_view_mode_menu)
-    owner.preview_import_from_file_btn.Bind(wx.EVT_BUTTON, on_preview_import_from_file)
-    owner.preview_export_pages_btn.Bind(wx.EVT_BUTTON, on_preview_export_pages)
     owner.preview_move_page_btn.Bind(wx.EVT_BUTTON, on_preview_move_page)
     owner.preview_optimize_btn.Bind(wx.EVT_BUTTON, on_preview_optimize)
     owner.preview_adjust_page_width_btn.Bind(wx.EVT_BUTTON, on_preview_adjust_page_width)
@@ -372,8 +372,6 @@ def on_preview_save_menu(event):
 
 
 def build_rotation_menu(owner, menu):
-    ## icon_manager = getattr(owner, "icon_manager", None)
-
     rotate_all_left_item = menu.Append(-1, tr("preview_rotate_all_left_button"))
     joined_menu_undo = image_utils.create_joined_art_bitmap(wx.ART_UNDO, client=wx.ART_MENU, size=(16, 16))
     if joined_menu_undo.IsOk():
@@ -416,11 +414,33 @@ def build_rotation_menu(owner, menu):
     }
 
 
-def _build_import_export_menu(owner, menu):
+def build_import_menu(owner, menu):
+    icon_manager = getattr(owner, "icon_manager", None)
+
     import_item = menu.Append(-1, tr("preview_import_from_file_button"))
     import_bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_MENU, (16, 16))
     if import_bitmap.IsOk():
         import_item.SetBitmap(import_bitmap)
+
+    import_scanner_item = menu.Append(-1, tr("preview_import_from_scanner_button"))
+    if icon_manager:
+        icon_manager.set_menu_icon2(import_scanner_item, "scan")
+
+    is_pdf_preview = is_pdf_file(owner.current_preview_path)
+    import_item.Enable(is_pdf_preview)
+    import_scanner_item.Enable(is_pdf_preview)
+
+    owner.Bind(wx.EVT_MENU, on_preview_import_from_file, import_item)
+    owner.Bind(wx.EVT_MENU, on_preview_import_from_scanner, import_scanner_item)
+
+    return {
+        "import_item": import_item,
+        "import_scanner_item": import_scanner_item,
+    }
+
+
+def _build_import_export_menu(owner, menu):
+    build_import_menu(owner, menu)
 
     export_art_id = getattr(wx, "ART_FILE_SAVE_AS", wx.ART_FILE_SAVE)
     export_item = menu.Append(-1, tr("preview_export_pages_button"))
@@ -429,14 +449,11 @@ def _build_import_export_menu(owner, menu):
         export_item.SetBitmap(export_bitmap)
 
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
-    import_item.Enable(is_pdf_preview)
     export_item.Enable(is_pdf_preview)
 
-    owner.Bind(wx.EVT_MENU, on_preview_import_from_file, import_item)
     owner.Bind(wx.EVT_MENU, on_preview_export_pages, export_item)
 
     return {
-        "import_item": import_item,
         "export_item": export_item,
     }
 
@@ -1009,12 +1026,10 @@ def _show_import_pdf_dialog(owner, page_count):
     at_begin_radio = wx.RadioButton(panel, label=tr("move_page_at_begin"), style=wx.RB_GROUP)
     after_page_radio = wx.RadioButton(panel, label=tr("import_pdf_after_page"))
     at_end_radio = wx.RadioButton(panel, label=tr("move_page_at_end"))
-    page_number_label = wx.StaticText(panel, label=tr("move_page_destination_page_label"))
-    page_number_spin = wx.SpinCtrl(panel, min=1, max=max(1, page_count), initial=max(1, min(page_count, (get_selected_pdf_page_index(owner) or 0) + 1)))
+    page_number_spin = wx.SpinCtrl(panel, min=1, max=max(1, page_count), initial=max(1, min(page_count, (get_selected_pdf_page_index(owner) or 0) + 1)), size=(80, -1))
 
     def update_after_page_state(_):
         enabled = after_page_radio.GetValue() and page_count > 0
-        page_number_label.Enable(enabled)
         page_number_spin.Enable(enabled)
 
     at_begin_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
@@ -1023,12 +1038,11 @@ def _show_import_pdf_dialog(owner, page_count):
     at_end_radio.SetValue(True)
     update_after_page_state(None)
 
-    destination_sizer.Add(at_begin_radio, 0, wx.BOTTOM, 6)
-    destination_sizer.Add(after_page_radio, 0, wx.BOTTOM, 6)
+    destination_sizer.Add(at_begin_radio, 0, wx.TOP, 3)
     after_page_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    after_page_sizer.Add(page_number_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-    after_page_sizer.Add(page_number_spin, 1)
-    destination_sizer.Add(after_page_sizer, 0, wx.EXPAND | wx.BOTTOM, 6)
+    after_page_sizer.Add(after_page_radio, 0, wx.RIGHT, 6)
+    after_page_sizer.Add(page_number_spin, 0)
+    destination_sizer.Add(after_page_sizer, 0, wx.TOP, 3)
     destination_sizer.Add(at_end_radio, 0)
 
     source_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -1037,6 +1051,12 @@ def _show_import_pdf_dialog(owner, page_count):
 
     ok_btn = wx.Button(panel, wx.ID_OK)
     cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
+    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
+    if ok_bmp.IsOk():
+        ok_btn.SetBitmap(ok_bmp)
+    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
+    if cancel_bmp.IsOk():
+        cancel_btn.SetBitmap(cancel_bmp)
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
     button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
@@ -1159,6 +1179,12 @@ def _show_export_pages_dialog(owner, page_count):
 
     ok_btn = wx.Button(panel, wx.ID_OK)
     cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
+    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
+    if ok_bmp.IsOk():
+        ok_btn.SetBitmap(ok_bmp)
+    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
+    if cancel_bmp.IsOk():
+        cancel_btn.SetBitmap(cancel_bmp)
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
     button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
@@ -1215,6 +1241,89 @@ def on_preview_save_as(event):
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
+def on_preview_import_menu(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner is None:
+        return
+
+    menu = wx.Menu()
+    build_import_menu(owner, menu)
+    anchor = (0, owner.preview_import_from_file_btn.GetSize().GetHeight())
+    owner.preview_import_from_file_btn.PopupMenu(menu, anchor)
+    menu.Destroy()
+
+
+def _show_import_from_scanner_dialog(owner, page_count):
+    dialog = wx.Dialog(owner, title=tr("preview_import_from_scanner_button"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    panel = wx.Panel(dialog)
+
+    destination_box = wx.StaticBox(panel, label=tr("import_pdf_destination_label"))
+    destination_sizer = wx.StaticBoxSizer(destination_box, wx.VERTICAL)
+    at_begin_radio = wx.RadioButton(panel, label=tr("move_page_at_begin"), style=wx.RB_GROUP)
+    after_page_radio = wx.RadioButton(panel, label=tr("import_pdf_after_page"))
+    at_end_radio = wx.RadioButton(panel, label=tr("move_page_at_end"))
+    page_number_spin = wx.SpinCtrl(panel, min=1, max=max(1, page_count), initial=max(1, min(page_count, (get_selected_pdf_page_index(owner) or 0) + 1)), size=(80, -1))
+
+    def update_after_page_state(_):
+        enabled = after_page_radio.GetValue() and page_count > 0
+        page_number_spin.Enable(enabled)
+
+    at_begin_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
+    after_page_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
+    at_end_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
+    at_end_radio.SetValue(True)
+    update_after_page_state(None)
+
+    destination_sizer.Add(at_begin_radio, 0, wx.TOP, 3)
+    after_page_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    after_page_sizer.Add(after_page_radio, 0, wx.RIGHT, 6)
+    after_page_sizer.Add(page_number_spin, 0)
+    destination_sizer.Add(after_page_sizer, 0, wx.TOP, 3)
+    destination_sizer.Add(at_end_radio, 0)
+
+    ok_btn = wx.Button(panel, wx.ID_OK)
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
+    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
+    if ok_bmp.IsOk():
+        ok_btn.SetBitmap(ok_bmp)
+    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
+    if cancel_bmp.IsOk():
+        cancel_btn.SetBitmap(cancel_bmp)
+    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    button_sizer.AddStretchSpacer()
+    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
+    button_sizer.Add(cancel_btn, 0)
+
+    root_sizer = wx.BoxSizer(wx.VERTICAL)
+    root_sizer.Add(destination_sizer, 0, wx.EXPAND | wx.ALL, 12)
+    root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+    panel.SetSizer(root_sizer)
+
+    dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+    dialog_sizer.Add(panel, 1, wx.EXPAND)
+    dialog.SetSizerAndFit(dialog_sizer)
+
+    _restore_dialog_size(dialog, "import_pdf_dialog_size")
+
+    result = dialog.ShowModal()
+    _save_dialog_size(dialog, "import_pdf_dialog_size")
+    if result != wx.ID_OK:
+        dialog.Destroy()
+        return None
+
+    if at_begin_radio.GetValue():
+        insert_at_index = 0
+    elif after_page_radio.GetValue():
+        insert_at_index = page_number_spin.GetValue()
+    else:
+        insert_at_index = page_count
+
+    dialog.Destroy()
+    return {
+        "insert_at_index": insert_at_index,
+    }
+
+
 def on_preview_import_from_file(event):
     owner = _get_preview_owner_from_event(event)
     if not owner or not is_pdf_file(owner.current_preview_path):
@@ -1243,6 +1352,29 @@ def on_preview_import_from_file(event):
             update_pdf_save_button_state(owner)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+
+
+def on_preview_import_from_scanner(event):
+    owner = _get_preview_owner_from_event(event)
+    if not owner or not is_pdf_file(owner.current_preview_path):
+        wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+
+    try:
+        page_count = get_pdf_page_count(owner.current_preview_path)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        return
+
+    dialog_result = _show_import_from_scanner_dialog(owner, page_count)
+    if dialog_result is None:
+        return
+
+    wx.MessageBox(
+        tr("scan_not_available_message"),
+        tr("preview_import_from_scanner_button"),
+        wx.OK | wx.ICON_INFORMATION,
+    )
 
 
 def on_preview_export_pages(event):

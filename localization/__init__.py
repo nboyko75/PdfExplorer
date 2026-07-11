@@ -2,7 +2,7 @@ import importlib
 import os
 from typing import Dict
 
-TRANSLATIONS: Dict[str, str] = {
+DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "app_title": "Python Explorer Pro",
     "back_button": "Back",
     "forward_button": "Forward",
@@ -80,7 +80,9 @@ TRANSLATIONS: Dict[str, str] = {
     "preview_adjust_page_width_button": "Ajust page width",
     "preview_remove_page_button": "Remove page",
     "preview_move_page_button": "Move page",
+    "preview_import_button": "Import",
     "preview_import_from_file_button": "Import from file",
+    "preview_import_from_scanner_button": "Import from scanner",
     "preview_export_pages_button": "Export pages",
     "import_pdf_dialog_title": "Import PDF from file",
     "import_pdf_source_label": "From file name",
@@ -116,6 +118,8 @@ TRANSLATIONS: Dict[str, str] = {
     "tree_adjust_page_width_all_done": "Adjusted: {adjusted_count}\nFailed: {failed_count}",
 }
 
+TRANSLATIONS: Dict[str, str] = DEFAULT_TRANSLATIONS.copy()
+
 
 def tr(key: str, /, **kwargs) -> str:
     value = TRANSLATIONS.get(key, key)
@@ -124,10 +128,11 @@ def tr(key: str, /, **kwargs) -> str:
 
 def load_locale(locale_code: str) -> None:
     module_name = f".localization_{locale_code}"
+    TRANSLATIONS.clear()
+    TRANSLATIONS.update(DEFAULT_TRANSLATIONS)
     try:
         locale_module = importlib.import_module(module_name, package=__name__)
         if hasattr(locale_module, "TRANSLATIONS"):
-            TRANSLATIONS.clear()
             TRANSLATIONS.update(locale_module.TRANSLATIONS)
     except ModuleNotFoundError:
         pass
