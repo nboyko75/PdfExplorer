@@ -140,7 +140,7 @@ class FileExplorer(wx.Frame):
         self.filePanel = wx.Panel(self.main_splitter)
         self.main_splitter.SplitVertically(self.tree, self.filePanel, 320)
 
-        self.fileSplitter = wx.SplitterWindow(self.filePanel)
+        self.fileSplitter = wx.SplitterWindow(self.filePbuttonanel)
 
         self.icon_manager = image_utils.IconManager()
 
@@ -149,6 +149,14 @@ class FileExplorer(wx.Frame):
 
         list_btn_icon_size = (16, 16)
         list_btn_size = (24, 24)
+        self.list_scan_btn = image_utils.create_bitmap_button2(
+            self.list_host_panel,
+            self.icon_manager,
+            "scan",
+            tr("scan"),
+            icon_size=list_btn_icon_size,
+            button_size=list_btn_size,
+        )
         self.list_open_btn = image_utils.create_bitmap_button(
             self.list_host_panel,
             wx.ART_FIND,
@@ -171,8 +179,9 @@ class FileExplorer(wx.Frame):
             button_size=list_btn_size,
         )
 
-        self.list_toolbar.Add(self.list_open_btn, 0, wx.RIGHT, 5)
-        self.list_toolbar.Add(self.list_rename_btn, 0, wx.RIGHT, 5)
+        self.list_toolbar.Add(self.list_scan_btn, 0, wx.RIGHT, 3)
+        self.list_toolbar.Add(self.list_open_btn, 0, wx.RIGHT, 3)
+        self.list_toolbar.Add(self.list_rename_btn, 0, wx.RIGHT, 3)
         self.list_toolbar.Add(self.list_delete_btn, 0)
         self.update_list_toolbar_buttons()
 
@@ -323,6 +332,7 @@ class FileExplorer(wx.Frame):
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
+        self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
         self.list_delete_btn.SetToolTip(tr("context_delete"))
@@ -513,6 +523,7 @@ class FileExplorer(wx.Frame):
         self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open_item)
         self.list.Bind(wx.EVT_RIGHT_DOWN, self.on_right_click)
         self.list.Bind(wx.EVT_LIST_COL_CLICK, self.on_list_column_click)
+        self.list_scan_btn.Bind(wx.EVT_BUTTON, self.on_list_scan)
         self.list_open_btn.Bind(wx.EVT_BUTTON, self.on_list_open)
         self.list_rename_btn.Bind(wx.EVT_BUTTON, self.on_list_rename)
         self.list_delete_btn.Bind(wx.EVT_BUTTON, self.on_list_delete)
@@ -540,6 +551,12 @@ class FileExplorer(wx.Frame):
 
     def get_selected_list_path(self):
         return filelist.get_selected_list_path(self)
+
+    def on_scan_form(self, _=None):
+        wx.MessageBox("Scan form", "Scan", style=wx.OK | wx.ICON_INFORMATION)
+
+    def on_list_scan(self, _):
+        filelist.on_list_scan(self, _)
 
     def on_list_open(self, _):
         filelist.on_list_open(self, _)

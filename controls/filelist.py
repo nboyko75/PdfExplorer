@@ -145,6 +145,7 @@ def on_list_deselect(owner, _):
 
 
 def on_right_click(owner, event):
+    icon_manager = getattr(owner, "icon_manager", None)
     hit_index, _ = owner.list.HitTest(event.GetPosition())
     if hit_index != wx.NOT_FOUND:
         owner.list.SetItemState(
@@ -155,27 +156,26 @@ def on_right_click(owner, event):
 
     menu = wx.Menu()
 
+    scan_item = menu.Append(-1, tr("scan"))
     open_item = menu.Append(-1, tr("context_open"))
     rename_item = menu.Append(-1, tr("context_rename"))
     delete_item = menu.Append(-1, tr("context_delete"))
 
-    def set_menu_icon(item, art_id=None):
-        bitmap = None
-        if art_id is not None:
-            bitmap = wx.ArtProvider.GetBitmap(art_id, wx.ART_MENU, (16, 16))
-        if bitmap is not None and bitmap.IsOk():
-            item.SetBitmap(bitmap)
-
-    set_menu_icon(open_item, art_id=wx.ART_FIND)
-    set_menu_icon(rename_item, art_id=wx.ART_EDIT)
-    set_menu_icon(delete_item, art_id=wx.ART_DELETE)
+    icon_manager = getattr(owner, "icon_manager", None)
+    if icon_manager:
+        icon_manager.set_menu_icon2(scan_item, "scan")
+        icon_manager.set_menu_icon(open_item, art_id=wx.ART_FIND)
+        icon_manager.set_menu_icon(rename_item, art_id=wx.ART_EDIT)
+        icon_manager.set_menu_icon(delete_item, art_id=wx.ART_DELETE)
 
     selected_path = get_selected_list_path(owner)
     can_act_on_selection = bool(selected_path)
+    scan_item.Enable(True)
     open_item.Enable(can_act_on_selection)
     rename_item.Enable(can_act_on_selection)
     delete_item.Enable(can_act_on_selection)
 
+    owner.Bind(wx.EVT_MENU, owner.on_list_scan, scan_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_open, open_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_rename, rename_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_delete, delete_item)
@@ -191,6 +191,11 @@ def get_selected_list_path(owner):
 
     name = owner.list.GetItemText(index)
     return os.path.join(owner.path_box.GetValue(), name)
+
+
+def on_list_scan(owner, _):
+    if hasattr(owner, "on_scan_form"):
+        owner.on_scan_form()
 
 
 def on_list_open(owner, _):

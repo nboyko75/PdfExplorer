@@ -13,6 +13,7 @@ class IconManager:
         "ok": "ok.bmp",
         "up": "up.bmp",
         "snow": "snow.bmp",
+        "scan": "scan.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):
@@ -34,6 +35,18 @@ class IconManager:
                 raise FileNotFoundError(icon_path)
             result[normalized_name] = icon_path
         return result
+
+    def set_menu_icon(self, item, art_id=None, bitmap=None):
+        if bitmap is None:
+            bitmap = wx.ArtProvider.GetBitmap(art_id, wx.ART_MENU, (16, 16))
+        if bitmap.IsOk():
+            item.SetBitmap(bitmap)
+
+    def set_menu_icon2(self, item, icon_name, bitmap=None):
+        if bitmap is None:
+            bitmap = self.get_bitmap(icon_name, size=(16, 16))
+        if bitmap.IsOk():
+            item.SetBitmap(bitmap)  
 
     @staticmethod
     def _normalize_size(size):

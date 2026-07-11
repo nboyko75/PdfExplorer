@@ -286,6 +286,33 @@ def save_pdf(path):
     return path
 
 
+def save_pdf_as(path, new_path):
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
+
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+
+    if not isinstance(new_path, str) or not new_path.strip():
+        raise ValueError("A target PDF path is required.")
+
+    new_path = os.path.normpath(new_path)
+    if os.path.normpath(path) == new_path:
+        return save_pdf(path)
+
+    pdf_bytes = _read_pdf_bytes(path)
+    parent_dir = os.path.dirname(new_path)
+    if parent_dir and not os.path.isdir(parent_dir):
+        raise FileNotFoundError(parent_dir)
+
+    with open(new_path, "wb") as handle:
+        handle.write(pdf_bytes)
+
+    discard_pdf_changes(path)
+    discard_pdf_changes(new_path)
+    return new_path
+
+
 def get_pdf_page_count(path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
