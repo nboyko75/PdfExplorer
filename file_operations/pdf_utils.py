@@ -356,6 +356,81 @@ def move_pdf_page(path, from_index, to_index):
         doc.close()
 
 
+def import_pdf_pages(path, source_path, insert_at_index):
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
+
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+    if not os.path.isfile(source_path):
+        raise FileNotFoundError(source_path)
+
+    target_doc = _open_pdf_document(path)
+    source_doc = _open_pdf_document(source_path)
+    new_doc = fitz.open()
+    try:
+        target_page_count = len(target_doc)
+        insert_at_index = max(0, min(target_page_count, int(insert_at_index)))
+
+        if insert_at_index > 0:
+            new_doc.insert_pdf(target_doc, from_page=0, to_page=insert_at_index - 1)
+
+        if len(source_doc) > 0:
+            new_doc.insert_pdf(source_doc)
+
+        if insert_at_index < target_page_count:
+            new_doc.insert_pdf(target_doc, from_page=insert_at_index, to_page=target_page_count - 1)
+
+        return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
+    finally:
+        target_doc.close()
+        source_doc.close()
+        if not new_doc.is_closed:
+            new_doc.close()
+
+
+def export_pdf_pages(path, page_indices, output_path):
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
+
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+    if not isinstance(output_path, str) or not output_path.strip():
+        raise ValueError("A target PDF path is required.")
+
+    output_path = os.path.normpath(output_path)
+    if os.path.normpath(path) == output_path:
+        raise ValueError("Export target must be a different file.")
+
+    source_doc = _open_pdf_document(path)
+    new_doc = fitz.open()
+    try:
+        page_count = len(source_doc)
+        normalized_indices = []
+        for page_index in page_indices:
+            normalized_index = int(page_index)
+            if not 0 <= normalized_index < page_count:
+                raise ValueError(f"Page index {normalized_index} is out of range")
+            normalized_indices.append(normalized_index)
+
+        if not normalized_indices:
+            raise ValueError("At least one page must be selected.")
+
+        for normalized_index in normalized_indices:
+            new_doc.insert_pdf(source_doc, from_page=normalized_index, to_page=normalized_index)
+
+        parent_dir = os.path.dirname(output_path)
+        if parent_dir and not os.path.isdir(parent_dir):
+            raise FileNotFoundError(parent_dir)
+
+        new_doc.save(output_path, garbage=4, deflate=True, clean=True)
+        return output_path
+    finally:
+        source_doc.close()
+        if not new_doc.is_closed:
+            new_doc.close()
+
+
 def rotate_pdf(path, angle=90):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")

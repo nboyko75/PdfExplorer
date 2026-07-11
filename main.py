@@ -140,7 +140,7 @@ class FileExplorer(wx.Frame):
         self.filePanel = wx.Panel(self.main_splitter)
         self.main_splitter.SplitVertically(self.tree, self.filePanel, 320)
 
-        self.fileSplitter = wx.SplitterWindow(self.filePbuttonanel)
+        self.fileSplitter = wx.SplitterWindow(self.filePanel)
 
         self.icon_manager = image_utils.IconManager()
 
@@ -322,6 +322,7 @@ class FileExplorer(wx.Frame):
         self.update_list_sort_header_icons()
         ## self.preview_edit_btn.SetToolTip(tr("preview_edit_button"))
         self.preview_save_btn.SetToolTip(tr("preview_save_button"))
+        self.preview_cancel_btn.SetToolTip(tr("preview_cancel_button"))
         ## self.preview_delete_btn.SetToolTip(tr("preview_delete_button"))
         self.preview_zoom_in_btn.SetToolTip(tr("preview_zoom_in_button"))
         self.preview_zoom_out_btn.SetToolTip(tr("preview_zoom_out_button"))
@@ -330,6 +331,8 @@ class FileExplorer(wx.Frame):
         file_preview.sync_pdf_page_view_mode_controls(self)
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))
+        self.preview_import_from_file_btn.SetToolTip(tr("preview_import_from_file_button"))
+        self.preview_export_pages_btn.SetToolTip(tr("preview_export_pages_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
         self.list_scan_btn.SetToolTip(tr("scan"))
