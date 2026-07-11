@@ -1036,7 +1036,7 @@ def _show_import_pdf_dialog(owner, page_count):
     source_row.Add(browse_btn, 0)
 
     ok_btn = wx.Button(panel, wx.ID_OK)
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
     button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
@@ -1121,6 +1121,13 @@ def _show_export_pages_dialog(owner, page_count):
     dialog = wx.Dialog(owner, title=tr("export_pdf_pages_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
 
+    export_initial_dir = _get_preview_dialog_initial_dir(owner)
+    search_box = getattr(owner, "search_box", None)
+    if search_box is not None:
+        search_box_value = str(search_box.GetValue()).strip()
+        if search_box_value and os.path.isdir(search_box_value):
+            export_initial_dir = os.path.abspath(search_box_value)
+
     page_numbers_label = wx.StaticText(panel, label=tr("export_pdf_page_numbers_label"))
     selected_index = get_selected_pdf_page_index(owner)
     default_value = str(selected_index + 1) if selected_index is not None else ""
@@ -1131,7 +1138,7 @@ def _show_export_pages_dialog(owner, page_count):
     output_file_label = wx.StaticText(panel, label=tr("export_pdf_file_name_label"))
     output_file_text = wx.TextCtrl(
         panel,
-        value=os.path.join(_get_preview_dialog_initial_dir(owner), f"{base_name}_pages.pdf"),
+        value=os.path.join(export_initial_dir, f"{base_name}_pages.pdf"),
     )
     browse_btn = wx.Button(panel, label=tr("import_pdf_browse_button"))
 
@@ -1139,7 +1146,7 @@ def _show_export_pages_dialog(owner, page_count):
         file_dialog = wx.FileDialog(
             dialog,
             tr("export_pdf_save_dialog_title"),
-            defaultDir=_get_preview_dialog_initial_dir(owner),
+            defaultDir=export_initial_dir,
             defaultFile=os.path.basename(output_file_text.GetValue().strip()) or f"{base_name}_pages.pdf",
             wildcard="PDF files (*.pdf)|*.pdf",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
@@ -1151,7 +1158,7 @@ def _show_export_pages_dialog(owner, page_count):
     browse_btn.Bind(wx.EVT_BUTTON, browse_for_output)
 
     ok_btn = wx.Button(panel, wx.ID_OK)
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
     button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
@@ -1268,6 +1275,22 @@ def on_preview_export_pages(event):
     try:
         with owner.busy_cursor():
             export_pdf_pages(owner.current_preview_path, page_indices, output_path)
+        export_dir = os.path.dirname(os.path.abspath(output_path))
+        current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+        current_folder_norm = os.path.normpath(current_folder) if current_folder else ""
+        export_dir_norm = os.path.normpath(export_dir) if export_dir else ""
+
+        # Refresh only selected/current folder when export target is that same folder.
+        if current_folder_norm and export_dir_norm and current_folder_norm == export_dir_norm:
+            current_tree_item = owner.tree.GetSelection() if hasattr(owner, "tree") else None
+            if current_tree_item is not None and current_tree_item.IsOk():
+                current_tree_path = owner.tree.GetItemData(current_tree_item)
+                if isinstance(current_tree_path, str) and os.path.isdir(current_tree_path):
+                    if os.path.normpath(current_tree_path) == current_folder_norm:
+                        owner.populate_tree_node(current_tree_item, current_tree_path)
+
+            if os.path.isdir(current_folder):
+                owner.load_folder(current_folder)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
