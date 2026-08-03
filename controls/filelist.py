@@ -504,29 +504,47 @@ def _resolve_paste_target_directory(path):
 def _refresh_tree_node(owner, folder_path):
     if not isinstance(folder_path, str) or not folder_path:
         return
-    if not hasattr(owner, "find_tree_item_by_path") or not hasattr(owner, "populate_tree_node"):
+    if not hasattr(owner, "tree") or owner.tree is None:
+        return
+    if not hasattr(owner, "populate_tree_node"):
         return
 
     try:
-        item = owner.find_tree_item_by_path(folder_path)
+        item = _find_tree_item_without_expanding(owner, folder_path)
         if item is not None and item.IsOk():
             owner.populate_tree_node(item, folder_path)
     except Exception:
         pass
 
 
+def _find_tree_item_without_expanding(owner, target_path):
+    normalized_target = os.path.normcase(os.path.normpath(target_path))
+
+    root = owner.tree.GetRootItem()
+    if not root.IsOk():
+        return None
+
+    stack = [root]
+    while stack:
+        item = stack.pop()
+        item_path = owner.tree.GetItemData(item)
+        if isinstance(item_path, str) and item_path:
+            if os.path.normcase(os.path.normpath(item_path)) == normalized_target:
+                return item
+
+        child, cookie = owner.tree.GetFirstChild(item)
+        while child.IsOk():
+            stack.append(child)
+            child, cookie = owner.tree.GetNextChild(item, cookie)
+
+    return None
+
+
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
     if current_folder and os.path.isdir(current_folder):
         owner.load_folder(current_folder)
-        was_syncing_tree = bool(getattr(owner, "_syncing_tree_from_path", False))
-        owner._syncing_tree_from_path = True
-        try:
-            _refresh_tree_node(owner, current_folder)
-            if hasattr(owner, "select_tree_item_by_path"):
-                owner.select_tree_item_by_path(current_folder)
-        finally:
-            owner._syncing_tree_from_path = was_syncing_tree
+        _refresh_tree_node(owner, current_folder)
 
     if preferred_preview_path and os.path.isfile(preferred_preview_path):
         file_preview.show_file_preview(owner, preferred_preview_path)
