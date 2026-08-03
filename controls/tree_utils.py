@@ -4,6 +4,13 @@ import wx
 from localization import tr
 from file_operations.pdf_utils import adjust_page_width, optimize_pdf, save_pdf
 import file_operations.image_utils as image_utils
+import controls.filelist as filelist
+
+
+def bind_tree_events(owner):
+    owner.tree.Bind(wx.EVT_TREE_ITEM_EXPANDING, owner.on_tree_expand)
+    owner.tree.Bind(wx.EVT_TREE_SEL_CHANGING, owner.on_tree_select)
+    owner.tree.Bind(wx.EVT_CONTEXT_MENU, owner.on_tree_right_click)
 
 
 def normalize_tree_path(path):
@@ -198,8 +205,48 @@ def on_tree_select(owner, event):
 def on_tree_right_click(owner, event):
     path = _resolve_tree_context_path(owner, event)
     is_supported_target = _is_folder_or_single_pdf(path)
+    can_act_on_selection = bool(path and os.path.exists(path))
+    create_target = _resolve_tree_new_folder_target(owner, path)
+    can_create_new_folder = create_target is not None
+    paste_target = path if path else getattr(owner.path_box, "GetValue", lambda: "")()
+    can_paste = filelist._can_paste_into_directory(owner, filelist._resolve_paste_target_directory(paste_target))
+    icon_manager = getattr(owner, "icon_manager", None)
 
     menu = wx.Menu()
+    new_folder_item = menu.Append(-1, tr("context_new_folder"))
+    menu.AppendSeparator()
+
+    copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
+    cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
+    paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
+    delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
+
+    new_folder_item.Enable(can_create_new_folder)
+    copy_item.Enable(can_act_on_selection)
+    cut_item.Enable(can_act_on_selection)
+    paste_item.Enable(can_paste)
+    delete_item.Enable(can_act_on_selection)
+
+    new_folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_MENU, (16, 16))
+    if new_folder_bmp.IsOk():
+        new_folder_item.SetBitmap(new_folder_bmp)
+
+    if icon_manager:
+        icon_manager.set_menu_icon2(copy_item, "copy")
+
+    cut_bmp = wx.ArtProvider.GetBitmap(wx.ART_CUT, wx.ART_MENU, (16, 16))
+    if cut_bmp.IsOk():
+        cut_item.SetBitmap(cut_bmp)
+
+    paste_bmp = wx.ArtProvider.GetBitmap(wx.ART_PASTE, wx.ART_MENU, (16, 16))
+    if paste_bmp.IsOk():
+        paste_item.SetBitmap(paste_bmp)
+
+    delete_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_MENU, (16, 16))
+    if delete_bmp.IsOk():
+        delete_item.SetBitmap(delete_bmp)
+    menu.AppendSeparator()
+
     optimize_item = menu.Append(-1, tr("tree_optimize_all_pdf"))
     optimize_bmp = wx.ArtProvider.GetBitmap(wx.ART_TICK_MARK, wx.ART_MENU, (16, 16))
     if optimize_bmp.IsOk():
@@ -219,8 +266,28 @@ def on_tree_right_click(owner, event):
     def handle_adjust_all(_):
         adjust_page_width_all_pdf_in_path(owner, path)
 
+    def handle_new_folder(_):
+        filelist.create_new_folder(owner, create_target)
+
+    def handle_copy(_):
+        filelist.on_tree_copy(owner, path)
+
+    def handle_cut(_):
+        filelist.on_tree_cut(owner, path)
+
+    def handle_paste(_):
+        filelist.on_tree_paste(owner, path)
+
+    def handle_delete(_):
+        filelist.on_tree_delete(owner, path)
+
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
     owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
+    owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
+    owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
+    owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
+    owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
+    owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
 
     popup_window = owner.tree
     if event is not None:
@@ -334,6 +401,24 @@ def _resolve_tree_context_path(owner, event):
     current_folder = getattr(owner, "path_box", None)
     if current_folder is not None:
         return normalize_tree_path(current_folder.GetValue())
+    return None
+
+
+def _resolve_tree_new_folder_target(owner, path):
+    if isinstance(path, str) and os.path.isdir(path):
+        return path
+
+    current_folder = getattr(owner, "path_box", None)
+    if current_folder is not None:
+        value = current_folder.GetValue()
+        if isinstance(value, str) and os.path.isdir(value):
+            return value
+
+    if isinstance(path, str) and os.path.isfile(path):
+        parent_dir = os.path.dirname(path)
+        if os.path.isdir(parent_dir):
+            return parent_dir
+
     return None
 
 

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import file_operations.image_utils as image_utils
 from localization import tr
@@ -77,6 +78,13 @@ def load_folder(owner, path):
             is_dir = False
             image_index = image_utils.get_list_icon_index(owner, full, is_dir=False)
 
+        try:
+            modified_ts = os.path.getmtime(full)
+            modified = datetime.fromtimestamp(modified_ts).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            modified_ts = None
+            modified = ""
+
         row_data.append(
             {
                 "original_index": original_index,
@@ -86,6 +94,8 @@ def load_folder(owner, path):
                 "type_ci": typ.casefold(),
                 "size": size,
                 "size_kb": size_kb,
+                "modified": modified,
+                "modified_ts": modified_ts,
                 "is_dir": is_dir,
                 "image_index": image_index,
             }
@@ -106,6 +116,13 @@ def load_folder(owner, path):
                 row["name_ci"],
                 row["original_index"],
             )
+        if sort_column == 3:
+            return (
+                row["modified_ts"] is None,
+                row["modified_ts"] if row["modified_ts"] is not None else -1,
+                row["name_ci"],
+                row["original_index"],
+            )
         return row["original_index"]
 
     folders = [row for row in row_data if row["is_dir"]]
@@ -122,6 +139,7 @@ def load_folder(owner, path):
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
         owner.list.SetItem(item_index, 1, row["type"])
         owner.list.SetItem(item_index, 2, row["size"])
+        owner.list.SetItem(item_index, 3, row["modified"])
 
     if hasattr(owner, "update_list_sort_header_icons"):
         owner.update_list_sort_header_icons()

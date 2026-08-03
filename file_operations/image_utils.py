@@ -14,7 +14,8 @@ class IconManager:
         "up": "up.bmp",
         "rotation": "rotation.bmp",
         "scan": "scan.bmp",
-        "cancel": "cancel.bmp",        
+        "cancel": "cancel.bmp",
+        "copy": "copy.bmp", 
     }
 
     def __init__(self, images_dir=None, icon_files=None):

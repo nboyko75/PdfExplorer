@@ -52,6 +52,8 @@ class FileExplorer(wx.Frame):
         self.current_image_zoom = 1.0
         self.list_sort_column = None
         self.list_sort_direction = 0
+        self.file_clipboard_paths = []
+        self.file_clipboard_mode = None
         settings = load_settings()
         saved_locale = str(settings.get("ui_locale", "uk")).lower()
         saved_locale = saved_locale.replace("-", "_")
@@ -71,6 +73,7 @@ class FileExplorer(wx.Frame):
 
         load_locale(self.current_locale)
         self.build_ui()
+        self.restore_list_view_state(settings)
         self.bind_events()
 
         restore_window_geometry(self, settings)
@@ -144,58 +147,7 @@ class FileExplorer(wx.Frame):
         self.fileSplitter = wx.SplitterWindow(self.filePanel)
 
         self.icon_manager = image_utils.IconManager()
-
-        self.list_host_panel = wx.Panel(self.fileSplitter)
-        self.list_toolbar = wx.BoxSizer(wx.HORIZONTAL)
-
-        list_btn_icon_size = (16, 16)
-        list_btn_size = (24, 24)
-        self.list_scan_btn = image_utils.create_bitmap_button2(
-            self.list_host_panel,
-            self.icon_manager,
-            "scan",
-            tr("scan"),
-            icon_size=list_btn_icon_size,
-            button_size=list_btn_size,
-        )
-        self.list_open_btn = image_utils.create_bitmap_button(
-            self.list_host_panel,
-            wx.ART_FIND,
-            tr("context_open"),
-            icon_size=list_btn_icon_size,
-            button_size=list_btn_size,
-        )
-        self.list_rename_btn = image_utils.create_bitmap_button(
-            self.list_host_panel,
-            wx.ART_EDIT,
-            tr("context_rename"),
-            icon_size=list_btn_icon_size,
-            button_size=list_btn_size,
-        )
-        self.list_delete_btn = image_utils.create_bitmap_button(
-            self.list_host_panel,
-            wx.ART_DELETE,
-            tr("context_delete"),
-            icon_size=list_btn_icon_size,
-            button_size=list_btn_size,
-        )
-
-        self.list_toolbar.Add(self.list_scan_btn, 0, wx.RIGHT, 3)
-        self.list_toolbar.Add(self.list_open_btn, 0, wx.RIGHT, 3)
-        self.list_toolbar.Add(self.list_rename_btn, 0, wx.RIGHT, 3)
-        self.list_toolbar.Add(self.list_delete_btn, 0)
-        self.update_list_toolbar_buttons()
-
-        self.list = wx.ListCtrl(self.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
-        self.list.InsertColumn(0, tr("name_column"), width=450)
-        self.list.InsertColumn(1, tr("type_column"), width=120)
-        self.list.InsertColumn(2, tr("size_column"), width=120)
-        image_utils.init_list_images(self)
-
-        list_host_sizer = wx.BoxSizer(wx.VERTICAL)
-        list_host_sizer.Add(self.list_toolbar, 0, wx.EXPAND | wx.ALL, 4)
-        list_host_sizer.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        self.list_host_panel.SetSizer(list_host_sizer)
+        filelist.build_list_panel(self, self.fileSplitter)
 
         file_preview.build_file_preview_pane(self, self.fileSplitter)
 
@@ -299,6 +251,7 @@ class FileExplorer(wx.Frame):
 
         try:
             self.save_splitter_positions()
+            self.save_list_view_state()
             save_window_geometry(self)
             self.save_last_folder()
         except Exception:
@@ -313,7 +266,7 @@ class FileExplorer(wx.Frame):
         self.search_box.SetHint(tr("search_hint"))
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
         self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
-        for index, key in enumerate(("name_column", "type_column", "size_column")):
+        for index, key in enumerate(("name_column", "type_column", "size_column", "modified_column")):
             column = self.list.GetColumn(index)
             column.SetMask(wx.LIST_MASK_TEXT)
             column.SetText(tr(key))
@@ -339,6 +292,10 @@ class FileExplorer(wx.Frame):
         self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
+        self.list_new_folder_btn.SetToolTip(tr("context_new_folder"))
+        self.list_copy_btn.SetToolTip(tr("context_copy"))
+        self.list_cut_btn.SetToolTip(tr("context_cut"))
+        self.list_paste_btn.SetToolTip(tr("context_paste"))
         self.list_delete_btn.SetToolTip(tr("context_delete"))
         self.refresh_tree_placeholders()
         self.load_folder(self.path_box.GetValue())
@@ -405,6 +362,8 @@ class FileExplorer(wx.Frame):
         try:
             if event.ControlDown() and event.GetKeyCode() == 90:  # 'Z'
                 self.undo_last_move()
+                return
+            if filelist.handle_file_ops_shortcut(self, event):
                 return
         except Exception:
             pass
@@ -519,18 +478,8 @@ class FileExplorer(wx.Frame):
         self.hidden_chk.Bind(wx.EVT_CHECKBOX, self.on_toggle_hidden)
         self.language_combo.Bind(wx.EVT_COMBOBOX, self.on_language_change)
 
-        self.tree.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.on_tree_expand)
-        self.tree.Bind(wx.EVT_TREE_SEL_CHANGING, self.on_tree_select)
-        self.tree.Bind(wx.EVT_CONTEXT_MENU, self.on_tree_right_click)
-        self.list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_list_select)
-        self.list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.on_list_deselect)
-        self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_open_item)
-        self.list.Bind(wx.EVT_RIGHT_DOWN, self.on_right_click)
-        self.list.Bind(wx.EVT_LIST_COL_CLICK, self.on_list_column_click)
-        self.list_scan_btn.Bind(wx.EVT_BUTTON, self.on_list_scan)
-        self.list_open_btn.Bind(wx.EVT_BUTTON, self.on_list_open)
-        self.list_rename_btn.Bind(wx.EVT_BUTTON, self.on_list_rename)
-        self.list_delete_btn.Bind(wx.EVT_BUTTON, self.on_list_delete)
+        tree_utils.bind_tree_events(self)
+        filelist.bind_list_events(self)
 
         file_preview.bind_preview_events(self)
         self.filePreview.Bind(wx.EVT_SIZE, self.on_preview_resize)
@@ -568,6 +517,18 @@ class FileExplorer(wx.Frame):
     def on_list_rename(self, _):
         filelist.on_list_rename(self, _)
 
+    def on_list_new_folder(self, _):
+        filelist.on_list_new_folder(self, _)
+
+    def on_list_copy(self, _):
+        filelist.on_list_copy(self, _)
+
+    def on_list_cut(self, _):
+        filelist.on_list_cut(self, _)
+
+    def on_list_paste(self, _):
+        filelist.on_list_paste(self, _)
+
     def on_list_delete(self, _):
         filelist.on_list_delete(self, _)
 
@@ -582,6 +543,12 @@ class FileExplorer(wx.Frame):
 
     def update_list_toolbar_buttons(self):
         filelist.update_list_toolbar_buttons(self)
+
+    def save_list_view_state(self):
+        filelist.save_list_view_state(self)
+
+    def restore_list_view_state(self, settings=None):
+        filelist.restore_list_view_state(self, settings=settings)
 
     def on_path_enter(self, event):
         path = self.path_box.GetValue()
