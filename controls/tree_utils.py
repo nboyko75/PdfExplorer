@@ -180,6 +180,37 @@ def refresh_tree_subtree(owner, item, path):
         child, cookie = owner.tree.GetNextChild(item, cookie)
 
 
+def refresh_tree_root(owner):
+    root = owner.tree.GetRootItem()
+    if not root.IsOk():
+        return
+
+    owner.tree.DeleteChildren(root)
+
+    for drive in get_drives():
+        item = owner.tree.AppendItem(root, drive)
+        owner.tree.SetItemData(item, normalize_tree_path(drive))
+        owner.tree.SetItemImage(item, owner.tree_icon_folder)
+        owner.tree.AppendItem(item, tr("tree_expand_placeholder"))
+
+    owner.tree.Expand(root)
+
+
+def refresh_tree_selection(owner):
+    selected_item = owner.tree.GetSelection()
+    if not selected_item or not selected_item.IsOk():
+        selected_item = owner.tree.GetRootItem()
+
+    if selected_item and selected_item.IsOk() and selected_item == owner.tree.GetRootItem():
+        refresh_tree_root(owner)
+        return
+
+    if selected_item and selected_item.IsOk():
+        selected_path = owner.tree.GetItemData(selected_item)
+        if isinstance(selected_path, str) and os.path.isdir(normalize_tree_path(selected_path)):
+            refresh_tree_subtree(owner, selected_item, selected_path)
+
+
 def init_tree(owner):
     root = owner.tree.AddRoot(tr("this_pc_root"))
     owner.tree.SetItemImage(root, owner.tree_icon_root)
@@ -308,12 +339,7 @@ def on_tree_right_click(owner, event):
         filelist.create_new_folder(owner, create_target)
 
     def handle_refresh(_):
-        selected_item = owner.tree.GetSelection()
-        if selected_item and selected_item.IsOk():
-            selected_path = owner.tree.GetItemData(selected_item)
-            if isinstance(selected_path, str) and os.path.isdir(normalize_tree_path(selected_path)):
-                refresh_tree_subtree(owner, selected_item, selected_path)
-                return
+        refresh_tree_selection(owner)
 
     def handle_copy(_):
         filelist.on_tree_copy(owner, path)

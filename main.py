@@ -360,8 +360,12 @@ class FileExplorer(wx.Frame):
     def on_key(self, event):
         # Handle Ctrl+Z for undo
         try:
-            if event.ControlDown() and event.GetKeyCode() == 90:  # 'Z'
+            key_code = event.GetKeyCode()
+            if event.ControlDown() and key_code == 90:  # 'Z'
                 self.undo_last_move()
+                return
+            if key_code == wx.WXK_F5:
+                tree_utils.refresh_tree_selection(self)
                 return
             if filelist.handle_file_ops_shortcut(self, event):
                 return

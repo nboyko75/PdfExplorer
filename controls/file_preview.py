@@ -517,7 +517,7 @@ def _compute_pdf_page_fit_constraints(owner):
         available_width = client_width - (gap_width * 3) - (per_page_horizontal * 2) - vscroll_width + fit_safety_margin
         max_bitmap_width = max(80, available_width // 2)
     else:
-        available_width = client_width - (gap_width * 2) - per_page_horizontal - vscroll_width + fit_safety_margin
+        available_width = client_width - (gap_width * 2) - per_page_horizontal - vscroll_width
         max_bitmap_width = max(80, available_width)
 
     if mode == PAGE_VIEW_MODE_1_TALL:
