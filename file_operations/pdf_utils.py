@@ -18,6 +18,10 @@ DEFAULT_MONO_TARGET_DPI = 120
 DEFAULT_MONO_THRESHOLD_DPI = 180
 DEFAULT_MONO_COMPRESSION = "ccitt_group3"
 DEFAULT_COMPRESS_ONLY_IF_RESIZED = True
+PDF_PREVIEW_RENDER_QUALITY_MULTIPLIER = 3.5
+PDF_PREVIEW_MIN_RENDER_SCALE = 0.75
+PDF_PREVIEW_MAX_RENDER_SCALE = 2.5
+PDF_PREVIEW_MAX_RENDER_HEIGHT = 1600
 _PDF_SESSION_BYTES = {}
 
 
@@ -216,6 +220,36 @@ def _encode_pixmap_bytes(scaled_pix, is_monochrome, advanced_settings, fallback_
             return scaled_pix.tobytes("jpg", jpg_quality=fallback_quality)
         except TypeError:
             return scaled_pix.tobytes("jpg")
+
+
+def calculate_preview_render_size(page_width, page_height, max_width=None, max_height=None):
+    """Return a target bitmap size that fits the requested bounds without stretching."""
+    if page_width is None or page_height is None:
+        return None, None
+
+    page_width = float(page_width)
+    page_height = float(page_height)
+    if page_width <= 0 or page_height <= 0:
+        return None, None
+
+    if max_width is None and max_height is None:
+        return int(round(page_width)), int(round(page_height))
+
+    width_scale = 1.0
+    height_scale = 1.0
+
+    if max_width is not None and max_width > 0:
+        width_scale = float(max_width) / page_width
+    if max_height is not None and max_height > 0:
+        height_scale = float(max_height) / page_height
+
+    scale = min(width_scale, height_scale)
+    if scale <= 0:
+        scale = 1.0
+
+    target_width = max(1, int(round(page_width * scale)))
+    target_height = max(1, int(round(page_height * scale)))
+    return target_width, target_height
 
 
 def is_pdf_file(path):
@@ -647,7 +681,7 @@ def adjust_page_width(path):
             new_doc.close()
 
 
-def get_pdf_page_previews(path, max_height=300, max_pages=None):
+def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=None, target_height=None):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
@@ -658,6 +692,30 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None):
         previews = []
 
         if shown_pages <= 0:
+            return page_count, shown_pages, previews
+
+        if target_width is not None or target_height is not None:
+            for index in range(shown_pages):
+                page = doc[index]
+                rect = page.rect
+                render_width, render_height = calculate_preview_render_size(
+                    rect.width,
+                    rect.height,
+                    max_width=target_width,
+                    max_height=target_height,
+                )
+                if render_width is None or render_height is None:
+                    render_width = int(round(rect.width))
+                    render_height = int(round(rect.height))
+
+                matrix = fitz.Matrix(
+                    float(render_width) / float(rect.width),
+                    float(render_height) / float(rect.height),
+                )
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
+                rgb_pix = pix if pix.n == 3 and not pix.alpha else fitz.Pixmap(fitz.csRGB, pix)
+                bitmap = wx.Bitmap.FromBuffer(rgb_pix.width, rgb_pix.height, rgb_pix.samples)
+                previews.append((index + 1, bitmap))
             return page_count, shown_pages, previews
 
         # Use a single scale for all pages so different original page widths/heights
@@ -672,11 +730,18 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None):
         if max_page_height > 0 and max_height > 0:
             common_scale = min(1.0, float(max_height) / max_page_height)
 
-        render_scale = max(0.05, common_scale * 2.0)
+        render_scale = common_scale * PDF_PREVIEW_RENDER_QUALITY_MULTIPLIER
+        render_scale = max(PDF_PREVIEW_MIN_RENDER_SCALE, render_scale)
+        render_scale = min(PDF_PREVIEW_MAX_RENDER_SCALE, render_scale)
+
+        if max_page_height > 0:
+            capped_scale = float(PDF_PREVIEW_MAX_RENDER_HEIGHT) / max_page_height
+            render_scale = min(render_scale, max(0.05, capped_scale))
+            render_scale = max(0.05, render_scale)
 
         for index in range(shown_pages):
             page = doc[index]
-            pix = page.get_pixmap(matrix=fitz.Matrix(render_scale, render_scale))
+            pix = page.get_pixmap(matrix=fitz.Matrix(render_scale, render_scale), alpha=False)
             rgb_pix = pix if pix.n == 3 and not pix.alpha else fitz.Pixmap(fitz.csRGB, pix)
             bitmap = wx.Bitmap.FromBuffer(rgb_pix.width, rgb_pix.height, rgb_pix.samples)
             previews.append((index + 1, bitmap))

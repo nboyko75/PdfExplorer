@@ -552,38 +552,6 @@ def _get_dominant_page_width(previews):
     return sorted_widths[len(sorted_widths) // 2]
 
 
-def _scale_bitmap_to_fit(bitmap, max_width, max_height, preferred_scale=None):
-    if bitmap is None or not bitmap.IsOk():
-        return bitmap
-
-    width, height = bitmap.GetSize()
-    if width <= 0 or height <= 0:
-        return bitmap
-
-    width_scale = float(max_width) / float(width) if max_width else 1.0
-    height_scale = float(max_height) / float(height) if max_height else 1.0
-    scale = min(width_scale, height_scale)
-    if preferred_scale is not None:
-        scale = min(scale, float(preferred_scale))
-    if scale <= 0:
-        return bitmap
-
-    new_width = max(1, int(round(width * scale)))
-    new_height = max(1, int(round(height * scale)))
-    if new_width == width and new_height == height:
-        return bitmap
-
-    image = bitmap.ConvertToImage()
-    if image is None or not image.IsOk():
-        return bitmap
-
-    scaled_image = image.Scale(new_width, new_height, wx.IMAGE_QUALITY_HIGH)
-    if scaled_image is None or not scaled_image.IsOk():
-        return bitmap
-
-    return wx.Bitmap(scaled_image)
-
-
 def select_pdf_page(owner, page_panel):
     if owner.selected_pdf_page_panel is page_panel:
         return
@@ -636,36 +604,23 @@ def show_pdf_feed(owner, path):
             owner.current_pdf_path = path
             clear_pdf_feed(owner)
             max_height = _compute_pdf_preview_max_height(owner)
-            page_count, shown_pages, previews = get_pdf_page_previews(path, max_height=max_height)
             max_bitmap_width, max_bitmap_height = _compute_pdf_page_fit_constraints(owner)
-            mode = _get_preview_layout_mode(owner)
             current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
             zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
 
             max_bitmap_width = max(80, int(round(max_bitmap_width * zoom_scale)))
             max_bitmap_height = max(80, min(6000, int(round(max_bitmap_height * zoom_scale))))
 
-            preferred_scale = None
-            if mode in (PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE):
-                dominant_width = _get_dominant_page_width(previews)
-                if dominant_width and dominant_width > 0:
-                    preferred_scale = float(max_bitmap_width) / float(dominant_width)
+            page_count, shown_pages, previews = get_pdf_page_previews(
+                path,
+                max_height=max_height,
+                target_width=max_bitmap_width,
+                target_height=max_bitmap_height,
+            )
 
             gap_width = 22
             page_height = 180
             if previews:
-                previews = [
-                    (
-                        page_no,
-                        _scale_bitmap_to_fit(
-                            bitmap,
-                            max_bitmap_width,
-                            max_bitmap_height,
-                            preferred_scale=preferred_scale,
-                        ),
-                    )
-                    for page_no, bitmap in previews
-                ]
                 tallest_preview_height = max(bitmap.GetSize().y for _, bitmap in previews if bitmap and bitmap.IsOk())
                 page_height = max(160, tallest_preview_height)
 
