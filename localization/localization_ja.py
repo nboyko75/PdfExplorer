@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "context_open": "開く",
     "context_rename": "名前変更",
     "context_new_folder": "新しいフォルダー",
+    "context_refresh": "更新",
     "context_copy": "コピー",
     "context_cut": "切り取り",
     "context_paste": "貼り付け",
@@ -84,7 +85,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "ページを削除",
     "preview_move_page_button": "ページを移動",
     "preview_import_button": "インポート",
-    "preview_import_from_file_button": "ファイルからインポート",
+    "preview_import_from_file_button": "ファイルからインポート",
+
     "preview_import_from_scanner_button": "スキャナーからインポート",
     "preview_export_pages_button": "ページをエクスポート",
     "import_pdf_dialog_title": "ファイルからPDFをインポート",

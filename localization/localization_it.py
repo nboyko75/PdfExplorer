@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "context_open": "Apri",
     "context_rename": "Rinomina",
     "context_new_folder": "Nuova cartella",
+    "context_refresh": "Aggiorna",
     "context_copy": "Copia",
     "context_cut": "Taglia",
     "context_paste": "Incolla",
@@ -84,7 +85,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Rimuovi pagina",
     "preview_move_page_button": "Sposta pagina",
     "preview_import_button": "Importa",
-    "preview_import_from_file_button": "Importa da file",
+    "preview_import_from_file_button": "Importa da file",
+
     "preview_import_from_scanner_button": "Importa da scanner",
     "preview_export_pages_button": "Esporta pagine",
     "import_pdf_dialog_title": "Importa PDF da file",

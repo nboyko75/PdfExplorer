@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "context_open": "Відкрити",
     "context_rename": "Перейменувати",
     "context_new_folder": "Нова папка",
+    "context_refresh": "Оновити",
     "context_copy": "Копіювати",
     "context_cut": "Вирізати",
     "context_paste": "Вставити",
@@ -53,7 +54,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Видалити сторінку",
     "preview_move_page_button": "Перемістити сторінку",
     "preview_import_button": "Імпортувати",
-    "preview_import_from_file_button": "Імпортувати з файлу",
+    "preview_import_from_file_button": "Імпортувати з файлу",
+
     "preview_import_from_scanner_button": "Імпортувати зі сканера",
     "preview_export_pages_button": "Експортувати сторінки",
     "import_pdf_dialog_title": "Імпорт PDF з файлу",

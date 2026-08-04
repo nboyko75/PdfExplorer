@@ -22,6 +22,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "context_open": "Open",
     "context_rename": "Rename",
     "context_new_folder": "New folder",
+    "context_refresh": "Refresh",
     "context_copy": "Copy",
     "context_cut": "Cut",
     "context_paste": "Paste",

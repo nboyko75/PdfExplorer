@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "context_open": "Открыть",
     "context_rename": "Переименовать",
     "context_new_folder": "Новая папка",
+    "context_refresh": "Обновить",
     "context_copy": "Копировать",
     "context_cut": "Вырезать",
     "context_paste": "Вставить",
@@ -84,7 +85,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Удалить страницу",
     "preview_move_page_button": "Переместить страницу",
     "preview_import_button": "Импорт",
-    "preview_import_from_file_button": "Импортировать из файла",
+    "preview_import_from_file_button": "Импортировать из файла",
+
     "preview_import_from_scanner_button": "Импортировать со сканера",
     "preview_export_pages_button": "Экспортировать страницы",
     "import_pdf_dialog_title": "Импорт PDF из файла",

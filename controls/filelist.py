@@ -579,9 +579,10 @@ def on_list_scan(owner, _):
         owner.on_scan_form()
 
 
-def on_list_open(owner, _):
-    selected_paths = get_selected_list_paths(owner)
-    path = selected_paths[0] if len(selected_paths) == 1 else None
+def on_list_open(owner, _, path=None):
+    if path is None:
+        selected_paths = get_selected_list_paths(owner)
+        path = selected_paths[0] if len(selected_paths) == 1 else None
     if not path:
         return
 
@@ -865,11 +866,19 @@ def _is_window_or_descendant(window, parent):
 
 
 def on_open_item(owner, event):
-    name = event.GetText()
-    path = os.path.join(owner.path_box.GetValue(), name)
+    selected_path = get_selected_list_path(owner)
+    if not selected_path:
+        name = event.GetText()
+        selected_path = os.path.join(owner.path_box.GetValue(), name)
 
-    if os.path.isdir(path):
-        owner.open_path(path)
+    if not selected_path:
+        return
+
+    if os.path.isdir(selected_path):
+        owner.open_path(selected_path)
+        return
+
+    owner.on_list_open(None, selected_path)
 
 
 def on_list_column_click(owner, event):

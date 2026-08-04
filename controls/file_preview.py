@@ -740,32 +740,8 @@ def show_file_preview(owner, path):
         return
 
     update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            content = handle.read(12000)
-    except UnicodeDecodeError:
-        try:
-            with open(path, "r", encoding="latin-1") as handle:
-                content = handle.read(12000)
-        except Exception as exc:
-            _ = exc
-            owner.filePreview.Layout()
-            return
-    except Exception as exc:
-        _ = exc
-        owner.filePreview.Layout()
-        return
-
-    if not content.strip():
-        owner.filePreview.Layout()
-        return
-
-    if len(content) >= 12000:
-        content = content[:12000] + tr("preview_truncated_suffix")
-
-    owner.preview_text.SetValue(content)
-    owner.preview_text.Show(True)
+    owner.preview_text.SetValue("")
+    owner.preview_text.Show(False)
     owner.filePreview.Layout()
 
 
@@ -930,26 +906,34 @@ def _get_preview_dialog_initial_dir(owner):
     return os.getcwd()
 
 
-def _restore_dialog_size(dialog, settings_key):
+def _restore_dialog_geometry(dialog, settings_key):
     settings = load_settings()
     size = settings.get(settings_key)
-    if not isinstance(size, list) or len(size) != 2:
-        return
+    if isinstance(size, list) and len(size) == 2:
+        try:
+            width, height = int(size[0]), int(size[1])
+        except (TypeError, ValueError):
+            width, height = None, None
+        if width is not None and height is not None and width > 100 and height > 100:
+            dialog.SetSize((width, height))
 
-    try:
-        width, height = int(size[0]), int(size[1])
-    except (TypeError, ValueError):
-        return
+    position = settings.get(f"{settings_key}_position")
+    if isinstance(position, list) and len(position) == 2:
+        try:
+            x, y = int(position[0]), int(position[1])
+        except (TypeError, ValueError):
+            x, y = None, None
+        if x is not None and y is not None:
+            dialog.SetPosition((x, y))
 
-    if width > 100 and height > 100:
-        dialog.SetSize((width, height))
 
-
-def _save_dialog_size(dialog, settings_key):
+def _save_dialog_geometry(dialog, settings_key):
     size = dialog.GetSize()
+    position = dialog.GetPosition()
     update_settings(
         {
             settings_key: [int(size.x), int(size.y)],
+            f"{settings_key}_position": [int(position.x), int(position.y)],
         }
     )
 
@@ -1028,10 +1012,10 @@ def _show_import_pdf_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    _restore_dialog_size(dialog, "import_pdf_dialog_size")
+    _restore_dialog_geometry(dialog, "import_pdf_dialog_size")
 
     result = dialog.ShowModal()
-    _save_dialog_size(dialog, "import_pdf_dialog_size")
+    _save_dialog_geometry(dialog, "import_pdf_dialog_size")
     if result != wx.ID_OK:
         dialog.Destroy()
         return None
@@ -1160,10 +1144,10 @@ def _show_export_pages_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    _restore_dialog_size(dialog, "export_pdf_pages_dialog_size")
+    _restore_dialog_geometry(dialog, "export_pdf_pages_dialog_size")
 
     result = dialog.ShowModal()
-    _save_dialog_size(dialog, "export_pdf_pages_dialog_size")
+    _save_dialog_geometry(dialog, "export_pdf_pages_dialog_size")
     if result != wx.ID_OK:
         dialog.Destroy()
         return None
@@ -1258,10 +1242,10 @@ def _show_import_from_scanner_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    _restore_dialog_size(dialog, "import_pdf_dialog_size")
+    _restore_dialog_geometry(dialog, "import_pdf_dialog_size")
 
     result = dialog.ShowModal()
-    _save_dialog_size(dialog, "import_pdf_dialog_size")
+    _save_dialog_geometry(dialog, "import_pdf_dialog_size")
     if result != wx.ID_OK:
         dialog.Destroy()
         return None

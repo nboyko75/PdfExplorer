@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "context_open": "열기",
     "context_rename": "이름 바꾸기",
     "context_new_folder": "새 폴더",
+    "context_refresh": "새로 고침",
     "context_copy": "복사",
     "context_cut": "잘라내기",
     "context_paste": "붙여넣기",
@@ -84,7 +85,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "페이지 제거",
     "preview_move_page_button": "페이지 이동",
     "preview_import_button": "가져오기",
-    "preview_import_from_file_button": "파일에서 가져오기",
+    "preview_import_from_file_button": "파일에서 가져오기",
+
     "preview_import_from_scanner_button": "스캐너에서 가져오기",
     "preview_export_pages_button": "페이지 내보내기",
     "import_pdf_dialog_title": "파일에서 PDF 가져오기",

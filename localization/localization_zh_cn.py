@@ -19,6 +19,7 @@ TRANSLATIONS = {
     "context_open": "打开",
     "context_rename": "重命名",
     "context_new_folder": "新建文件夹",
+    "context_refresh": "刷新",
     "context_copy": "复制",
     "context_cut": "剪切",
     "context_paste": "粘贴",
@@ -84,7 +85,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "删除页面",
     "preview_move_page_button": "移动页面",
     "preview_import_button": "导入",
-    "preview_import_from_file_button": "从文件导入",
+    "preview_import_from_file_button": "从文件导入",
+
     "preview_import_from_scanner_button": "从扫描仪导入",
     "preview_export_pages_button": "导出页面",
     "import_pdf_dialog_title": "从文件导入PDF",

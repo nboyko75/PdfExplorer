@@ -511,8 +511,8 @@ class FileExplorer(wx.Frame):
     def on_list_scan(self, _):
         filelist.on_list_scan(self, _)
 
-    def on_list_open(self, _):
-        filelist.on_list_open(self, _)
+    def on_list_open(self, _, path=None):
+        filelist.on_list_open(self, _, path=path)
 
     def on_list_rename(self, _):
         filelist.on_list_rename(self, _)

@@ -162,6 +162,24 @@ def populate_tree_node(owner, item, path):
             owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=False))
 
 
+def refresh_tree_subtree(owner, item, path):
+    if not item or not item.IsOk():
+        return
+
+    normalized_path = normalize_tree_path(path)
+    if not normalized_path or not os.path.isdir(normalized_path):
+        return
+
+    populate_tree_node(owner, item, normalized_path)
+
+    child, cookie = owner.tree.GetFirstChild(item)
+    while child.IsOk():
+        child_path = owner.tree.GetItemData(child)
+        if isinstance(child_path, str) and os.path.isdir(normalize_tree_path(child_path)):
+            refresh_tree_subtree(owner, child, child_path)
+        child, cookie = owner.tree.GetNextChild(item, cookie)
+
+
 def init_tree(owner):
     root = owner.tree.AddRoot(tr("this_pc_root"))
     owner.tree.SetItemImage(root, owner.tree_icon_root)
@@ -203,17 +221,32 @@ def on_tree_select(owner, event):
 
 
 def on_tree_right_click(owner, event):
+    selected_item = owner.tree.GetSelection()
+    if event is not None:
+        try:
+            pos = event.GetPosition()
+            if pos != wx.DefaultPosition:
+                client_pos = owner.tree.ScreenToClient(pos)
+                item, _ = owner.tree.HitTest(client_pos)
+                if item and item.IsOk():
+                    owner.tree.SelectItem(item)
+                    selected_item = item
+        except Exception:
+            pass
+
     path = _resolve_tree_context_path(owner, event)
     is_supported_target = _is_folder_or_single_pdf(path)
     can_act_on_selection = bool(path and os.path.exists(path))
     create_target = _resolve_tree_new_folder_target(owner, path)
-    can_create_new_folder = create_target is not None
+    is_root_node = selected_item and selected_item.IsOk() and selected_item == owner.tree.GetRootItem()
+    can_create_new_folder = create_target is not None and not is_root_node
     paste_target = path if path else getattr(owner.path_box, "GetValue", lambda: "")()
     can_paste = filelist._can_paste_into_directory(owner, filelist._resolve_paste_target_directory(paste_target))
     icon_manager = getattr(owner, "icon_manager", None)
 
     menu = wx.Menu()
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
+    refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     menu.AppendSeparator()
 
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
@@ -222,6 +255,7 @@ def on_tree_right_click(owner, event):
     delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
 
     new_folder_item.Enable(can_create_new_folder)
+    refresh_item.Enable(True)
     copy_item.Enable(can_act_on_selection)
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
@@ -230,6 +264,10 @@ def on_tree_right_click(owner, event):
     new_folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_MENU, (16, 16))
     if new_folder_bmp.IsOk():
         new_folder_item.SetBitmap(new_folder_bmp)
+
+    refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
+    if refresh_bmp.IsOk():
+        refresh_item.SetBitmap(refresh_bmp)
 
     if icon_manager:
         icon_manager.set_menu_icon2(copy_item, "copy")
@@ -269,6 +307,14 @@ def on_tree_right_click(owner, event):
     def handle_new_folder(_):
         filelist.create_new_folder(owner, create_target)
 
+    def handle_refresh(_):
+        selected_item = owner.tree.GetSelection()
+        if selected_item and selected_item.IsOk():
+            selected_path = owner.tree.GetItemData(selected_item)
+            if isinstance(selected_path, str) and os.path.isdir(normalize_tree_path(selected_path)):
+                refresh_tree_subtree(owner, selected_item, selected_path)
+                return
+
     def handle_copy(_):
         filelist.on_tree_copy(owner, path)
 
@@ -284,6 +330,7 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
     owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
     owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
+    owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
     owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
     owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
     owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
