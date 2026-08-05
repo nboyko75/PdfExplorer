@@ -1,9 +1,26 @@
 import os
+import tempfile
+from contextlib import nullcontext
 
 import wx
 
+try:
+    import pythoncom
+    import win32com.client
+except ImportError:  # pragma: no cover - optional runtime dependency
+    pythoncom = None
+    win32com.client = None
+
+try:
+    import fitz
+except ImportError:  # pragma: no cover - optional runtime dependency
+    fitz = None
+
+from PIL import Image, ImageOps
+
 from localization import tr
 from controls.window_tools import load_settings, update_settings
+import controls.file_preview as file_preview
 
 
 def _get_scan_dialog_initial_dir(owner):
@@ -191,6 +208,175 @@ def _show_scan_dialog(owner):
     return scan_config
 
 
+def _normalize_output_path(output_path, file_type_index):
+    if not isinstance(output_path, str) or not output_path.strip():
+        raise ValueError("scan_output_file_required")
+
+    normalized_path = os.path.abspath(output_path.strip())
+    root, ext = os.path.splitext(normalized_path)
+    expected_ext = ".pdf" if file_type_index == 0 else ".jpg"
+    if not ext:
+        return root + expected_ext
+    if ext.lower() != expected_ext:
+        return root + expected_ext
+    return normalized_path
+
+
+def _acquire_scanned_image_files(scan_config):
+    if pythoncom is None or win32com.client is None:
+        raise RuntimeError("Windows WIA support is not available in this environment.")
+
+    try:
+        pythoncom.CoInitialize()
+    except Exception:
+        pass
+
+    common_dialog = win32com.client.Dispatch("WIA.CommonDialog")
+    image_files = []
+
+    while True:
+        try:
+            result = common_dialog.ShowAcquireImage(
+                0,
+                0,
+                0,
+                "{00000000-0000-0000-0000-000000000000}",
+                False,
+                True,
+                False,
+            )
+        except Exception as exc:
+            if "cancel" in str(exc).lower() or "user canceled" in str(exc).lower():
+                break
+            raise RuntimeError(f"Unable to acquire image from scanner: {exc}") from exc
+
+        if result is None:
+            break
+
+        acquired_items = []
+        if hasattr(result, "Count"):
+            try:
+                acquired_items = [result[index] for index in range(int(result.Count))]
+            except Exception:
+                acquired_items = []
+        elif hasattr(result, "Transfer"):
+            acquired_items = [result]
+        else:
+            acquired_items = [result]
+
+        for item in acquired_items:
+            temp_handle = None
+            temp_path = None
+            try:
+                if hasattr(item, "FileName") and item.FileName:
+                    candidate_path = os.path.abspath(str(item.FileName))
+                    if os.path.isfile(candidate_path):
+                        image_files.append(candidate_path)
+                        continue
+
+                temp_handle = tempfile.NamedTemporaryFile(prefix="scan_", suffix=".jpg", delete=False)
+                temp_handle.close()
+                temp_path = temp_handle.name
+
+                if hasattr(item, "Transfer"):
+                    transfer_result = item.Transfer()
+                    if transfer_result is not None and hasattr(transfer_result, "FileName") and transfer_result.FileName:
+                        image_path = os.path.abspath(str(transfer_result.FileName))
+                        if os.path.isfile(image_path):
+                            image_files.append(image_path)
+                            continue
+                    if hasattr(transfer_result, "SaveFile"):
+                        transfer_result.SaveFile(temp_path)
+                    elif hasattr(item, "SaveFile"):
+                        item.SaveFile(temp_path)
+                    else:
+                        raise RuntimeError("Scanner returned an item that could not be saved to disk.")
+                elif hasattr(item, "SaveFile"):
+                    item.SaveFile(temp_path)
+                else:
+                    raise RuntimeError("Scanner returned an item that could not be saved to disk.")
+
+                image_files.append(temp_path)
+            except Exception as exc:
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
+                raise RuntimeError(f"Unable to save scanned image: {exc}") from exc
+
+        if not bool(scan_config.get("multiple_pages", False)):
+            break
+
+    return image_files
+
+
+def _save_scanned_pages(image_files, output_path, file_type_index):
+    if not image_files:
+        raise RuntimeError("No scanned images were acquired.")
+
+    output_path = _normalize_output_path(output_path, file_type_index)
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.isdir(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    if file_type_index == 0:
+        if fitz is None:
+            raise RuntimeError("PyMuPDF is not installed. PDF output is unavailable.")
+
+        doc = fitz.open()
+        try:
+            for image_file in image_files:
+                with Image.open(image_file) as image:
+                    image = ImageOps.exif_transpose(image)
+                    if image.mode not in {"RGB", "L"}:
+                        image = image.convert("RGB")
+                    temp_handle = tempfile.NamedTemporaryFile(prefix="scan_page_", suffix=".jpg", delete=False)
+                    temp_handle.close()
+                    temp_path = temp_handle.name
+                    try:
+                        image.save(temp_path, format="JPEG", quality=95)
+                        page = doc.new_page(width=max(1, image.width), height=max(1, image.height))
+                        page.insert_image(page.rect, filename=temp_path, keep_proportion=True)
+                    finally:
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
+            doc.save(output_path, garbage=4, deflate=True, clean=True)
+            return output_path
+        finally:
+            doc.close()
+
+    with Image.open(image_files[0]) as image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in {"RGB", "L"}:
+            image = image.convert("RGB")
+        image.save(output_path, format="JPEG", quality=95)
+
+    return output_path
+
+
+def _refresh_after_scan(owner, output_path):
+    if owner is None:
+        return
+
+    current_folder = getattr(owner, "path_box", None)
+    if current_folder is not None:
+        try:
+            current_folder_value = current_folder.GetValue()
+        except Exception:
+            current_folder_value = ""
+        if current_folder_value and os.path.isdir(current_folder_value):
+            owner.load_folder(current_folder_value)
+
+    if output_path and os.path.isfile(output_path):
+        if hasattr(owner, "current_preview_path"):
+            owner.current_preview_path = output_path
+        try:
+            file_preview.show_file_preview(owner, output_path)
+        except Exception:
+            pass
+
+
 def on_scan_form(owner):
     scan_config = _show_scan_dialog(owner)
     if scan_config is None:
@@ -211,8 +397,23 @@ def on_scan_form(owner):
         }
     )
 
-    wx.MessageBox(
-        tr("scan_not_available_message"),
-        tr("scan"),
-        style=wx.OK | wx.ICON_INFORMATION,
-    )
+    try:
+        cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
+        with cursor_context:
+            image_files = _acquire_scanned_image_files(scan_config)
+            if not image_files:
+                return
+            output_path = _save_scanned_pages(image_files, output_path, scan_config["file_type_index"])
+            _refresh_after_scan(owner, output_path)
+            if scan_config.get("open_after", False):
+                try:
+                    os.startfile(output_path)
+                except Exception:
+                    pass
+            wx.MessageBox(
+                f"Scanned document saved to {output_path}",
+                tr("scan"),
+                style=wx.OK | wx.ICON_INFORMATION,
+            )
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("scan"), style=wx.OK | wx.ICON_ERROR)

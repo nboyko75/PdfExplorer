@@ -6,6 +6,7 @@ from controls.window_tools import load_settings, update_settings
 from file_operations.pdf_utils import adjust_page_width, auto_rotate_pdf, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.pdf_dragdrop as pdf_dragdrop
+import file_operations.pdf_utils as pdf_utils
 
 
 PAGE_VIEW_MODE_1_WIDE = "1_page_wide"
@@ -487,6 +488,55 @@ def _compute_pdf_preview_max_height(owner):
     return max(80, min(6000, max_height))
 
 
+def _get_average_pdf_page_dimensions(path):
+    if not isinstance(path, str) or not os.path.isfile(path):
+        return None, None
+
+    doc = None
+    try:
+        doc = pdf_utils._open_pdf_document(path)
+        widths = []
+        heights = []
+        for page in doc:
+            rect = page.rect
+            if rect.width <= 0 or rect.height <= 0:
+                continue
+            widths.append(float(rect.width))
+            heights.append(float(rect.height))
+        if not widths:
+            return None, None
+        return sum(widths) / len(widths), sum(heights) / len(heights)
+    except Exception:
+        return None, None
+    finally:
+        if doc is not None and not getattr(doc, "is_closed", False):
+            doc.close()
+
+
+def _get_preview_target_size_for_mode(owner, path, max_bitmap_width, max_bitmap_height):
+    current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
+    zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
+    average_width, average_height = _get_average_pdf_page_dimensions(path)
+
+    if current_mode == PAGE_VIEW_MODE_1_TALL and average_width and average_height:
+        target_height = max(80, int(round(min(max_bitmap_height, average_height * zoom_scale))))
+        target_width = int(round(target_height * average_width / average_height))
+        if target_width > max_bitmap_width:
+            target_width = max_bitmap_width
+            target_height = int(round(target_width * average_height / average_width))
+        return max(80, target_width), max(80, target_height)
+
+    if current_mode == PAGE_VIEW_MODE_1_WIDE and average_width and average_height:
+        target_width = max(80, int(round(min(max_bitmap_width, average_width * zoom_scale))))
+        target_height = int(round(target_width * average_height / average_width))
+        if target_height > max_bitmap_height:
+            target_height = max_bitmap_height
+            target_width = int(round(target_height * average_width / average_height))
+        return max(80, target_width), max(80, target_height)
+
+    return max_bitmap_width, max_bitmap_height
+
+
 def _compute_pdf_page_fit_constraints(owner):
     panel_size = owner.pdf_pages_panel.GetClientSize()
     preview_size = owner.filePreview.GetClientSize()
@@ -610,12 +660,18 @@ def show_pdf_feed(owner, path):
 
             max_bitmap_width = max(80, int(round(max_bitmap_width * zoom_scale)))
             max_bitmap_height = max(80, min(6000, int(round(max_bitmap_height * zoom_scale))))
+            target_width, target_height = _get_preview_target_size_for_mode(
+                owner,
+                path,
+                max_bitmap_width,
+                max_bitmap_height,
+            )
 
             page_count, shown_pages, previews = get_pdf_page_previews(
                 path,
                 max_height=max_height,
-                target_width=max_bitmap_width,
-                target_height=max_bitmap_height,
+                target_width=target_width,
+                target_height=target_height,
             )
 
             gap_width = 22
