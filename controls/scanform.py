@@ -6,17 +6,21 @@ import wx
 
 try:
     import pythoncom
-    import win32com.client
+    import win32com.client as win32_client
 except ImportError:  # pragma: no cover - optional runtime dependency
     pythoncom = None
-    win32com.client = None
+    win32_client = None
 
 try:
     import fitz
 except ImportError:  # pragma: no cover - optional runtime dependency
     fitz = None
 
-from PIL import Image, ImageOps
+try:
+    from PIL import Image, ImageOps
+except ImportError:  # pragma: no cover - optional runtime dependency
+    Image = None
+    ImageOps = None
 
 from localization import tr
 from controls.window_tools import load_settings, update_settings
@@ -223,7 +227,7 @@ def _normalize_output_path(output_path, file_type_index):
 
 
 def _acquire_scanned_image_files(scan_config):
-    if pythoncom is None or win32com.client is None:
+    if pythoncom is None or win32_client is None:
         raise RuntimeError("Windows WIA support is not available in this environment.")
 
     try:
@@ -231,7 +235,7 @@ def _acquire_scanned_image_files(scan_config):
     except Exception:
         pass
 
-    common_dialog = win32com.client.Dispatch("WIA.CommonDialog")
+    common_dialog = win32_client.Dispatch("WIA.CommonDialog")
     image_files = []
 
     while True:
@@ -327,30 +331,48 @@ def _save_scanned_pages(image_files, output_path, file_type_index):
         doc = fitz.open()
         try:
             for image_file in image_files:
-                with Image.open(image_file) as image:
-                    image = ImageOps.exif_transpose(image)
-                    if image.mode not in {"RGB", "L"}:
-                        image = image.convert("RGB")
-                    temp_handle = tempfile.NamedTemporaryFile(prefix="scan_page_", suffix=".jpg", delete=False)
-                    temp_handle.close()
-                    temp_path = temp_handle.name
-                    try:
-                        image.save(temp_path, format="JPEG", quality=95)
-                        page = doc.new_page(width=max(1, image.width), height=max(1, image.height))
-                        page.insert_image(page.rect, filename=temp_path, keep_proportion=True)
-                    finally:
-                        if os.path.exists(temp_path):
-                            os.remove(temp_path)
+                temp_handle = tempfile.NamedTemporaryFile(prefix="scan_page_", suffix=".jpg", delete=False)
+                temp_handle.close()
+                temp_path = temp_handle.name
+                try:
+                    if Image is not None and ImageOps is not None:
+                        with Image.open(image_file) as image:
+                            image = ImageOps.exif_transpose(image)
+                            if image.mode not in {"RGB", "L"}:
+                                image = image.convert("RGB")
+                            image.save(temp_path, format="JPEG", quality=95)
+                            image_width, image_height = image.width, image.height
+                    else:
+                        # Fallback for environments without Pillow.
+                        wx_image = wx.Image(image_file, wx.BITMAP_TYPE_ANY)
+                        if not wx_image.IsOk():
+                            raise RuntimeError(f"Unable to load scanned image: {image_file}")
+                        if not wx_image.SaveFile(temp_path, wx.BITMAP_TYPE_JPEG):
+                            raise RuntimeError(f"Unable to convert scanned image to JPEG: {image_file}")
+                        image_width, image_height = wx_image.GetWidth(), wx_image.GetHeight()
+
+                    page = doc.new_page(width=max(1, image_width), height=max(1, image_height))
+                    page.insert_image(page.rect, filename=temp_path, keep_proportion=True)
+                finally:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
             doc.save(output_path, garbage=4, deflate=True, clean=True)
             return output_path
         finally:
             doc.close()
 
-    with Image.open(image_files[0]) as image:
-        image = ImageOps.exif_transpose(image)
-        if image.mode not in {"RGB", "L"}:
-            image = image.convert("RGB")
-        image.save(output_path, format="JPEG", quality=95)
+    if Image is not None and ImageOps is not None:
+        with Image.open(image_files[0]) as image:
+            image = ImageOps.exif_transpose(image)
+            if image.mode not in {"RGB", "L"}:
+                image = image.convert("RGB")
+            image.save(output_path, format="JPEG", quality=95)
+    else:
+        wx_image = wx.Image(image_files[0], wx.BITMAP_TYPE_ANY)
+        if not wx_image.IsOk():
+            raise RuntimeError(f"Unable to load scanned image: {image_files[0]}")
+        if not wx_image.SaveFile(output_path, wx.BITMAP_TYPE_JPEG):
+            raise RuntimeError(f"Unable to save JPEG output: {output_path}")
 
     return output_path
 

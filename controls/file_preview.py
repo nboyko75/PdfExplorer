@@ -579,29 +579,6 @@ def _compute_pdf_page_fit_constraints(owner):
     return max_bitmap_width, max_bitmap_height
 
 
-def _get_dominant_page_width(previews):
-    widths = []
-    for _, bitmap in previews:
-        if bitmap is not None and bitmap.IsOk():
-            width = bitmap.GetSize().x
-            if width > 0:
-                widths.append(width)
-
-    if not widths:
-        return None
-
-    counts = {}
-    for width in widths:
-        counts[width] = counts.get(width, 0) + 1
-
-    dominant_width, dominant_count = max(counts.items(), key=lambda item: item[1])
-    if dominant_count > 1:
-        return dominant_width
-
-    sorted_widths = sorted(widths)
-    return sorted_widths[len(sorted_widths) // 2]
-
-
 def select_pdf_page(owner, page_panel):
     if owner.selected_pdf_page_panel is page_panel:
         return

@@ -222,7 +222,7 @@ def _encode_pixmap_bytes(scaled_pix, is_monochrome, advanced_settings, fallback_
             return scaled_pix.tobytes("jpg")
 
 
-def calculate_preview_render_size(page_width, page_height, max_width=None, max_height=None):
+def calculate_preview_render_size(page_width, page_height, max_width=None, max_height=None, dominant_page_width=None):
     """Return a target bitmap size that fits the requested bounds without stretching."""
     if page_width is None or page_height is None:
         return None, None
@@ -231,6 +231,17 @@ def calculate_preview_render_size(page_width, page_height, max_width=None, max_h
     page_height = float(page_height)
     if page_width <= 0 or page_height <= 0:
         return None, None
+
+    if dominant_page_width is not None:
+        try:
+            dominant_page_width = float(dominant_page_width)
+        except (TypeError, ValueError):
+            dominant_page_width = None
+
+    if dominant_page_width is not None and dominant_page_width > 0 and abs(dominant_page_width - page_width) > 10:
+        dominant_scale = dominant_page_width / page_width
+        page_width *= dominant_scale
+        page_height *= dominant_scale
 
     if max_width is None and max_height is None:
         return int(round(page_width)), int(round(page_height))
@@ -250,6 +261,28 @@ def calculate_preview_render_size(page_width, page_height, max_width=None, max_h
     target_width = max(1, int(round(page_width * scale)))
     target_height = max(1, int(round(page_height * scale)))
     return target_width, target_height
+
+
+def _get_dominant_render_width(doc, shown_pages):
+    if not shown_pages:
+        return None
+
+    page_widths = []
+    for index in range(shown_pages):
+        page_width = float(doc[index].rect.width)
+        if page_width > 0:
+            page_widths.append(int(round(page_width)))
+
+    counts = {}
+    for width in page_widths:
+        counts[width] = counts.get(width, 0) + 1
+
+    dominant_width, dominant_count = max(counts.items(), key=lambda item: item[1])
+    if dominant_count > 1:
+        return dominant_width
+
+    sorted_widths = sorted(page_widths)
+    return sorted_widths[len(sorted_widths) // 2]
 
 
 def is_pdf_file(path):
@@ -690,11 +723,13 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
         page_count = len(doc)
         shown_pages = page_count if max_pages is None else min(page_count, max_pages)
         previews = []
+        render_widths = []
 
         if shown_pages <= 0:
-            return page_count, shown_pages, previews
+            return page_count, shown_pages, previews, None
 
         if target_width is not None or target_height is not None:
+            dominant_page_width = _get_dominant_render_width(doc, shown_pages)
             for index in range(shown_pages):
                 page = doc[index]
                 rect = page.rect
@@ -703,6 +738,7 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
                     rect.height,
                     max_width=target_width,
                     max_height=target_height,
+                    dominant_page_width=dominant_page_width,
                 )
                 if render_width is None or render_height is None:
                     render_width = int(round(rect.width))
@@ -716,6 +752,9 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
                 rgb_pix = pix if pix.n == 3 and not pix.alpha else fitz.Pixmap(fitz.csRGB, pix)
                 bitmap = wx.Bitmap.FromBuffer(rgb_pix.width, rgb_pix.height, rgb_pix.samples)
                 previews.append((index + 1, bitmap))
+                if bitmap.IsOk():
+                    render_widths.append(bitmap.GetSize().x)
+
             return page_count, shown_pages, previews
 
         # Use a single scale for all pages so different original page widths/heights
@@ -745,6 +784,8 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
             rgb_pix = pix if pix.n == 3 and not pix.alpha else fitz.Pixmap(fitz.csRGB, pix)
             bitmap = wx.Bitmap.FromBuffer(rgb_pix.width, rgb_pix.height, rgb_pix.samples)
             previews.append((index + 1, bitmap))
+            if bitmap.IsOk():
+                render_widths.append(bitmap.GetSize().x)
 
         return page_count, shown_pages, previews
     finally:
