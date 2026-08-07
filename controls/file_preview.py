@@ -1785,8 +1785,6 @@ def on_preview_adjust_page_width(event):
         try:
             with owner.busy_cursor():
                 adjust_page_width(owner.current_preview_path)
-                ## save_pdf(owner.current_preview_path)
-                ## owner.refresh_list_item_size(owner.current_preview_path)
                 update_pdf_save_button_state(owner)
                 show_pdf_feed(owner, owner.current_preview_path)
         except Exception as exc:
