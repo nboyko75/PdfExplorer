@@ -636,13 +636,24 @@ def adjust_page_width(path):
             src_width = float(page.rect.width)
             src_height = float(page.rect.height)
             if src_width <= 0 or src_height <= 0:
+                new_doc.insert_pdf(doc, from_page=page_index, to_page=page_index)
+                continue
+
+            width_delta = abs(src_width - float(target_width))
+            if width_delta <= 10.0:
+                new_doc.insert_pdf(doc, from_page=page_index, to_page=page_index)
                 continue
 
             scale = target_width / src_width
-            target_height = max(1.0, src_height * scale)
+            page_width = float(target_width)
+            page_height = max(1.0, src_height * scale)
 
-            new_page = new_doc.new_page(width=float(target_width), height=target_height)
-            new_page.show_pdf_page(new_page.rect, doc, page_index)
+            new_page = new_doc.new_page(width=page_width, height=page_height)
+            pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+            new_page.insert_image(
+                rect=new_page.rect,
+                stream=pix.tobytes("png"),
+            )
 
         return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
     finally:
