@@ -1,10 +1,12 @@
 import os
+from contextlib import nullcontext
 import wx
 
 from localization import tr
 from controls.window_tools import load_settings, update_settings
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
+import file_operations.office_preview as office_preview
 import file_operations.pdf_dragdrop as pdf_dragdrop
 import file_operations.pdf_utils as pdf_utils
 
@@ -777,6 +779,24 @@ def show_file_preview(owner, path):
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
         image_utils.show_image_preview(owner, path, tr)
         return
+
+    if office_preview.can_preview_office(path):
+        try:
+            cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
+            with cursor_context:
+                preview_pdf_path = office_preview.convert_office_to_preview_pdf(path)
+                show_pdf_feed(owner, preview_pdf_path)
+                update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
+                update_page_buttons_state(owner)
+                update_pdf_save_button_state(owner)
+                return
+        except Exception as exc:
+            owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
+            owner.preview_text.Show(True)
+            owner.pdf_pages_panel.Hide()
+            owner.pdf_preview_container.Hide()
+            owner.filePreview.Layout()
+            return
 
     update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
     owner.preview_text.SetValue("")
