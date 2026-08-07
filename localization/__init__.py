@@ -108,6 +108,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "confirm_save_selected_file": "Save changes to selected file?",
     "confirm_save_before_exit": "You have unsaved changes in {count} PDF file(s). Save before exit?",
     "confirm_delete": "Delete {path}?",
+    "scan_overwrite_existing_prompt": "File already exists:\n{path}\n\nOverwrite this file?\nChoose No to save as a new file with a '(1)' suffix.",
     "insert_before": "Insert before",
     "insert_after": "Insert after",
     "undo_no_action": "Nothing to undo",

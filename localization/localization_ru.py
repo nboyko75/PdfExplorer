@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "Сохранить изменения в выбранном файле?",
     "confirm_save_before_exit": "Есть несохраненные изменения в {count} PDF-файле(ах). Сохранить перед выходом?",
     "confirm_delete": "Удалить {path}?",
+    "scan_overwrite_existing_prompt": "Файл уже существует:\n{path}\n\nПерезаписать этот файл?\nВыберите Нет, чтобы сохранить как новый файл с суффиксом '(1)'.",
     "insert_before": "Вставить перед",
     "insert_after": "Вставить после",
     "undo_no_action": "Нечего отменять",

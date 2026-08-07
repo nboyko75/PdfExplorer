@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "保存所选文件的更改吗?",
     "confirm_save_before_exit": "有 {count} 个 PDF 文件包含未保存更改。退出前是否保存?",
     "confirm_delete": "删除 {path} 吗?",
+    "scan_overwrite_existing_prompt": "文件已存在:\n{path}\n\n是否覆盖此文件?\n选择“否”将使用带有 '(1)' 后缀的新文件名保存。",
     "insert_before": "在前面插入",
     "insert_after": "在后面插入",
     "undo_no_action": "没有可撤销的操作",

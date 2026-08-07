@@ -84,7 +84,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Supprimer la page",
     "preview_move_page_button": "Deplacer la page",
     "preview_import_button": "Importer",
-    "preview_import_from_file_button": "Importer depuis un fichier",
+    "preview_import_from_file_button": "Importer depuis un fichier",
+
     "preview_import_from_scanner_button": "Importer depuis le scanner",
     "preview_export_pages_button": "Exporter des pages",
     "import_pdf_dialog_title": "Importer un PDF depuis un fichier",
@@ -113,6 +114,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "Enregistrer les modifications du fichier selectionne ?",
     "confirm_save_before_exit": "Vous avez des modifications non enregistrees dans {count} fichier(s) PDF. Enregistrer avant de quitter ?",
     "confirm_delete": "Supprimer {path} ?",
+    "scan_overwrite_existing_prompt": "Le fichier existe deja :\n{path}\n\nEcraser ce fichier ?\nChoisissez Non pour enregistrer un nouveau fichier avec le suffixe '(1)'.",
     "insert_before": "Inserer avant",
     "insert_after": "Inserer apres",
     "undo_no_action": "Rien a annuler",

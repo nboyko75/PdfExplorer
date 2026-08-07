@@ -27,6 +27,13 @@ from controls.window_tools import load_settings, update_settings
 import controls.file_preview as file_preview
 
 
+def _create_nonexistent_temp_path(prefix, suffix):
+    fd, temp_path = tempfile.mkstemp(prefix=prefix, suffix=suffix)
+    os.close(fd)
+    os.remove(temp_path)
+    return temp_path
+
+
 def _get_scan_dialog_initial_dir(owner):
     candidate = str(owner.search_box.GetValue()).strip()
     if candidate:
@@ -52,31 +59,6 @@ def _show_scan_dialog(owner):
 
     dialog = wx.Dialog(owner, title=tr("scan_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
-
-    scanner_label = wx.StaticText(panel, label=tr("scan_scanner_label"))
-    scanner_choices = [tr("scan_default_scanner")]
-    scanner_choice = wx.Choice(panel, choices=scanner_choices)
-    scanner_choice.SetSelection(0)
-
-    source_label = wx.StaticText(panel, label=tr("scan_source_label"))
-    source_choices = [tr("scan_source_flatbed"), tr("scan_source_adf_simplex"), tr("scan_source_adf_duplex")]
-    source_choice = wx.Choice(panel, choices=source_choices)
-    source_choice.SetSelection(int(settings.get("scan_source_index", 0)) if str(settings.get("scan_source_index", "0")).isdigit() else 0)
-
-    mode_label = wx.StaticText(panel, label=tr("scan_color_mode_label"))
-    mode_choices = [tr("scan_color_mode_color"), tr("scan_color_mode_grayscale"), tr("scan_color_mode_black_white")]
-    mode_choice = wx.Choice(panel, choices=mode_choices)
-    mode_choice.SetSelection(int(settings.get("scan_color_mode_index", 0)) if str(settings.get("scan_color_mode_index", "0")).isdigit() else 0)
-
-    dpi_label = wx.StaticText(panel, label=tr("scan_dpi_label"))
-    dpi_choices = ["150", "200", "300", "600"]
-    dpi_choice = wx.Choice(panel, choices=dpi_choices)
-    dpi_choice.SetSelection(int(settings.get("scan_dpi_index", 2)) if str(settings.get("scan_dpi_index", "2")).isdigit() else 2)
-
-    page_size_label = wx.StaticText(panel, label=tr("scan_page_size_label"))
-    page_size_choices = [tr("scan_page_size_auto"), tr("scan_page_size_a4"), tr("scan_page_size_letter"), tr("scan_page_size_legal")]
-    page_size_choice = wx.Choice(panel, choices=page_size_choices)
-    page_size_choice.SetSelection(int(settings.get("scan_page_size_index", 0)) if str(settings.get("scan_page_size_index", "0")).isdigit() else 0)
 
     file_type_label = wx.StaticText(panel, label=tr("scan_output_type_label"))
     file_type_choices = [tr("scan_output_type_pdf"), tr("scan_output_type_jpeg")]
@@ -126,16 +108,6 @@ def _show_scan_dialog(owner):
     browse_btn.Bind(wx.EVT_BUTTON, browse_output)
 
     fields = wx.FlexGridSizer(cols=2, hgap=8, vgap=8)
-    fields.Add(scanner_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(scanner_choice, 1, wx.EXPAND)
-    fields.Add(source_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(source_choice, 1, wx.EXPAND)
-    fields.Add(mode_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(mode_choice, 1, wx.EXPAND)
-    fields.Add(dpi_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(dpi_choice, 1, wx.EXPAND)
-    fields.Add(page_size_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(page_size_choice, 1, wx.EXPAND)
     fields.Add(file_type_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(file_type_choice, 1, wx.EXPAND)
     fields.Add(multiple_pages_chk, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -198,11 +170,6 @@ def _show_scan_dialog(owner):
         return None
 
     scan_config = {
-        "scanner_index": scanner_choice.GetSelection(),
-        "source_index": source_choice.GetSelection(),
-        "color_mode_index": mode_choice.GetSelection(),
-        "dpi_index": dpi_choice.GetSelection(),
-        "page_size_index": page_size_choice.GetSelection(),
         "file_type_index": file_type_choice.GetSelection(),
         "multiple_pages": multiple_pages_chk.GetValue(),
         "output_path": output_path,
@@ -224,6 +191,39 @@ def _normalize_output_path(output_path, file_type_index):
     if ext.lower() != expected_ext:
         return root + expected_ext
     return normalized_path
+
+
+def _build_nonconflicting_output_path(path):
+    root, ext = os.path.splitext(path)
+    index = 1
+    while True:
+        candidate = f"{root}({index}){ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        index += 1
+
+
+def _resolve_output_path_before_save(owner, output_path, file_type_index):
+    normalized_path = _normalize_output_path(output_path, file_type_index)
+    if not os.path.exists(normalized_path):
+        return normalized_path
+
+    dialog = wx.MessageDialog(
+        owner,
+        tr("scan_overwrite_existing_prompt", path=normalized_path),
+        tr("scan"),
+        style=wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
+    )
+    try:
+        result = dialog.ShowModal()
+    finally:
+        dialog.Destroy()
+
+    if result == wx.ID_YES:
+        return normalized_path
+    if result == wx.ID_NO:
+        return _build_nonconflicting_output_path(normalized_path)
+    return None
 
 
 def _acquire_scanned_image_files(scan_config):
@@ -269,7 +269,6 @@ def _acquire_scanned_image_files(scan_config):
             acquired_items = [result]
 
         for item in acquired_items:
-            temp_handle = None
             temp_path = None
             try:
                 if hasattr(item, "FileName") and item.FileName:
@@ -278,9 +277,7 @@ def _acquire_scanned_image_files(scan_config):
                         image_files.append(candidate_path)
                         continue
 
-                temp_handle = tempfile.NamedTemporaryFile(prefix="scan_", suffix=".jpg", delete=False)
-                temp_handle.close()
-                temp_path = temp_handle.name
+                temp_path = _create_nonexistent_temp_path(prefix="scan_", suffix=".jpg")
 
                 if hasattr(item, "Transfer"):
                     transfer_result = item.Transfer()
@@ -408,10 +405,6 @@ def on_scan_form(owner):
     output_name = os.path.splitext(os.path.basename(output_path))[0]
     update_settings(
         {
-            "scan_source_index": scan_config["source_index"],
-            "scan_color_mode_index": scan_config["color_mode_index"],
-            "scan_dpi_index": scan_config["dpi_index"],
-            "scan_page_size_index": scan_config["page_size_index"],
             "scan_file_type_index": scan_config["file_type_index"],
             "scan_multiple_pages": scan_config["multiple_pages"],
             "scan_output_name": output_name,
@@ -424,6 +417,9 @@ def on_scan_form(owner):
         with cursor_context:
             image_files = _acquire_scanned_image_files(scan_config)
             if not image_files:
+                return
+            output_path = _resolve_output_path_before_save(owner, output_path, scan_config["file_type_index"])
+            if output_path is None:
                 return
             output_path = _save_scanned_pages(image_files, output_path, scan_config["file_type_index"])
             _refresh_after_scan(owner, output_path)

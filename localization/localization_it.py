@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "Salvare le modifiche al file selezionato?",
     "confirm_save_before_exit": "Sono presenti modifiche non salvate in {count} file PDF. Salvare prima di uscire?",
     "confirm_delete": "Eliminare {path}?",
+    "scan_overwrite_existing_prompt": "Il file esiste gia:\n{path}\n\nSovrascrivere questo file?\nScegliere No per salvare come nuovo file con il suffisso '(1)'.",
     "insert_before": "Inserisci prima",
     "insert_after": "Inserisci dopo",
     "undo_no_action": "Niente da annullare",

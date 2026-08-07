@@ -84,7 +84,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Удалить страницу",
     "preview_move_page_button": "Переместить страницу",
     "preview_import_button": "Импорт",
-    "preview_import_from_file_button": "Импортировать из файла",
+    "preview_import_from_file_button": "Импортировать из файла",
+
     "preview_import_from_scanner_button": "Импортировать со сканера",
     "preview_export_pages_button": "Экспортировать страницы",
     "import_pdf_dialog_title": "Импорт PDF из файла",
@@ -113,6 +114,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "Сохранить изменения в выбранном файле?",
     "confirm_save_before_exit": "Есть несохраненные изменения в {count} PDF-файле(ах). Сохранить перед выходом?",
     "confirm_delete": "Удалить {path}?",
+    "scan_overwrite_existing_prompt": "Файл уже существует:\n{path}\n\nПерезаписать этот файл?\nВыберите Нет, чтобы сохранить как новый файл с суффиксом '(1)'.",
     "insert_before": "Вставить перед",
     "insert_after": "Вставить после",
     "undo_no_action": "Нечего отменять",

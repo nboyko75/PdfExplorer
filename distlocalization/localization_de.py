@@ -84,7 +84,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Seite entfernen",
     "preview_move_page_button": "Seite verschieben",
     "preview_import_button": "Importieren",
-    "preview_import_from_file_button": "Aus Datei importieren",
+    "preview_import_from_file_button": "Aus Datei importieren",
+
     "preview_import_from_scanner_button": "Vom Scanner importieren",
     "preview_export_pages_button": "Seiten exportieren",
     "import_pdf_dialog_title": "PDF aus Datei importieren",
@@ -113,6 +114,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "Anderungen an der ausgewahlten Datei speichern?",
     "confirm_save_before_exit": "Sie haben ungespeicherte Anderungen in {count} PDF-Datei(en). Vor dem Beenden speichern?",
     "confirm_delete": "{path} loschen?",
+    "scan_overwrite_existing_prompt": "Datei existiert bereits:\n{path}\n\nDiese Datei uberschreiben?\nWahlen Sie Nein, um als neue Datei mit Suffix '(1)' zu speichern.",
     "insert_before": "Davor einfugen",
     "insert_after": "Danach einfugen",
     "undo_no_action": "Nichts zum Ruckgangig machen",

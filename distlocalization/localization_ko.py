@@ -84,7 +84,8 @@ TRANSLATIONS = {
     "preview_remove_page_button": "페이지 제거",
     "preview_move_page_button": "페이지 이동",
     "preview_import_button": "가져오기",
-    "preview_import_from_file_button": "파일에서 가져오기",
+    "preview_import_from_file_button": "파일에서 가져오기",
+
     "preview_import_from_scanner_button": "스캐너에서 가져오기",
     "preview_export_pages_button": "페이지 내보내기",
     "import_pdf_dialog_title": "파일에서 PDF 가져오기",
@@ -113,6 +114,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "선택한 파일의 변경 내용을 저장할까요?",
     "confirm_save_before_exit": "{count}개의 PDF 파일에 저장되지 않은 변경 사항이 있습니다. 종료 전에 저장할까요?",
     "confirm_delete": "{path}을(를) 삭제할까요?",
+    "scan_overwrite_existing_prompt": "파일이 이미 존재합니다:\n{path}\n\n이 파일을 덮어쓸까요?\n아니요를 선택하면 '(1)' 접미사가 붙은 새 파일로 저장합니다.",
     "insert_before": "앞에 삽입",
     "insert_after": "뒤에 삽입",
     "undo_no_action": "실행 취소할 작업이 없습니다",

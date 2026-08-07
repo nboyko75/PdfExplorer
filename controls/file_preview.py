@@ -3,7 +3,7 @@ import wx
 
 from localization import tr
 from controls.window_tools import load_settings, update_settings
-from file_operations.pdf_utils import adjust_page_width, auto_rotate_pdf, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
+from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.pdf_dragdrop as pdf_dragdrop
 import file_operations.pdf_utils as pdf_utils
@@ -517,24 +517,27 @@ def _get_preview_target_size_for_mode(owner, path, max_bitmap_width, max_bitmap_
     current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
     zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
     average_width, average_height = _get_average_pdf_page_dimensions(path)
+    target_zoom = 1.0
 
     if current_mode == PAGE_VIEW_MODE_1_TALL and average_width and average_height:
         target_height = max(80, int(round(min(max_bitmap_height, average_height * zoom_scale))))
         target_width = int(round(target_height * average_width / average_height))
+        target_zoom = average_height / average_width
         if target_width > max_bitmap_width:
             target_width = max_bitmap_width
-            target_height = int(round(target_width * average_height / average_width))
-        return max(80, target_width), max(80, target_height)
+            target_height = int(round(target_width * target_zoom))
+        return target_width, target_height, target_zoom, None, average_height
 
     if current_mode == PAGE_VIEW_MODE_1_WIDE and average_width and average_height:
         target_width = max(80, int(round(min(max_bitmap_width, average_width * zoom_scale))))
         target_height = int(round(target_width * average_height / average_width))
+        target_zoom = average_width / average_height
         if target_height > max_bitmap_height:
             target_height = max_bitmap_height
-            target_width = int(round(target_height * average_width / average_height))
-        return max(80, target_width), max(80, target_height)
+            target_width = int(round(target_height * target_zoom))
+        return target_width, target_height, target_zoom, average_width, None
 
-    return max_bitmap_width, max_bitmap_height
+    return max_bitmap_width, max_bitmap_height, target_zoom, average_width, average_height
 
 
 def _compute_pdf_page_fit_constraints(owner):
@@ -637,7 +640,7 @@ def show_pdf_feed(owner, path):
 
             max_bitmap_width = max(80, int(round(max_bitmap_width * zoom_scale)))
             max_bitmap_height = max(80, min(6000, int(round(max_bitmap_height * zoom_scale))))
-            target_width, target_height = _get_preview_target_size_for_mode(
+            target_width, target_height, target_zoom, avg_width, avg_height = _get_preview_target_size_for_mode(
                 owner,
                 path,
                 max_bitmap_width,
@@ -649,6 +652,9 @@ def show_pdf_feed(owner, path):
                 max_height=max_height,
                 target_width=target_width,
                 target_height=target_height,
+                target_zoom=target_zoom,
+                avg_width=avg_width,
+                avg_height=avg_height
             )
 
             gap_width = 22
@@ -1584,18 +1590,18 @@ def on_preview_rotate_all_right(event):
             wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
-def on_preview_auto_rotate(event):
-    owner = _get_preview_owner_from_event(event)
-    if owner:
-        if not is_pdf_file(owner.current_preview_path):
-            wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-            return
-        try:
-            with owner.busy_cursor():
-                auto_rotate_pdf(owner.current_preview_path)
-                show_pdf_feed(owner, owner.current_preview_path)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+# def on_preview_auto_rotate(event):
+#     owner = _get_preview_owner_from_event(event)
+#     if owner:
+#         if not is_pdf_file(owner.current_preview_path):
+#             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+#             return
+#         try:
+#             with owner.busy_cursor():
+#                 auto_rotate_pdf(owner.current_preview_path)
+#                 show_pdf_feed(owner, owner.current_preview_path)
+#         except Exception as exc:
+#             wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
 def on_preview_remove_page(event, owner=None):
@@ -1752,7 +1758,7 @@ def on_preview_move_page(event):
 
 def on_preview_optimize(event):
     ## Auto-rotate the PDF before optimizing to avoid cutting page.
-    on_preview_auto_rotate(event)
+    ## on_preview_auto_rotate(event)
 
     owner = _get_preview_owner_from_event(event)
     if owner:

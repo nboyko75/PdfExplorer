@@ -3,7 +3,7 @@ import sys
 from contextlib import contextmanager
 import wx
 
-from file_operations.pdf_utils import discard_pdf_changes, get_pdf_page_previews, get_unsaved_pdf_paths, is_pdf_file, move_pdf_page, save_pdf
+from file_operations.pdf_utils import discard_pdf_changes, get_unsaved_pdf_paths, is_pdf_file, move_pdf_page, save_pdf
 from localization import tr, load_locale, available_locales
 from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
 import controls.tree_utils as tree_utils
@@ -281,7 +281,7 @@ class FileExplorer(wx.Frame):
         self.preview_zoom_in_btn.SetToolTip(tr("preview_zoom_in_button"))
         self.preview_zoom_out_btn.SetToolTip(tr("preview_zoom_out_button"))
         self.preview_rotate_menu_btn.SetToolTip(tr("preview_rotate_button"))
-        self.preview_auto_rotate_btn.SetToolTip(tr("preview_auto_rotate_button"))
+        ## self.preview_auto_rotate_btn.SetToolTip(tr("preview_auto_rotate_button"))
         file_preview.sync_pdf_page_view_mode_controls(self)
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
         self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))

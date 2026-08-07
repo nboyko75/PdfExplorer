@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "confirm_save_selected_file": "選択したファイルへの変更を保存しますか?",
     "confirm_save_before_exit": "{count} 個の PDF ファイルに未保存の変更があります。終了前に保存しますか?",
     "confirm_delete": "{path} を削除しますか?",
+    "scan_overwrite_existing_prompt": "ファイルは既に存在します:\n{path}\n\nこのファイルを上書きしますか?\n「いいえ」を選ぶと、'(1)' サフィックス付きの新しいファイル名で保存します。",
     "insert_before": "前に挿入",
     "insert_after": "後に挿入",
     "undo_no_action": "元に戻す操作はありません",
