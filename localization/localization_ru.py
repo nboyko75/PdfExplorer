@@ -1,5 +1,5 @@
 TRANSLATIONS = {
-    "app_title": "Pdf проводник",
+    "app_title": "Document Explorer",
     "back_button": "Назад",
     "forward_button": "Вперед",
     "exit_button": "Выход",

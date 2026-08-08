@@ -1,5 +1,5 @@
 TRANSLATIONS = {
-    "app_title": "Pdf Explorer",
+    "app_title": "Document Explorer",
     "back_button": "뒤로",
     "forward_button": "앞으로",
     "exit_button": "종료",

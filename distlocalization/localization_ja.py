@@ -1,5 +1,5 @@
 TRANSLATIONS = {
-    "app_title": "Python Explorer Pro",
+    "app_title": "Doc Explorer",
     "back_button": "戻る",
     "forward_button": "進む",
     "exit_button": "終了",

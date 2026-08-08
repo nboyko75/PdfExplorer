@@ -26,7 +26,7 @@ _OFFICE_EXTENSIONS = {
 
 
 def _run_powershell_office_export(script_body, source_path, output_pdf):
-    script_fd, script_path = tempfile.mkstemp(prefix="pdfexplorer_office_", suffix=".ps1")
+    script_fd, script_path = tempfile.mkstemp(prefix="docexplorer_office_", suffix=".ps1")
     os.close(script_fd)
     try:
         with open(script_path, "w", encoding="utf-8-sig", newline="\n") as handle:
@@ -66,7 +66,7 @@ def _build_cached_preview_pdf_path(path):
     normalized_path = os.path.abspath(path)
     mtime_ns = os.path.getmtime(path)
     digest = hashlib.sha1(f"{normalized_path}|{mtime_ns}".encode("utf-8")).hexdigest()
-    cache_dir = os.path.join(tempfile.gettempdir(), "pdfexplorer_office_preview")
+    cache_dir = os.path.join(tempfile.gettempdir(), "docexplorer_office_preview")
     os.makedirs(cache_dir, exist_ok=True)
     return os.path.join(cache_dir, f"{digest}.pdf")
 

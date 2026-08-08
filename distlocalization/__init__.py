@@ -3,7 +3,7 @@ import os
 from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
-    "app_title": "Python Explorer Pro",
+    "app_title": "Doc Explorer",
     "back_button": "Back",
     "forward_button": "Forward",
     "search_hint": "Search...",

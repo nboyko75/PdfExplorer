@@ -21,7 +21,7 @@ if not exist "%LOCALIZATION_DIST_DIR%" (
 copy /Y "%LOCALIZATION_PROJECT_DIR%\localization*.*" "%LOCALIZATION_DIST_DIR%" >nul
 echo images are copied to "%LOCALIZATION_DIST_DIR%"
 
-pyinstaller --onefile --windowed --name PdfExplorer --icon="%IMAGES_PROJECT_DIR%\main.ico" --add-data "images;images" --add-data "localization;localization" "%PROJECT_DIR%main.py"
+pyinstaller --onefile --windowed --name DocExplorer --icon="%IMAGES_PROJECT_DIR%\main.ico" --add-data "images;images" --add-data "localization;localization" "%PROJECT_DIR%main.py"
 
 if errorlevel 1 (
 	exit /b %errorlevel%
