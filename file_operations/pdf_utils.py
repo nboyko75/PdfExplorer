@@ -606,15 +606,33 @@ def optimize_pdf(path):
         doc.close()
 
 
+def _is_scanned_single_image_pdf(doc):
+    for page in doc:
+        images = page.get_images(full=True)
+        if len(images) != 1:
+            return False
+
+        text = page.get_text("text")
+        if text and text.strip():
+            return False
+
+    return True
+
+
 def adjust_page_width(path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
     doc = _open_pdf_document(path)
-    new_doc = fitz.open()
+    new_doc = None
     try:
         if len(doc) == 0:
             return path
+
+        if not _is_scanned_single_image_pdf(doc):
+            return path
+
+        new_doc = fitz.open()
 
         widths = []
         for page in doc:
@@ -658,7 +676,7 @@ def adjust_page_width(path):
         return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
     finally:
         doc.close()
-        if not new_doc.is_closed:
+        if new_doc is not None and not new_doc.is_closed:
             new_doc.close()
 
 
