@@ -3,14 +3,16 @@ import os
 import sys
 
 
-def _get_app_base_dir():
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+def _get_project_root_dir():
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)
+    if os.path.basename(current_dir) == "controls":
+        return os.path.dirname(current_dir)
+    return current_dir
 
 
 def _get_settings_file_path():
-    return os.path.join(_get_app_base_dir(), ".pdf_explorer_settings.json")
+    return os.path.join(_get_project_root_dir(), ".pdf_explorer_settings.json")
 
 
 def load_settings():

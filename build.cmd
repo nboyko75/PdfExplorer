@@ -35,9 +35,9 @@ if not exist "%DIST_DIR%" (
 if exist "%PROJECT_DIR%%SETTINGS_FILE%" (
 	copy /Y "%PROJECT_DIR%%SETTINGS_FILE%" "%DIST_DIR%\%SETTINGS_FILE%" >nul
 ) else (
-	echo {}>"%DIST_DIR%\%SETTINGS_FILE%"
+	echo {}>"%PROJECT_DIR%%SETTINGS_FILE%"
 )
-echo Settings file prepared: "%DIST_DIR%\%SETTINGS_FILE%"
+echo Settings file prepared: "%PROJECT_DIR%%SETTINGS_FILE%"
 
 if exist "%PROJECT_DIR%register_pdf_association.cmd" (
 	copy /Y "%PROJECT_DIR%register_pdf_association.cmd" "%DIST_DIR%\register_pdf_association.cmd" >nul
