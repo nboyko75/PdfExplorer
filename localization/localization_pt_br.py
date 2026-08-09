@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 TRANSLATIONS = {
     "app_title": "Document Explorer",
     "back_button": "Voltar",

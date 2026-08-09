@@ -76,7 +76,7 @@ def _show_scan_dialog(owner):
     browse_btn = wx.Button(panel, label=tr("scan_browse_button"))
 
     open_after_scan_chk = wx.CheckBox(panel, label=tr("scan_open_after_label"))
-    open_after_scan_chk.SetValue(bool(settings.get("scan_open_after", True)))
+    open_after_scan_chk.SetValue(bool(settings.get("scan_open_after", False)))
 
     def update_output_extension(_):
         current_value = output_text.GetValue().strip()
@@ -226,6 +226,12 @@ def _resolve_output_path_before_save(owner, output_path, file_type_index):
     return None
 
 
+def _should_show_scan_ui(scan_config, page_index):
+    if not bool(scan_config.get("multiple_pages", False)):
+        return True
+    return page_index == 0
+
+
 def _acquire_scanned_image_files(scan_config):
     if pythoncom is None or win32_client is None:
         raise RuntimeError("Windows WIA support is not available in this environment.")
@@ -237,15 +243,17 @@ def _acquire_scanned_image_files(scan_config):
 
     common_dialog = win32_client.Dispatch("WIA.CommonDialog")
     image_files = []
+    page_index = 0
 
     while True:
         try:
+            show_ui = _should_show_scan_ui(scan_config, page_index)
             result = common_dialog.ShowAcquireImage(
                 0,
                 0,
                 0,
                 "{00000000-0000-0000-0000-000000000000}",
-                False,
+                show_ui,
                 True,
                 False,
             )
@@ -306,6 +314,7 @@ def _acquire_scanned_image_files(scan_config):
                         pass
                 raise RuntimeError(f"Unable to save scanned image: {exc}") from exc
 
+        page_index += 1
         if not bool(scan_config.get("multiple_pages", False)):
             break
 
@@ -429,7 +438,7 @@ def on_scan_form(owner):
                 except Exception:
                     pass
             wx.MessageBox(
-                f"Scanned document saved to {output_path}",
+                tr("scan_saved_message", output_path=output_path),
                 tr("scan"),
                 style=wx.OK | wx.ICON_INFORMATION,
             )

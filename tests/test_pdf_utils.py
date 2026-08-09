@@ -3,10 +3,23 @@ import shutil
 import tempfile
 import unittest
 import uuid
+from unittest import mock
 
 import fitz
 
 from file_operations import pdf_utils
+
+
+class OptimizePdfDefaultsTests(unittest.TestCase):
+    @mock.patch("file_operations.pdf_utils.load_settings", return_value={})
+    def test_advanced_settings_use_balanced_defaults(self, _mock_settings):
+        settings = pdf_utils._get_optimize_pdf_advanced_settings()
+
+        self.assertEqual(settings["color_target_dpi"], 50)
+        self.assertEqual(settings["color_threshold_dpi"], 70)
+        self.assertEqual(settings["color_quality"], 20)
+        self.assertEqual(settings["mono_target_dpi"], 50)
+        self.assertEqual(settings["mono_threshold_dpi"], 70)
 
 
 class AdjustPageWidthTests(unittest.TestCase):

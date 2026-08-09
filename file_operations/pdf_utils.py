@@ -8,16 +8,16 @@ except ImportError:
     fitz = None
 
 
-DEFAULT_OPTIMIZE_IMAGE_WIDTH = 1400
-DEFAULT_OPTIMIZE_IMAGE_QUALITY = 150
-DEFAULT_COLOR_TARGET_DPI = 120
-DEFAULT_COLOR_THRESHOLD_DPI = 180
+DEFAULT_OPTIMIZE_IMAGE_WIDTH = 500
+DEFAULT_OPTIMIZE_IMAGE_QUALITY = 20
+DEFAULT_COLOR_TARGET_DPI = 50
+DEFAULT_COLOR_THRESHOLD_DPI = 70
 DEFAULT_COLOR_COMPRESSION = "jpeg"
 DEFAULT_COLOR_QUALITY = "low"
-DEFAULT_MONO_TARGET_DPI = 120
-DEFAULT_MONO_THRESHOLD_DPI = 180
-DEFAULT_MONO_COMPRESSION = "ccitt_group3"
-DEFAULT_COMPRESS_ONLY_IF_RESIZED = True
+DEFAULT_MONO_TARGET_DPI = 50
+DEFAULT_MONO_THRESHOLD_DPI = 70
+DEFAULT_MONO_COMPRESSION = "png"
+DEFAULT_COMPRESS_ONLY_IF_RESIZED = False
 PDF_PREVIEW_RENDER_QUALITY_MULTIPLIER = 3.5
 PDF_PREVIEW_MIN_RENDER_SCALE = 0.75
 PDF_PREVIEW_MAX_RENDER_SCALE = 2.5
@@ -89,9 +89,9 @@ def _normalize_color_quality(value):
     if isinstance(value, str):
         normalized = value.strip().lower()
         quality_map = {
-            "low": 45,
-            "medium": 65,
-            "high": 85,
+            "low": 20,
+            "medium": 35,
+            "high": 55,
         }
         if normalized in quality_map:
             return quality_map[normalized]

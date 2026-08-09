@@ -1,12 +1,37 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+from pathlib import Path
+
+project_dir = Path('D:/Projects/PdfExplorer').resolve()
+venv_site_packages = project_dir / '.venv' / 'Lib' / 'site-packages'
+
+pymupdf_files = [
+    str(venv_site_packages / 'pymupdf' / 'mupdfcpp64.dll'),
+    str(venv_site_packages / 'pymupdf' / '_extra.pyd'),
+    str(venv_site_packages / 'pymupdf' / '_mupdf.pyd'),
+]
+
+pymupdf_datas = []
+for path in pymupdf_files:
+    if Path(path).exists():
+        pymupdf_datas.append((path, 'pymupdf'))
+
+pymupdf_hiddenimports = [
+    'pymupdf',
+    'pymupdf.mupdf',
+    'pymupdf.pymupdf',
+    'pymupdf.utils',
+    'pymupdf.table',
+    'fitz',
+]
+
 a = Analysis(
-    ['D:\\Projects\\PdfExplorer\\main.py'],
-    pathex=[],
+    [str(project_dir / 'main.py')],
+    pathex=[str(project_dir), str(venv_site_packages)],
     binaries=[],
-    datas=[('images', 'images'), ('localization', 'localization')],
-    hiddenimports=[],
+    datas=[('images', 'images'), ('localization', 'localization')] + pymupdf_datas,
+    hiddenimports=pymupdf_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

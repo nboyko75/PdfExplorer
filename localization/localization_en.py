@@ -49,6 +49,7 @@ TRANSLATIONS = {
     "scan_output_file_label": "Output file",
     "scan_browse_button": "Browse...",
     "scan_open_after_label": "Open after scan",
+    "scan_saved_message": "Scanned document saved to {output_path}",
     "scan_select_output_file_title": "Select output file",
     "scan_button": "Scan",
     "scan_cancel_button": "Cancel",

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 TRANSLATIONS = {
     "app_title": "Doc Explorer",
     "back_button": "戻る",

@@ -8,6 +8,7 @@ set "IMAGES_PROJECT_DIR=%PROJECT_DIR%\images"
 set "LOCALIZATION_DIST_DIR=%DIST_DIR%\localization"
 set "LOCALIZATION_PROJECT_DIR=%PROJECT_DIR%\localization"
 set "SETTINGS_FILE=.pdf_explorer_settings.json"
+set "PYINSTALLER_EXE=D:\Python\Python310\Scripts\pyinstaller.exe"
 
 if not exist "%IMAGES_DIST_DIR%" (
 	mkdir "%IMAGES_DIST_DIR%"
@@ -21,7 +22,7 @@ if not exist "%LOCALIZATION_DIST_DIR%" (
 copy /Y "%LOCALIZATION_PROJECT_DIR%\localization*.*" "%LOCALIZATION_DIST_DIR%" >nul
 echo images are copied to "%LOCALIZATION_DIST_DIR%"
 
-pyinstaller --onefile --windowed --name DocExplorer --icon="%IMAGES_PROJECT_DIR%\main.ico" --add-data "images;images" --add-data "localization;localization" "%PROJECT_DIR%main.py"
+"%PYINSTALLER_EXE%" "%PROJECT_DIR%DocExplorer.spec"
 
 if errorlevel 1 (
 	exit /b %errorlevel%
