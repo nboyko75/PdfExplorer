@@ -4,6 +4,13 @@ import sys
 
 
 def _get_project_root_dir():
+    # In frozen builds (e.g. PyInstaller), persist settings next to the executable.
+    if getattr(sys, "frozen", False):
+        executable_path = os.path.abspath(getattr(sys, "executable", ""))
+        executable_dir = os.path.dirname(executable_path)
+        if executable_dir:
+            return executable_dir
+
     current_file = os.path.abspath(__file__)
     current_dir = os.path.dirname(current_file)
     if os.path.basename(current_dir) == "controls":
