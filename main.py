@@ -38,6 +38,10 @@ class FileExplorer(wx.Frame):
     def __init__(self, initial_path=None):
         super().__init__(None, title=tr("app_title"), size=(1400, 900))
 
+        icon_path = os.path.join(os.path.dirname(__file__), "images", "main.ico")
+        if os.path.isfile(icon_path):
+            self.SetIcon(wx.Icon(icon_path))
+
         self.history = []
         self.history_index = -1
         self.show_hidden = False
