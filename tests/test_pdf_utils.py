@@ -68,5 +68,109 @@ class AdjustPageWidthTests(unittest.TestCase):
             self.assertEqual(widths_after, widths_before)
 
 
+class GetPdfPagePreviewsSizingTests(unittest.TestCase):
+    @staticmethod
+    def _make_fake_doc(width=600.0, height=800.0):
+        class _Rect:
+            def __init__(self, w, h):
+                self.width = w
+                self.height = h
+
+        class _Page:
+            def __init__(self, w, h):
+                self.rect = _Rect(w, h)
+
+            def get_pixmap(self, matrix, alpha=False):
+                sx, sy = matrix
+                pix_width = max(1, int(round(self.rect.width * sx)))
+                pix_height = max(1, int(round(self.rect.height * sy)))
+                return type(
+                    "Pix",
+                    (),
+                    {
+                        "width": pix_width,
+                        "height": pix_height,
+                        "n": 3,
+                        "alpha": False,
+                        "samples": b"\x00" * (pix_width * pix_height * 3),
+                    },
+                )()
+
+        class _Doc:
+            def __init__(self, pages):
+                self._pages = pages
+
+            def __len__(self):
+                return len(self._pages)
+
+            def __getitem__(self, index):
+                return self._pages[index]
+
+            def close(self):
+                return None
+
+        return _Doc([_Page(width, height)])
+
+    @staticmethod
+    def _fake_bitmap_from_buffer(width, height, _samples):
+        return type("Bitmap", (), {"width": width, "height": height})()
+
+    def test_target_box_keeps_original_aspect_ratio(self):
+        doc = self._make_fake_doc(600.0, 800.0)
+
+        with mock.patch("file_operations.pdf_utils._open_pdf_document", return_value=doc), \
+             mock.patch("file_operations.pdf_utils.fitz.Matrix", side_effect=lambda sx, sy: (sx, sy)), \
+             mock.patch("file_operations.pdf_utils.wx.Bitmap.FromBuffer", side_effect=self._fake_bitmap_from_buffer):
+            page_count, shown_pages, previews = pdf_utils.get_pdf_page_previews(
+                "dummy.pdf",
+                target_width=600,
+                target_height=600,
+            )
+
+        self.assertEqual(page_count, 1)
+        self.assertEqual(shown_pages, 1)
+        self.assertEqual(len(previews), 1)
+
+        _page_no, bitmap = previews[0]
+        self.assertEqual(bitmap.width, 450)
+        self.assertEqual(bitmap.height, 600)
+
+    def test_wide_mode_signal_prefers_scale_x(self):
+        doc = self._make_fake_doc(600.0, 800.0)
+
+        with mock.patch("file_operations.pdf_utils._open_pdf_document", return_value=doc), \
+             mock.patch("file_operations.pdf_utils.fitz.Matrix", side_effect=lambda sx, sy: (sx, sy)), \
+             mock.patch("file_operations.pdf_utils.wx.Bitmap.FromBuffer", side_effect=self._fake_bitmap_from_buffer):
+            _page_count, _shown_pages, previews = pdf_utils.get_pdf_page_previews(
+                "dummy.pdf",
+                target_width=600,
+                target_height=600,
+                avg_width=600.0,
+                avg_height=None,
+            )
+
+        _page_no, bitmap = previews[0]
+        self.assertEqual(bitmap.width, 600)
+        self.assertEqual(bitmap.height, 800)
+
+    def test_tall_mode_signal_prefers_scale_y(self):
+        doc = self._make_fake_doc(600.0, 800.0)
+
+        with mock.patch("file_operations.pdf_utils._open_pdf_document", return_value=doc), \
+             mock.patch("file_operations.pdf_utils.fitz.Matrix", side_effect=lambda sx, sy: (sx, sy)), \
+             mock.patch("file_operations.pdf_utils.wx.Bitmap.FromBuffer", side_effect=self._fake_bitmap_from_buffer):
+            _page_count, _shown_pages, previews = pdf_utils.get_pdf_page_previews(
+                "dummy.pdf",
+                target_width=600,
+                target_height=600,
+                avg_width=None,
+                avg_height=800.0,
+            )
+
+        _page_no, bitmap = previews[0]
+        self.assertEqual(bitmap.width, 450)
+        self.assertEqual(bitmap.height, 600)
+
+
 if __name__ == "__main__":
     unittest.main()

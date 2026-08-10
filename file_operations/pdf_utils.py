@@ -697,18 +697,28 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
             for index in range(shown_pages):
                 page = doc[index]
                 rect = page.rect
-                rect_zoom = 1.0
-                if avg_width is not None:
-                    rect_zoom = avg_width / rect.width
-                elif avg_height is not None:
-                    rect_zoom = avg_height / rect.height
-                if abs(rect_zoom - 1.0) > 0.01:
-                    ## different page sizes
-                    rect_width = rect.width * target_zoom
-                    rect_height = rect.height * target_zoom
+                if target_width is None and target_height is None:
+                    rect_width = rect.width
+                    rect_height = rect.height
+                elif target_width is None:
+                    scale = float(target_height) / float(rect.height)
+                    rect_width = float(rect.width) * scale
+                    rect_height = float(rect.height) * scale
+                elif target_height is None:
+                    scale = float(target_width) / float(rect.width)
+                    rect_width = float(rect.width) * scale
+                    rect_height = float(rect.height) * scale
                 else:
-                    rect_width = target_width
-                    rect_height = target_height
+                    scale_x = float(target_width) / float(rect.width)
+                    scale_y = float(target_height) / float(rect.height)
+                    if avg_width is not None and avg_height is None:
+                        scale = scale_x
+                    elif avg_height is not None and avg_width is None:
+                        scale = scale_y
+                    else:
+                        scale = min(scale_x, scale_y)
+                    rect_width = float(rect.width) * scale
+                    rect_height = float(rect.height) * scale
                 matrix = fitz.Matrix(
                     float(rect_width) / float(rect.width),
                     float(rect_height) / float(rect.height),
