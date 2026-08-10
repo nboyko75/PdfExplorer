@@ -305,7 +305,7 @@ def build_page_view_mode_menu(owner, menu):
     if selected_mode not in FIXED_PAGE_VIEW_MODES:
         selected_mode = PAGE_VIEW_MODE_1_TALL
 
-    show_1_page_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_TALL)
+    show_1_page_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_WIDE)
     show_2_pages_wide_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_2_WIDE)
     show_1_page_tall_item.Check(current_mode != PAGE_VIEW_MODE_MANUAL and selected_mode == PAGE_VIEW_MODE_1_TALL)
     show_manual_scale_item.Check(current_mode == PAGE_VIEW_MODE_MANUAL)
@@ -517,29 +517,37 @@ def _get_average_pdf_page_dimensions(path):
 
 def _get_preview_target_size_for_mode(owner, path, max_bitmap_width, max_bitmap_height):
     current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
-    zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
+    layout_mode = _get_preview_layout_mode(owner)
+    is_manual_mode = current_mode == PAGE_VIEW_MODE_MANUAL
+    zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if is_manual_mode else 1.0
     average_width, average_height = _get_average_pdf_page_dimensions(path)
     target_zoom = 1.0
 
-    if current_mode == PAGE_VIEW_MODE_1_TALL and average_width and average_height:
-        target_height = max(80, int(round(min(max_bitmap_height, average_height * zoom_scale))))
+    if layout_mode == PAGE_VIEW_MODE_1_TALL and average_width and average_height:
+        target_height = max(80, int(round(max_bitmap_height * zoom_scale)))
         target_width = int(round(target_height * average_width / average_height))
         target_zoom = average_height / average_width
-        if target_width > max_bitmap_width:
+        if not is_manual_mode and target_width > max_bitmap_width:
             target_width = max_bitmap_width
             target_height = int(round(target_width * target_zoom))
         return target_width, target_height, target_zoom, None, average_height
 
-    if current_mode == PAGE_VIEW_MODE_1_WIDE and average_width and average_height:
-        target_width = max(80, int(round(min(max_bitmap_width, average_width * zoom_scale))))
+    if layout_mode in {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE} and average_width and average_height:
+        target_width = max(80, int(round(max_bitmap_width * zoom_scale)))
         target_height = int(round(target_width * average_height / average_width))
         target_zoom = average_width / average_height
-        if target_height > max_bitmap_height:
+        if not is_manual_mode and target_height > max_bitmap_height:
             target_height = max_bitmap_height
             target_width = int(round(target_height * target_zoom))
         return target_width, target_height, target_zoom, average_width, None
 
-    return max_bitmap_width, max_bitmap_height, target_zoom, average_width, average_height
+    target_width = max_bitmap_width
+    target_height = max_bitmap_height
+    if is_manual_mode:
+        target_width = max(80, int(round(target_width * zoom_scale)))
+        target_height = max(80, min(6000, int(round(target_height * zoom_scale))))
+
+    return target_width, target_height, target_zoom, average_width, average_height
 
 
 def _compute_pdf_page_fit_constraints(owner):
@@ -637,11 +645,6 @@ def show_pdf_feed(owner, path):
             clear_pdf_feed(owner)
             max_height = _compute_pdf_preview_max_height(owner)
             max_bitmap_width, max_bitmap_height = _compute_pdf_page_fit_constraints(owner)
-            current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
-            zoom_scale = max(0.2, float(getattr(owner, "pdf_preview_zoom", 1.0))) if current_mode == PAGE_VIEW_MODE_MANUAL else 1.0
-
-            max_bitmap_width = max(80, int(round(max_bitmap_width * zoom_scale)))
-            max_bitmap_height = max(80, min(6000, int(round(max_bitmap_height * zoom_scale))))
             target_width, target_height, target_zoom, avg_width, avg_height = _get_preview_target_size_for_mode(
                 owner,
                 path,
