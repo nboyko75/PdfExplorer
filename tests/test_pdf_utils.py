@@ -15,11 +15,11 @@ class OptimizePdfDefaultsTests(unittest.TestCase):
     def test_advanced_settings_use_balanced_defaults(self, _mock_settings):
         settings = pdf_utils._get_optimize_pdf_advanced_settings()
 
-        self.assertEqual(settings["color_target_dpi"], 50)
-        self.assertEqual(settings["color_threshold_dpi"], 70)
-        self.assertEqual(settings["color_quality"], 20)
-        self.assertEqual(settings["mono_target_dpi"], 50)
-        self.assertEqual(settings["mono_threshold_dpi"], 70)
+        self.assertEqual(settings["color_target_dpi"], 110)
+        self.assertEqual(settings["color_threshold_dpi"], 140)
+        self.assertEqual(settings["color_quality"], 35)
+        self.assertEqual(settings["mono_target_dpi"], 110)
+        self.assertEqual(settings["mono_threshold_dpi"], 140)
 
 
 class AdjustPageWidthTests(unittest.TestCase):
