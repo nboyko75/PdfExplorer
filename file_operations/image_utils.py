@@ -1,4 +1,5 @@
 import ctypes
+import contextlib
 import os
 import wx
 
@@ -90,10 +91,90 @@ class IconManager:
 def can_preview_image(path):
     if not path or not os.path.isfile(path):
         return False
+
+    # Some libpng builds print profile/chromaticity warnings to native stderr
+    # for otherwise readable PNG files.
     try:
-        return bool(wx.Image.CanRead(path))
+        with _suppress_native_stderr():
+            if bool(wx.Image.CanRead(path)):
+                return True
+    except Exception:
+        pass
+
+    return _can_read_with_pillow(path)
+
+
+@contextlib.contextmanager
+def _suppress_native_stderr():
+    original_stderr_fd = None
+    try:
+        original_stderr_fd = os.dup(2)
+    except OSError:
+        yield
+        return
+
+    try:
+        with open(os.devnull, "w") as devnull:
+            os.dup2(devnull.fileno(), 2)
+            yield
+    finally:
+        try:
+            os.dup2(original_stderr_fd, 2)
+        finally:
+            os.close(original_stderr_fd)
+
+
+def _can_read_with_pillow(path):
+    try:
+        from PIL import Image
+    except ImportError:
+        return False
+
+    try:
+        with Image.open(path) as pil_image:
+            pil_image.verify()
+        return True
     except Exception:
         return False
+
+
+def _load_image_with_wx(path):
+    with _suppress_native_stderr():
+        return wx.Image(path, wx.BITMAP_TYPE_ANY)
+
+
+def _convert_pillow_to_wx_image(pil_image):
+    rgba_image = pil_image.convert("RGBA")
+    width, height = rgba_image.size
+    rgb_image = rgba_image.convert("RGB")
+    alpha = rgba_image.getchannel("A")
+
+    wx_image = wx.Image(width, height)
+    wx_image.SetData(rgb_image.tobytes())
+    wx_image.SetAlpha(alpha.tobytes())
+    return wx_image
+
+
+def _load_image_for_preview(path):
+    image = _load_image_with_wx(path)
+    if image is not None and image.IsOk():
+        return image
+
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return image
+
+    try:
+        with Image.open(path) as pil_image:
+            sanitized = ImageOps.exif_transpose(pil_image)
+            converted = _convert_pillow_to_wx_image(sanitized)
+            if converted is not None and converted.IsOk():
+                return converted
+    except Exception:
+        return image
+
+    return image
 
 
 def refresh_image_preview_bitmap(owner):
@@ -148,7 +229,7 @@ def _update_image_preview_viewport(owner, image_w, image_h):
 
 def show_image_preview(owner, path, tr_func):
     try:
-        image = wx.Image(path, wx.BITMAP_TYPE_ANY)
+        image = _load_image_for_preview(path)
         if not image.IsOk():
             raise RuntimeError(tr_func("no_preview_available"))
         owner.current_image_preview = image
@@ -172,7 +253,7 @@ def rotate_image_file(path, clockwise=True):
     if not can_preview_image(path):
         raise RuntimeError("No preview available for this item.")
 
-    image = wx.Image(path, wx.BITMAP_TYPE_ANY)
+    image = _load_image_for_preview(path)
     if not image.IsOk():
         raise RuntimeError(f"Unable to load image: {path}")
 
