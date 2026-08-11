@@ -747,8 +747,28 @@ def on_pdf_page_select_wrapper(owner, event):
     on_pdf_page_select(owner, event)
 
 
+def _reset_pdf_view_mode_for_new_file(owner, previous_path, next_path):
+    if not is_pdf_file(previous_path) or not is_pdf_file(next_path):
+        return
+
+    if os.path.normpath(previous_path) == os.path.normpath(next_path):
+        return
+
+    if getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL) != PAGE_VIEW_MODE_MANUAL:
+        return
+
+    selected_mode = getattr(owner, "pdf_page_view_selected_mode", PAGE_VIEW_MODE_1_WIDE)
+    if selected_mode not in FIXED_PAGE_VIEW_MODES:
+        selected_mode = PAGE_VIEW_MODE_1_WIDE
+
+    owner.pdf_preview_zoom = 1.0
+    owner.pdf_page_view_mode = selected_mode
+
+
 def show_file_preview(owner, path):
+    previous_path = getattr(owner, "current_preview_path", None)
     owner.current_preview_path = path
+    _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     owner.selected_pdf_page_panel = None
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0

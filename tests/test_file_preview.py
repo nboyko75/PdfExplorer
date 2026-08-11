@@ -37,6 +37,36 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(target_width, 600)
         self.assertEqual(target_height, 800)
 
+    def test_switching_to_different_pdf_resets_manual_zoom_to_selected_wide_mode(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="first.pdf",
+            selected_pdf_page_panel=None,
+            current_image_preview=None,
+            current_image_zoom=1.0,
+            pdf_page_view_mode=file_preview.PAGE_VIEW_MODE_MANUAL,
+            pdf_page_view_selected_mode=file_preview.PAGE_VIEW_MODE_1_WIDE,
+            pdf_preview_zoom=0.6,
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed, \
+             mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch("controls.file_preview.os.path.isdir", return_value=False), \
+             mock.patch("controls.file_preview.os.path.isfile", return_value=True):
+            file_preview.show_file_preview(owner, "second.pdf")
+
+        self.assertEqual(owner.pdf_page_view_mode, file_preview.PAGE_VIEW_MODE_1_WIDE)
+        self.assertEqual(owner.pdf_preview_zoom, 1.0)
+        mocked_show_pdf_feed.assert_called_once_with(owner, "second.pdf")
+
 
 if __name__ == "__main__":
     unittest.main()
