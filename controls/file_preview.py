@@ -580,14 +580,14 @@ def _compute_pdf_page_fit_constraints(owner):
         available_width = client_width - (gap_width * 3) - (per_page_horizontal * 2) - vscroll_width + fit_safety_margin
         max_bitmap_width = max(80, available_width // 2)
     else:
-        available_width = client_width - (gap_width * 2) - per_page_horizontal - vscroll_width
+        available_width = client_width - gap_width - per_page_horizontal - vscroll_width
         max_bitmap_width = max(80, available_width)
 
+    available_height = client_height - per_page_vertical - fit_safety_margin
     if mode == PAGE_VIEW_MODE_1_TALL:
-        available_height = client_height - per_page_vertical - fit_safety_margin
         max_bitmap_height = max(80, available_height)
     else:
-        max_bitmap_height = 2000
+        max_bitmap_height = available_height * 10
 
     return max_bitmap_width, max_bitmap_height
 
@@ -828,8 +828,6 @@ def show_file_preview(owner, path):
 
 
 # Preview action handlers
-
-
 def _get_preview_owner_from_event(event, fallback_owner=None):
     owner = fallback_owner if fallback_owner is not None else event.GetEventObject()
     while owner is not None and not hasattr(owner, "current_preview_path"):
