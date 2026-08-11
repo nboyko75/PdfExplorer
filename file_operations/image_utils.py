@@ -95,7 +95,7 @@ def can_preview_image(path):
     # Some libpng builds print profile/chromaticity warnings to native stderr
     # for otherwise readable PNG files.
     try:
-        with _suppress_native_stderr():
+        with _suppress_image_decode_warnings():
             if bool(wx.Image.CanRead(path)):
                 return True
     except Exception:
@@ -124,6 +124,26 @@ def _suppress_native_stderr():
             os.close(original_stderr_fd)
 
 
+@contextlib.contextmanager
+def _suppress_wx_logs():
+    log_guard = None
+    try:
+        log_null_type = getattr(wx, "LogNull", None)
+        if log_null_type is not None:
+            log_guard = log_null_type()
+        yield
+    finally:
+        # Keep the guard alive for the full context and release explicitly.
+        log_guard = None
+
+
+@contextlib.contextmanager
+def _suppress_image_decode_warnings():
+    with _suppress_native_stderr():
+        with _suppress_wx_logs():
+            yield
+
+
 def _can_read_with_pillow(path):
     try:
         from PIL import Image
@@ -139,7 +159,7 @@ def _can_read_with_pillow(path):
 
 
 def _load_image_with_wx(path):
-    with _suppress_native_stderr():
+    with _suppress_image_decode_warnings():
         return wx.Image(path, wx.BITMAP_TYPE_ANY)
 
 
