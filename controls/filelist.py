@@ -80,9 +80,10 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
-    owner.list_open_btn = image_utils.create_bitmap_button(
+    owner.list_open_btn = image_utils.create_bitmap_button2(
         owner.list_host_panel,
-        wx.ART_FIND,
+        owner.icon_manager,
+        "file_view",
         tr("context_open"),
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
@@ -130,6 +131,9 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.filter_label = wx.StaticText(owner.list_host_panel, label=tr("filter_label"))
+    owner.search_box = wx.TextCtrl(owner.list_host_panel, style=wx.TE_PROCESS_ENTER)
+    owner.search_box.SetHint(tr("search_hint"))
 
     owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
@@ -138,7 +142,9 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.list_copy_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_cut_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_paste_btn, 0, wx.RIGHT, 3)
-    owner.list_toolbar.Add(owner.list_delete_btn, 0)
+    owner.list_toolbar.Add(owner.list_delete_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.filter_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+    owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
 
     owner.list = wx.ListCtrl(owner.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
     owner.list.InsertColumn(0, tr("name_column"), width=450)
@@ -359,7 +365,7 @@ def on_right_click(owner, event):
     icon_manager = getattr(owner, "icon_manager", None)
     if icon_manager:
         icon_manager.set_menu_icon2(scan_item, "scan")
-        icon_manager.set_menu_icon(open_item, art_id=wx.ART_FIND)
+        icon_manager.set_menu_icon2(open_item, "file_view")
         icon_manager.set_menu_icon(rename_item, art_id=wx.ART_EDIT)
         icon_manager.set_menu_icon(new_folder_item, art_id=wx.ART_FOLDER)
         icon_manager.set_menu_icon2(copy_item, "copy")
@@ -540,6 +546,27 @@ def _find_tree_item_without_expanding(owner, target_path):
     return None
 
 
+def _remove_tree_item_for_path(owner, path):
+    if not hasattr(owner, "tree") or owner.tree is None:
+        return
+
+    item = _find_tree_item_without_expanding(owner, path)
+    if item is None or not item.IsOk():
+        return
+
+    parent = owner.tree.GetItemParent(item)
+    if parent.IsOk() and owner.tree.GetChildrenCount(parent) == 1:
+        owner.tree.AppendItem(parent, tr("tree_expand_placeholder"))
+
+    owner.tree.Delete(item)
+
+    if getattr(owner, "tree", None) is not None:
+        try:
+            owner.tree.SelectItem(owner.tree.GetRootItem())
+        except Exception:
+            pass
+
+
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
     if current_folder and os.path.isdir(current_folder):
@@ -711,6 +738,8 @@ def delete_paths(owner, paths):
                     if is_pdf_file(path):
                         discard_pdf_changes(path)
                     os.remove(path)
+
+                _remove_tree_item_for_path(owner, path)
 
                 current_preview_path = getattr(owner, "current_preview_path", None)
                 if current_preview_path and os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(os.path.normpath(path)):

@@ -122,11 +122,9 @@ class FileExplorer(wx.Frame):
         self.back_btn = image_utils.create_bitmap_button(panel, wx.ART_GO_BACK, tr("back_button"))
         self.forward_btn = image_utils.create_bitmap_button(panel, wx.ART_GO_FORWARD, tr("forward_button"))
         self.exit_btn = image_utils.create_bitmap_button(panel, wx.ART_QUIT, tr("exit_button"))
+        self.search_in_files_btn = image_utils.create_bitmap_button(panel, wx.ART_FIND, tr("search_in_files_button"))
 
         self.path_box = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
-
-        self.search_box = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
-        self.search_box.SetHint(tr("search_hint"))
 
         self.hidden_chk = wx.CheckBox(panel, label=tr("show_hidden_checkbox"))
         self.language_combo = wx.ComboBox(panel, choices=[label for label, _ in LANGUAGE_CHOICES_SORTED], style=wx.CB_READONLY)
@@ -135,8 +133,8 @@ class FileExplorer(wx.Frame):
         toolbar.Add(self.back_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         toolbar.Add(self.forward_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         toolbar.Add(self.exit_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
+        toolbar.Add(self.search_in_files_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.path_box, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
-        toolbar.Add(self.search_box, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.hidden_chk, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.language_combo, 0, wx.ALIGN_CENTER_VERTICAL)
 
@@ -267,7 +265,11 @@ class FileExplorer(wx.Frame):
         self.back_btn.SetToolTip(tr("back_button"))
         self.forward_btn.SetToolTip(tr("forward_button"))
         self.exit_btn.SetToolTip(tr("exit_button"))
-        self.search_box.SetHint(tr("search_hint"))
+        self.search_in_files_btn.SetToolTip(tr("search_in_files_button"))
+        if hasattr(self, "search_box"):
+            self.search_box.SetHint(tr("search_hint"))
+        if hasattr(self, "filter_label"):
+            self.filter_label.SetLabel(tr("filter_label"))
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
         self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
         for index, key in enumerate(("name_column", "type_column", "size_column", "modified_column")):
@@ -367,6 +369,9 @@ class FileExplorer(wx.Frame):
             key_code = event.GetKeyCode()
             if event.ControlDown() and key_code == 90:  # 'Z'
                 self.undo_last_move()
+                return
+            if event.ControlDown() and key_code == 70:  # 'F'
+                self.on_search_in_files()
                 return
             if key_code == wx.WXK_F5:
                 tree_utils.refresh_tree_selection(self)
@@ -480,6 +485,7 @@ class FileExplorer(wx.Frame):
         self.back_btn.Bind(wx.EVT_BUTTON, self.go_back)
         self.forward_btn.Bind(wx.EVT_BUTTON, self.go_forward)
         self.exit_btn.Bind(wx.EVT_BUTTON, self.on_exit)
+        self.search_in_files_btn.Bind(wx.EVT_BUTTON, self.on_search_in_files)
 
         self.path_box.Bind(wx.EVT_TEXT_ENTER, self.on_path_enter)
         self.search_box.Bind(wx.EVT_TEXT_ENTER, lambda e: self.refresh())
@@ -572,6 +578,10 @@ class FileExplorer(wx.Frame):
 
     def on_exit(self, _):
         self.Close()
+
+    def on_search_in_files(self, _=None):
+        import controls.search_form as search_form
+        search_form.show_search_form(self)
 
     def on_toggle_hidden(self, event):
         self.show_hidden = self.hidden_chk.GetValue()
