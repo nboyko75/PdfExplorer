@@ -3,6 +3,7 @@ import os
 import re
 import threading
 import zipfile
+from datetime import date, datetime
 from xml.etree import ElementTree as ET
 
 import wx
@@ -268,7 +269,108 @@ def _extract_text_from_file(path):
     return ""
 
 
-def _collect_search_matches(query, folder, mode="text", include_child_folders=True, stop_event=None, on_status=None, file_mask=""):
+def _parse_date_value(value):
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            try:
+                return datetime.strptime(value, "%d.%m.%Y").date()
+            except ValueError:
+                return None
+    return None
+
+
+def _parse_size_kb(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        cleaned = value.strip().replace(",", ".")
+        if not cleaned:
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+    return None
+
+
+def _matches_text_query(content, query, case_sensitive=True, whole_word=False):
+    if not isinstance(content, str) or not query:
+        return False
+    if whole_word:
+        flags = 0 if case_sensitive else re.IGNORECASE
+        pattern = re.compile(rf"(?<!\w){re.escape(query)}(?!\w)", flags)
+        return bool(pattern.search(content))
+    if case_sensitive:
+        return query in content
+    return query.lower() in content.lower()
+
+
+def _matches_date_filter(file_path, date_mode=0, date_from=None, date_to=None):
+    if date_mode != 1:
+        return True
+    date_from_value = _parse_date_value(date_from)
+    date_to_value = _parse_date_value(date_to)
+    if date_from_value is None and date_to_value is None:
+        return True
+    try:
+        modified_date = datetime.fromtimestamp(os.path.getmtime(file_path)).date()
+    except OSError:
+        return True
+    if date_from_value is not None and modified_date < date_from_value:
+        return False
+    if date_to_value is not None and modified_date > date_to_value:
+        return False
+    return True
+
+
+def _matches_size_filter(file_path, size_mode=0, size_from=None, size_to=None):
+    if size_mode != 1:
+        return True
+    size_from_kb = _parse_size_kb(size_from)
+    size_to_kb = _parse_size_kb(size_to)
+    if size_from_kb is None and size_to_kb is None:
+        return True
+    try:
+        size_kb = os.path.getsize(file_path) / 1024.0
+    except OSError:
+        return True
+    if size_from_kb is not None and size_kb < size_from_kb:
+        return False
+    if size_to_kb is not None and size_kb > size_to_kb:
+        return False
+    return True
+
+
+def _collect_search_matches(
+    query,
+    folder,
+    mode="text",
+    include_child_folders=True,
+    stop_event=None,
+    on_status=None,
+    file_mask="",
+    case_sensitive=True,
+    whole_word=False,
+    date_mode=0,
+    date_from=None,
+    date_to=None,
+    size_mode=0,
+    size_from=None,
+    size_to=None,
+):
     if not isinstance(query, str):
         return []
 
@@ -279,7 +381,10 @@ def _collect_search_matches(query, folder, mode="text", include_child_folders=Tr
     normalized_mode = (mode or "text").lower()
     if normalized_mode == "regex":
         try:
-            pattern = re.compile(query)
+            if whole_word:
+                pattern = re.compile(rf"(?<!\w)(?:{query})(?!\w)", 0 if case_sensitive else re.IGNORECASE)
+            else:
+                pattern = re.compile(query, 0 if case_sensitive else re.IGNORECASE)
         except re.error as exc:
             raise ValueError(str(exc)) from exc
     else:
@@ -294,6 +399,11 @@ def _collect_search_matches(query, folder, mode="text", include_child_folders=Tr
             return matches
 
         if not os.path.isfile(file_path):
+            continue
+
+        if not _matches_date_filter(file_path, date_mode=date_mode, date_from=date_from, date_to=date_to):
+            continue
+        if not _matches_size_filter(file_path, size_mode=size_mode, size_from=size_from, size_to=size_to):
             continue
 
         if on_status is not None:
@@ -312,13 +422,41 @@ def _collect_search_matches(query, folder, mode="text", include_child_folders=Tr
             if pattern.search(content):
                 matches.append(file_path)
         else:
-            if query.lower() in content.lower():
+            if _matches_text_query(content, query, case_sensitive=case_sensitive, whole_word=whole_word):
                 matches.append(file_path)
     return matches
 
 
-def search_files(query, folder, mode="text", include_child_folders=True, file_mask=""):
-    return _collect_search_matches(query, folder, mode=mode, include_child_folders=include_child_folders, file_mask=file_mask)
+def search_files(
+    query,
+    folder,
+    mode="text",
+    include_child_folders=True,
+    file_mask="",
+    case_sensitive=False,
+    whole_word=False,
+    date_mode=0,
+    date_from=None,
+    date_to=None,
+    size_mode=0,
+    size_from=None,
+    size_to=None,
+):
+    return _collect_search_matches(
+        query,
+        folder,
+        mode=mode,
+        include_child_folders=include_child_folders,
+        file_mask=file_mask,
+        case_sensitive=case_sensitive,
+        whole_word=whole_word,
+        date_mode=date_mode,
+        date_from=date_from,
+        date_to=date_to,
+        size_mode=size_mode,
+        size_from=size_from,
+        size_to=size_to,
+    )
 
 
 def _get_stop_button_label(stopped=False):
@@ -393,7 +531,24 @@ def _save_search_history(query_value):
     update_settings({"search_history": trimmed})
 
 
-def _save_search_form_state(dialog, query_value, folder_value, file_mask_value, include_child_value, mode_index, word_value, excel_value):
+def _save_search_form_state(
+    dialog,
+    query_value,
+    folder_value,
+    file_mask_value,
+    include_child_value,
+    mode_index,
+    word_value,
+    excel_value,
+    case_sensitive_value,
+    whole_word_value,
+    date_mode_value,
+    date_from_value,
+    date_to_value,
+    size_mode_value,
+    size_from_value,
+    size_to_value,
+):
     try:
         position = dialog.GetPosition()
         size = dialog.GetSize()
@@ -408,6 +563,14 @@ def _save_search_form_state(dialog, query_value, folder_value, file_mask_value, 
                 "search_form_mode_index": int(mode_index),
                 "search_form_word": bool(word_value),
                 "search_form_excel": bool(excel_value),
+                "search_form_case_sensitive": bool(case_sensitive_value),
+                "search_form_whole_word": bool(whole_word_value),
+                "search_form_date_mode": int(date_mode_value),
+                "search_form_date_from": date_from_value,
+                "search_form_date_to": date_to_value,
+                "search_form_size_mode": int(size_mode_value),
+                "search_form_size_from": size_from_value,
+                "search_form_size_to": size_to_value,
             }
         )
     except Exception:
@@ -426,6 +589,14 @@ def _restore_search_form_state(settings):
         "mode_index": int(state.get("search_form_mode_index", 0) or 0),
         "word": bool(state.get("search_form_word", False)),
         "excel": bool(state.get("search_form_excel", False)),
+        "case_sensitive": bool(state.get("search_form_case_sensitive", True)),
+        "whole_word": bool(state.get("search_form_whole_word", False)),
+        "date_mode": int(state.get("search_form_date_mode", 0) or 0),
+        "date_from": state.get("search_form_date_from", ""),
+        "date_to": state.get("search_form_date_to", ""),
+        "size_mode": int(state.get("search_form_size_mode", 0) or 0),
+        "size_from": state.get("search_form_size_from", ""),
+        "size_to": state.get("search_form_size_to", ""),
         "position": state.get("search_form_position"),
         "size": state.get("search_form_size"),
     }
@@ -457,28 +628,142 @@ def show_search_form(owner):
     owner._search_form_dialog = dialog
     panel = wx.Panel(dialog)
 
+    # ---------- Top search controls ----------
+    main = wx.BoxSizer(wx.VERTICAL)
+
+    # Search text + file mask
+    top_grid = wx.FlexGridSizer(rows=2, cols=4, hgap=10, vgap=7)
+    top_grid.AddGrowableCol(1, 1)
+
     query_label = wx.StaticText(panel, label=tr("search_query_label"))
     query_field = wx.ComboBox(panel, value=restored_state["query"], choices=_load_search_history(), style=wx.CB_DROPDOWN | wx.TE_PROCESS_ENTER)
-    file_mask_label = wx.StaticText(panel, label=tr("search_file_mask_label"))
+    query_field.SetMinSize((300, -1))
+
+    file_mask_label = wx.StaticText(panel, label="File mask")
     file_mask_field = wx.TextCtrl(panel, value=restored_state["file_mask"], style=wx.TE_PROCESS_ENTER)
+    word_chk = wx.CheckBox(panel, label=tr("search_word_checkbox"))
+    word_chk.SetValue(bool(restored_state["word"]))
+    excel_chk = wx.CheckBox(panel, label=tr("search_excel_checkbox"))
+    excel_chk.SetValue(bool(restored_state["excel"]))
+
+    top_grid.Add(query_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    top_grid.Add(query_field, 1, wx.EXPAND)
+    top_grid.Add(file_mask_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    top_grid.Add(file_mask_field, 1, wx.EXPAND)
+
     folder_label = wx.StaticText(panel, label=tr("search_folder_label"))
+    folder_row = wx.BoxSizer(wx.HORIZONTAL)
     folder_field = wx.TextCtrl(panel, value=restored_state["folder"], style=wx.TE_PROCESS_ENTER)
+
     browse_btn = wx.Button(panel, label=tr("search_browse_button"))
+    browse_btn.SetMinSize((74, -1))
+
+    folder_row.Add(folder_field, 1, wx.EXPAND)
+    folder_row.AddSpacer(8)
+    folder_row.Add(browse_btn, 0)
+    folder_row.AddSpacer(8)
+    folder_row.Add(word_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 18)
+    folder_row.Add(excel_chk, 0, wx.ALIGN_CENTER_VERTICAL)
+
+    top_grid.Add(folder_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    top_grid.Add(folder_row, 1, wx.EXPAND)
+    top_grid.Add((1, 1))
+    top_grid.Add((1, 1))
+
+    main.Add(top_grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+    # Include child folders + Word/Excel
+    options = wx.BoxSizer(wx.HORIZONTAL)
+    options.AddSpacer(folder_label.GetSize().GetWidth())
     include_child_chk = wx.CheckBox(panel, label=tr("search_include_subfolders"))
     include_child_chk.SetValue(bool(restored_state["include_child"]))
-    mode_radio = wx.RadioBox(
-        panel,
-        label=tr("search_mode_label"),
-        choices=[tr("search_mode_text"), tr("search_mode_regex")],
-        majorDimension=1,
-        style=wx.RA_SPECIFY_ROWS,
-    )
-    mode_radio.SetSelection(int(restored_state["mode_index"]))
+    options.Add(include_child_chk, 0, wx.ALIGN_CENTER_VERTICAL)
+ 
+    main.Add(options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
-    word_chk = wx.CheckBox(panel, label=tr("search_word_checkbox"))
-    excel_chk = wx.CheckBox(panel, label=tr("search_excel_checkbox"))
-    word_chk.SetValue(bool(restored_state["word"]))
-    excel_chk.SetValue(bool(restored_state["excel"]))
+    # ---------- Search mode ----------
+    mode_box = wx.StaticBoxSizer(
+        wx.StaticBox(panel, label=""),
+        wx.HORIZONTAL,
+    )
+
+    text_radio = wx.RadioButton(
+        panel,
+        label=tr("search_mode_text"),
+        style=wx.RB_GROUP,
+    )
+    regex_radio = wx.RadioButton(
+        panel,
+        label=tr("search_mode_regex"),
+    )
+    case_sensitive_chk = wx.CheckBox(panel, label=tr("search_case_sensitive_checkbox"))
+    case_sensitive_chk.SetValue(bool(restored_state["case_sensitive"]))
+    whole_word_chk = wx.CheckBox(panel, label=tr("search_whole_word_checkbox"))
+
+    mode_box.Add(text_radio, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 18)
+    mode_box.Add(regex_radio, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 18)
+    mode_box.Add(case_sensitive_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 18)
+    mode_box.Add(whole_word_chk, 0, wx.ALIGN_CENTER_VERTICAL)
+
+    main.Add(mode_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+    # ---------- Filters ----------
+    filters = wx.BoxSizer(wx.HORIZONTAL)
+
+    # Date filter
+    date_box = wx.StaticBoxSizer(
+        wx.StaticBox(panel, label=tr("search_date_filter_label")),
+        wx.HORIZONTAL,
+    )
+
+    date_box.Add(
+        wx.StaticText(panel, label=tr("search_date_from")),
+        0,
+        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
+    )
+    date_from_field = wx.TextCtrl(panel, value=str(restored_state.get("date_from", "")), style=wx.TE_PROCESS_ENTER)
+    date_from_field.SetMinSize((100, -1))
+
+    date_box.Add(date_from_field, 0, wx.RIGHT, 10)
+
+    date_box.Add(
+        wx.StaticText(panel, label=tr("search_date_to")),
+        0,
+        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
+    )
+    date_to_field = wx.TextCtrl(panel, value=str(restored_state.get("date_to", "")), style=wx.TE_PROCESS_ENTER)
+    date_to_field.SetMinSize((100, -1))
+    date_box.Add(date_to_field, 0)
+
+    filters.Add(date_box, 1, wx.EXPAND | wx.RIGHT, 10)
+
+    # Size filter
+    size_box = wx.StaticBoxSizer(
+        wx.StaticBox(panel, label=tr("search_size_filter_label")),
+        wx.HORIZONTAL,
+    )
+
+    size_box.Add(
+        wx.StaticText(panel, label=tr("search_size_from")),
+        0,
+        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
+    )
+    size_from_field = wx.TextCtrl(panel, value=str(restored_state.get("size_from", "")), style=wx.TE_PROCESS_ENTER)
+    size_from_field.SetMinSize((100, -1))
+    size_box.Add(size_from_field, 0, wx.RIGHT, 10)
+
+    size_box.Add(
+        wx.StaticText(panel, label=tr("search_size_to")),
+        0,
+        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
+    )
+    size_to_field = wx.TextCtrl(panel, value=str(restored_state.get("size_to", "")), style=wx.TE_PROCESS_ENTER)
+    size_to_field.SetMinSize((100, -1))
+    size_box.Add(size_to_field, 0)
+
+    filters.Add(size_box, 1, wx.EXPAND)
+
+    main.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
     search_btn = wx.Button(panel, label=tr("search_button"))
     stop_btn = wx.Button(panel, label=tr("search_stop_button"))
@@ -494,6 +779,20 @@ def show_search_form(owner):
     status_bar.SetStatusWidths([-2, -1])
     status_bar.SetStatusText("", 0)
     status_bar.SetStatusText("", 1)
+
+    button_row = wx.BoxSizer(wx.HORIZONTAL)
+    button_row.AddStretchSpacer()
+    button_row.Add(search_btn, 0, wx.RIGHT, 8)
+    button_row.Add(stop_btn, 0, wx.RIGHT, 8)
+    button_row.Add(quit_btn, 0)
+
+    root_sizer = wx.BoxSizer(wx.VERTICAL)
+    root_sizer.Add(result_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+    root_sizer.Add(button_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+    root_sizer.Add(status_bar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 2)
+
+    main.Add(root_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 2)
+    panel.SetSizer(main)
 
     default_path = getattr(owner, "path_box", None)
     restored_folder = str(restored_state.get("folder") or "").strip()
@@ -521,9 +820,17 @@ def show_search_form(owner):
             folder_field.GetValue(),
             file_mask_field.GetValue(),
             include_child_chk.GetValue(),
-            mode_radio.GetSelection(),
+            regex_radio.GetValue(),
             word_chk.GetValue(),
             excel_chk.GetValue(),
+            case_sensitive_chk.GetValue(),
+            whole_word_chk.GetValue(),
+            0,
+            date_from_field.GetValue(),
+            date_to_field.GetValue(),
+            0,
+            size_from_field.GetValue(),
+            size_to_field.GetValue(),
         )
 
     def finish_search(matches):
@@ -589,6 +896,8 @@ def show_search_form(owner):
         stop_event = threading.Event()
         sync_file_mask_field()
         mask_value = file_mask_field.GetValue().strip()
+        date_mode = 0
+        size_mode = 0
 
         search_state["running"] = True
         search_state["stopped"] = False
@@ -602,11 +911,19 @@ def show_search_form(owner):
                 matches = _collect_search_matches(
                     text_value,
                     folder_value,
-                    mode="regex" if mode_radio.GetSelection() == 1 else "text",
+                    mode="regex" if regex_radio.GetValue() else "text",
                     include_child_folders=include_child_chk.GetValue(),
                     stop_event=stop_event,
                     on_status=lambda current_folder, file_name: wx.CallAfter(set_status, current_folder, file_name),
                     file_mask=mask_value,
+                    case_sensitive=case_sensitive_chk.GetValue(),
+                    whole_word=whole_word_chk.GetValue(),
+                    date_mode=date_mode,
+                    date_from=date_from_field.GetValue(),
+                    date_to=date_to_field.GetValue(),
+                    size_mode=size_mode,
+                    size_from=size_from_field.GetValue(),
+                    size_to=size_to_field.GetValue(),
                 )
                 if stop_event.is_set():
                     wx.CallAfter(stop_search)
@@ -671,45 +988,6 @@ def show_search_form(owner):
         setattr(owner, "_search_form_dialog", None)
 
     dialog.Bind(wx.EVT_CLOSE, on_close)
-
-    fields = wx.FlexGridSizer(cols=4, hgap=8, vgap=8)
-    fields.AddGrowableCol(1, 1)
-    fields.AddGrowableCol(3, 1)
-    fields.Add(query_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(query_field, 1, wx.EXPAND)
-    fields.Add(file_mask_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(file_mask_field, 1, wx.EXPAND)
-    fields.Add(folder_label, 0, wx.ALIGN_CENTER_VERTICAL)
-
-    folder_row = wx.BoxSizer(wx.HORIZONTAL)
-    folder_row.Add(folder_field, 1, wx.RIGHT, 8)
-    folder_row.Add(browse_btn, 0)
-    fields.Add(folder_row, 1, wx.EXPAND)
-    fields.Add((1, 1))
-    fields.Add((1, 1))
-    mask_options = wx.BoxSizer(wx.HORIZONTAL)
-    mask_options.Add(word_chk, 0, wx.RIGHT, 8)
-    mask_options.Add(excel_chk, 0)
-    fields.Add((1, 1))
-    fields.Add(mask_options, 0, wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL)
-    fields.Add((1, 1))
-    fields.Add(include_child_chk, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add((1, 1))
-    fields.Add((1, 1))
-    fields.Add(mode_radio, 0, wx.ALIGN_CENTER_VERTICAL)
-
-    button_row = wx.BoxSizer(wx.HORIZONTAL)
-    button_row.AddStretchSpacer()
-    button_row.Add(search_btn, 0, wx.RIGHT, 8)
-    button_row.Add(stop_btn, 0, wx.RIGHT, 8)
-    button_row.Add(quit_btn, 0)
-
-    root_sizer = wx.BoxSizer(wx.VERTICAL)
-    root_sizer.Add(fields, 0, wx.EXPAND | wx.ALL, 12)
-    root_sizer.Add(result_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
-    root_sizer.Add(status_bar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 0)
-    root_sizer.Add(button_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
-    panel.SetSizer(root_sizer)
 
     position = restored_state.get("position")
     size = restored_state.get("size")

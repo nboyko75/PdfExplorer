@@ -67,6 +67,32 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.pdf_preview_zoom, 1.0)
         mocked_show_pdf_feed.assert_called_once_with(owner, "second.pdf")
 
+    def test_page_view_button_visible_for_image_preview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.png",
+            preview_save_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_cancel_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_rotate_menu_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_optimize_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_adjust_page_width_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_import_from_file_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_export_pages_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_move_page_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_remove_page_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_page_view_mode_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_toolbar=types.SimpleNamespace(Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=True), \
+             mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=False), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"):
+            file_preview.update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
+
+        owner.preview_page_view_mode_btn.Show.assert_called_once_with(True)
+
 
 if __name__ == "__main__":
     unittest.main()

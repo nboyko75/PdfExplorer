@@ -7,12 +7,20 @@ import unittest
 
 import fitz
 
-from controls.search_form import _collect_search_matches, _format_search_status, _get_stop_button_label, _normalize_file_mask, search_files
+from controls.search_form import (
+    _collect_search_matches,
+    _format_search_status,
+    _get_stop_button_label,
+    _normalize_file_mask,
+    _restore_search_form_state,
+    search_files,
+)
 from localization import load_locale, tr
 
 
 class SearchFilesTests(unittest.TestCase):
     def setUp(self):
+        load_locale("en")
         self.temp_dir = tempfile.mkdtemp(prefix="pdfexplorer-search-")
 
     def tearDown(self):
@@ -93,6 +101,27 @@ class SearchFilesTests(unittest.TestCase):
         self.assertEqual(_normalize_file_mask("*.txt *.doc?", True, False), "*.txt *.doc?")
         self.assertEqual(_normalize_file_mask("*.txt", True, True), "*.txt *.doc? *.xls?")
         self.assertEqual(_normalize_file_mask("*.txt *.xls? *.doc?", False, False), "*.txt")
+
+    def test_restore_state_includes_case_sensitive_and_filter_blocks(self):
+        state = _restore_search_form_state({
+            "search_form_case_sensitive": False,
+            "search_form_whole_word": True,
+            "search_form_date_mode": 1,
+            "search_form_date_from": "2024-01-15",
+            "search_form_date_to": "2024-02-10",
+            "search_form_size_mode": 1,
+            "search_form_size_from": 128,
+            "search_form_size_to": 2048,
+        })
+
+        self.assertFalse(state["case_sensitive"])
+        self.assertTrue(state["whole_word"])
+        self.assertEqual(state["date_mode"], 1)
+        self.assertEqual(state["date_from"], "2024-01-15")
+        self.assertEqual(state["date_to"], "2024-02-10")
+        self.assertEqual(state["size_mode"], 1)
+        self.assertEqual(state["size_from"], 128)
+        self.assertEqual(state["size_to"], 2048)
 
 
 if __name__ == "__main__":

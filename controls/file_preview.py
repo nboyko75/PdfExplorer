@@ -218,8 +218,20 @@ def update_pdf_save_button_state(owner):
 
 
 def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
+    current_path = getattr(owner, "current_preview_path", None)
+    previewable_by_path = bool(
+        current_path
+        and os.path.isfile(current_path)
+        and (
+            is_pdf_file(current_path)
+            or image_utils.can_preview_image(current_path)
+            or office_preview.can_preview_office(current_path)
+        )
+    )
+
     show_pdf_only = is_pdf
-    show_pdf_or_image = is_pdf or is_image
+    show_pdf_or_image = is_pdf or is_image or previewable_by_path
+    show_preview_layout = is_pdf or is_image or previewable_by_path
 
     owner.preview_save_btn.Show(show_pdf_only)
     owner.preview_cancel_btn.Show(show_pdf_only)
@@ -230,7 +242,7 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     owner.preview_export_pages_btn.Show(show_pdf_only)
     owner.preview_move_page_btn.Show(show_pdf_only)
     owner.preview_remove_page_btn.Show(show_pdf_only)
-    owner.preview_page_view_mode_btn.Show(show_pdf_only)
+    owner.preview_page_view_mode_btn.Show(show_preview_layout)
 
     owner.preview_toolbar.Layout()
     owner.filePreview.Layout()
@@ -311,10 +323,15 @@ def build_page_view_mode_menu(owner, menu):
     show_manual_scale_item.Check(current_mode == PAGE_VIEW_MODE_MANUAL)
 
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
-    show_1_page_wide_item.Enable(is_pdf_preview)
-    show_2_pages_wide_item.Enable(is_pdf_preview)
-    show_1_page_tall_item.Enable(is_pdf_preview)
-    show_manual_scale_item.Enable(is_pdf_preview)
+    can_preview_layout = (
+        is_pdf_preview
+        or image_utils.can_preview_image(owner.current_preview_path)
+        or office_preview.can_preview_office(owner.current_preview_path)
+    )
+    show_1_page_wide_item.Enable(can_preview_layout)
+    show_2_pages_wide_item.Enable(can_preview_layout)
+    show_1_page_tall_item.Enable(can_preview_layout)
+    show_manual_scale_item.Enable(can_preview_layout)
 
     owner.Bind(wx.EVT_MENU, on_preview_show_1_page_wide, show_1_page_wide_item)
     owner.Bind(wx.EVT_MENU, on_preview_show_2_pages_wide, show_2_pages_wide_item)
