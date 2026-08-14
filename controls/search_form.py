@@ -3,13 +3,67 @@ import os
 import re
 import threading
 import zipfile
-from datetime import date, datetime
+from datetime import datetime
 from xml.etree import ElementTree as ET
 
 import wx
 
+from common import date_utils as common_date_utils
+from common.date_utils import (
+    DatePickerCtrl,
+    DatePickerEvent,
+    DATE_PICKER_STYLE,
+)
+from common.search_match_utils import (
+    _matches_date_filter,
+    _matches_size_filter,
+    _matches_text_query,
+    _parse_date_value,
+    _parse_size_kb,
+)
 from localization import tr
 from controls.window_tools import load_settings, update_settings
+
+
+def _show_date_picker_popup(parent_dialog, field_control, trigger_button=None, date_picker_name=None):
+    if date_picker_name is None and isinstance(trigger_button, str):
+        date_picker_name = trigger_button
+        trigger_button = None
+    return common_date_utils._show_date_picker_popup(
+        parent_dialog,
+        field_control,
+        trigger_button,
+        date_picker_name,
+        wx_module=wx,
+        picker_class=DatePickerCtrl,
+        picker_event=DatePickerEvent,
+    )
+
+
+_COMMON_PARSE_DATE_VALUE = common_date_utils._parse_date_value
+_COMMON_DATE_TO_WX_DATETIME = common_date_utils._date_to_wx_datetime
+
+
+def _parse_date_value(value):
+    return _COMMON_PARSE_DATE_VALUE(value)
+
+
+def _date_to_wx_datetime(value):
+    return _COMMON_DATE_TO_WX_DATETIME(value)
+
+
+def _format_system_date(value):
+    parsed = _parse_date_value(value)
+    if parsed is None:
+        return ""
+    date_value = _date_to_wx_datetime(parsed)
+    if date_value is None:
+        return common_date_utils._fallback_system_date_format(parsed)
+    try:
+        return date_value.FormatDate()
+    except Exception:
+        return common_date_utils._fallback_system_date_format(parsed)
+
 
 try:
     import fitz
@@ -78,6 +132,60 @@ def _normalize_file_mask(mask_value, include_word=False, include_excel=False):
     if include_excel:
         tokens.append("*.xls?")
     return " ".join(tokens)
+
+
+def _contains_file_mask_token(mask_value, token):
+    token_name = (token or "").strip().lower()
+    if not token_name:
+        return False
+    return any(chunk.lower() == token_name for chunk in _split_file_mask(mask_value))
+
+
+def _safe_set_control_value(control, value, guard_name="_value_sync_guard"):
+    if control is None:
+        return
+    if getattr(control, guard_name, False):
+        return
+    setattr(control, guard_name, True)
+    try:
+        control.SetValue(value)
+    finally:
+        setattr(control, guard_name, False)
+
+
+def _sync_file_mask_related_checkboxes(file_mask_field, word_chk, excel_chk):
+    if file_mask_field is None or word_chk is None or excel_chk is None:
+        return
+    mask_value = file_mask_field.GetValue() or ""
+    _safe_set_control_value(word_chk, _contains_file_mask_token(mask_value, "*.doc?"), "_word_checkbox_sync_guard")
+    _safe_set_control_value(excel_chk, _contains_file_mask_token(mask_value, "*.xls?"), "_excel_checkbox_sync_guard")
+
+
+def _apply_file_mask_state(file_mask_field, word_chk, excel_chk):
+    if file_mask_field is None:
+        return
+    if getattr(file_mask_field, "_value_sync_guard", False):
+        return
+
+    mask_value = file_mask_field.GetValue() or ""
+    normalized = _normalize_file_mask(mask_value, word_chk.GetValue() if word_chk is not None else False, excel_chk.GetValue() if excel_chk is not None else False)
+    if normalized == mask_value:
+        _sync_file_mask_related_checkboxes(file_mask_field, word_chk, excel_chk)
+        return
+
+    _safe_set_control_value(file_mask_field, normalized, "_value_sync_guard")
+    _sync_file_mask_related_checkboxes(file_mask_field, word_chk, excel_chk)
+
+
+def _apply_date_filter_enabled(date_field, date_picker, enabled_chk, date_button=None):
+    if date_field is None:
+        return
+    enabled = bool(enabled_chk.GetValue()) if enabled_chk is not None else True
+    date_field.Enable(enabled)
+    if date_picker is not None:
+        date_picker.Enable(enabled)
+    if date_button is not None:
+        date_button.Enable(enabled)
 
 
 def _matches_file_mask(file_path, mask_value):
@@ -269,91 +377,6 @@ def _extract_text_from_file(path):
     return ""
 
 
-def _parse_date_value(value):
-    if value is None:
-        return None
-    if isinstance(value, date):
-        return value
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return None
-        try:
-            return datetime.fromisoformat(value).date()
-        except ValueError:
-            try:
-                return datetime.strptime(value, "%d.%m.%Y").date()
-            except ValueError:
-                return None
-    return None
-
-
-def _parse_size_kb(value):
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        cleaned = value.strip().replace(",", ".")
-        if not cleaned:
-            return None
-        try:
-            return float(cleaned)
-        except ValueError:
-            return None
-    return None
-
-
-def _matches_text_query(content, query, case_sensitive=True, whole_word=False):
-    if not isinstance(content, str) or not query:
-        return False
-    if whole_word:
-        flags = 0 if case_sensitive else re.IGNORECASE
-        pattern = re.compile(rf"(?<!\w){re.escape(query)}(?!\w)", flags)
-        return bool(pattern.search(content))
-    if case_sensitive:
-        return query in content
-    return query.lower() in content.lower()
-
-
-def _matches_date_filter(file_path, date_mode=0, date_from=None, date_to=None):
-    if date_mode != 1:
-        return True
-    date_from_value = _parse_date_value(date_from)
-    date_to_value = _parse_date_value(date_to)
-    if date_from_value is None and date_to_value is None:
-        return True
-    try:
-        modified_date = datetime.fromtimestamp(os.path.getmtime(file_path)).date()
-    except OSError:
-        return True
-    if date_from_value is not None and modified_date < date_from_value:
-        return False
-    if date_to_value is not None and modified_date > date_to_value:
-        return False
-    return True
-
-
-def _matches_size_filter(file_path, size_mode=0, size_from=None, size_to=None):
-    if size_mode != 1:
-        return True
-    size_from_kb = _parse_size_kb(size_from)
-    size_to_kb = _parse_size_kb(size_to)
-    if size_from_kb is None and size_to_kb is None:
-        return True
-    try:
-        size_kb = os.path.getsize(file_path) / 1024.0
-    except OSError:
-        return True
-    if size_from_kb is not None and size_kb < size_from_kb:
-        return False
-    if size_to_kb is not None and size_kb > size_to_kb:
-        return False
-    return True
-
-
 def _collect_search_matches(
     query,
     folder,
@@ -531,6 +554,29 @@ def _save_search_history(query_value):
     update_settings({"search_history": trimmed})
 
 
+def _sync_query_history(query_field, current_text=None):
+    if query_field is None:
+        return
+    if getattr(query_field, "_query_history_syncing", False):
+        return
+
+    text_value = (current_text if current_text is not None else query_field.GetValue()).strip()
+    history = _load_search_history()
+    filtered = [item for item in history if not text_value or text_value.lower() in item.lower()]
+
+    query_field._query_history_syncing = True
+    try:
+        query_field.SetItems(filtered[:30])
+    finally:
+        query_field._query_history_syncing = False
+
+    # Do not manually reopen the ComboBox dropdown here. The dropdown is already
+    # owned by the user action that triggered this refresh, and re-entering Popup()
+    # causes recursive EVT_COMBOBOX_DROPDOWN cycles. Updating the item list is
+    # enough to refresh the history while the dropdown is open.
+    _ = filtered
+
+
 def _save_search_form_state(
     dialog,
     query_value,
@@ -545,6 +591,8 @@ def _save_search_form_state(
     date_mode_value,
     date_from_value,
     date_to_value,
+    date_from_enabled_value,
+    date_to_enabled_value,
     size_mode_value,
     size_from_value,
     size_to_value,
@@ -568,6 +616,8 @@ def _save_search_form_state(
                 "search_form_date_mode": int(date_mode_value),
                 "search_form_date_from": date_from_value,
                 "search_form_date_to": date_to_value,
+                "search_form_date_from_enabled": bool(date_from_enabled_value),
+                "search_form_date_to_enabled": bool(date_to_enabled_value),
                 "search_form_size_mode": int(size_mode_value),
                 "search_form_size_from": size_from_value,
                 "search_form_size_to": size_to_value,
@@ -594,6 +644,8 @@ def _restore_search_form_state(settings):
         "date_mode": int(state.get("search_form_date_mode", 0) or 0),
         "date_from": state.get("search_form_date_from", ""),
         "date_to": state.get("search_form_date_to", ""),
+        "date_from_enabled": bool(state.get("search_form_date_from_enabled", bool(state.get("search_form_date_from", "")))),
+        "date_to_enabled": bool(state.get("search_form_date_to_enabled", bool(state.get("search_form_date_to", "")))),
         "size_mode": int(state.get("search_form_size_mode", 0) or 0),
         "size_from": state.get("search_form_size_from", ""),
         "size_to": state.get("search_form_size_to", ""),
@@ -636,66 +688,64 @@ def show_search_form(owner):
     top_grid.AddGrowableCol(1, 1)
 
     query_label = wx.StaticText(panel, label=tr("search_query_label"))
+    query_label.SetMinSize((130, -1))
     query_field = wx.ComboBox(panel, value=restored_state["query"], choices=_load_search_history(), style=wx.CB_DROPDOWN | wx.TE_PROCESS_ENTER)
     query_field.SetMinSize((300, -1))
 
-    file_mask_label = wx.StaticText(panel, label="File mask")
+    file_mask_label = wx.StaticText(panel, label=tr("search_file_mask_label"))
+    file_mask_label.SetMinSize((80, -1))
     file_mask_field = wx.TextCtrl(panel, value=restored_state["file_mask"], style=wx.TE_PROCESS_ENTER)
+    file_mask_field.SetMinSize((120, -1))
+    clear_mask_btn = wx.Button(panel, label="x")
+    clear_mask_btn.SetToolTip(tr("search_clear_mask_tooltip"))
+    clear_mask_btn.SetMinSize((28, -1))
     word_chk = wx.CheckBox(panel, label=tr("search_word_checkbox"))
     word_chk.SetValue(bool(restored_state["word"]))
     excel_chk = wx.CheckBox(panel, label=tr("search_excel_checkbox"))
     excel_chk.SetValue(bool(restored_state["excel"]))
 
+    file_mask_row = wx.BoxSizer(wx.HORIZONTAL)
+    file_mask_row.Add(file_mask_field, 1, wx.EXPAND | wx.RIGHT, 2)
+    file_mask_row.Add(clear_mask_btn, 0, wx.EXPAND)
+
     top_grid.Add(query_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    top_grid.Add(query_field, 1, wx.EXPAND)
+    top_grid.Add(query_field, 1, wx.EXPAND | wx.RIGHT, 10)
     top_grid.Add(file_mask_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    top_grid.Add(file_mask_field, 1, wx.EXPAND)
+    top_grid.Add(file_mask_row, 1, wx.EXPAND)
 
     folder_label = wx.StaticText(panel, label=tr("search_folder_label"))
-    folder_row = wx.BoxSizer(wx.HORIZONTAL)
     folder_field = wx.TextCtrl(panel, value=restored_state["folder"], style=wx.TE_PROCESS_ENTER)
-
+    folder_field.SetMinSize((225, -1))
+    folder_row = wx.BoxSizer(wx.HORIZONTAL)
+    file_mask_box = wx.BoxSizer(wx.HORIZONTAL)
+ 
     browse_btn = wx.Button(panel, label=tr("search_browse_button"))
-    browse_btn.SetMinSize((74, -1))
+    browse_btn.SetMinSize((75, -1))
 
-    folder_row.Add(folder_field, 1, wx.EXPAND)
-    folder_row.AddSpacer(8)
-    folder_row.Add(browse_btn, 0)
-    folder_row.AddSpacer(8)
-    folder_row.Add(word_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 18)
-    folder_row.Add(excel_chk, 0, wx.ALIGN_CENTER_VERTICAL)
+    folder_row.Add(folder_field, 1, wx.EXPAND | wx.RIGHT, 10)
+    folder_row.Add(browse_btn, 0, wx.RIGHT, 10)
+    file_mask_box.Add(word_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 10)
+    file_mask_box.Add(excel_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 10)
 
     top_grid.Add(folder_label, 0, wx.ALIGN_CENTER_VERTICAL)
     top_grid.Add(folder_row, 1, wx.EXPAND)
     top_grid.Add((1, 1))
-    top_grid.Add((1, 1))
+    top_grid.Add(file_mask_box, 0, wx.EXPAND)
 
     main.Add(top_grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
-    # Include child folders + Word/Excel
+    # Include child folders
     options = wx.BoxSizer(wx.HORIZONTAL)
-    options.AddSpacer(folder_label.GetSize().GetWidth())
     include_child_chk = wx.CheckBox(panel, label=tr("search_include_subfolders"))
     include_child_chk.SetValue(bool(restored_state["include_child"]))
-    options.Add(include_child_chk, 0, wx.ALIGN_CENTER_VERTICAL)
+    options.Add(include_child_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 155)
  
     main.Add(options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
     # ---------- Search mode ----------
-    mode_box = wx.StaticBoxSizer(
-        wx.StaticBox(panel, label=""),
-        wx.HORIZONTAL,
-    )
-
-    text_radio = wx.RadioButton(
-        panel,
-        label=tr("search_mode_text"),
-        style=wx.RB_GROUP,
-    )
-    regex_radio = wx.RadioButton(
-        panel,
-        label=tr("search_mode_regex"),
-    )
+    mode_box = wx.StaticBoxSizer(wx.StaticBox(panel, label=""), wx.HORIZONTAL)
+    text_radio = wx.RadioButton(panel, label=tr("search_mode_text"), style=wx.RB_GROUP)
+    regex_radio = wx.RadioButton(panel, label=tr("search_mode_regex"))
     case_sensitive_chk = wx.CheckBox(panel, label=tr("search_case_sensitive_checkbox"))
     case_sensitive_chk.SetValue(bool(restored_state["case_sensitive"]))
     whole_word_chk = wx.CheckBox(panel, label=tr("search_whole_word_checkbox"))
@@ -711,59 +761,73 @@ def show_search_form(owner):
     filters = wx.BoxSizer(wx.HORIZONTAL)
 
     # Date filter
-    date_box = wx.StaticBoxSizer(
-        wx.StaticBox(panel, label=tr("search_date_filter_label")),
-        wx.HORIZONTAL,
-    )
+    date_box = wx.StaticBoxSizer(wx.StaticBox(panel, label=tr("search_date_filter_label")), wx.HORIZONTAL)
 
-    date_box.Add(
-        wx.StaticText(panel, label=tr("search_date_from")),
-        0,
-        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
-    )
+    date_from_enable_chk = wx.CheckBox(panel, label="")
+    date_from_enable_chk.SetValue(bool(restored_state.get("date_from_enabled", bool(restored_state.get("date_from", "")))))
+    date_box.Add(date_from_enable_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+    date_box.Add(wx.StaticText(panel, label=tr("search_date_from")), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     date_from_field = wx.TextCtrl(panel, value=str(restored_state.get("date_from", "")), style=wx.TE_PROCESS_ENTER)
     date_from_field.SetMinSize((100, -1))
+    date_from_picker = None
+    date_from_btn = wx.Button(panel, label="📅")
+    date_from_btn.SetToolTip(tr("search_pick_date_tooltip"))
+    date_from_btn.SetMinSize((28, -1))
 
-    date_box.Add(date_from_field, 0, wx.RIGHT, 10)
+    def show_date_picker_for_from(_event=None):
+        _show_date_picker_popup(dialog, date_from_field, date_from_btn, "from")
 
-    date_box.Add(
-        wx.StaticText(panel, label=tr("search_date_to")),
-        0,
-        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
-    )
+    date_from_row = wx.BoxSizer(wx.HORIZONTAL)
+    date_from_row.Add(date_from_field, 1, wx.EXPAND | wx.RIGHT, 5)
+    date_from_row.Add(date_from_btn, 0, wx.ALIGN_CENTER_VERTICAL)
+    date_box.Add(date_from_row, 1, wx.EXPAND | wx.RIGHT, 10)
+
+    date_to_enable_chk = wx.CheckBox(panel, label="")
+    date_to_enable_chk.SetValue(bool(restored_state.get("date_to_enabled", bool(restored_state.get("date_to", "")))))
+    date_box.Add(date_to_enable_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+    date_box.Add(wx.StaticText(panel, label=tr("search_date_to")), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     date_to_field = wx.TextCtrl(panel, value=str(restored_state.get("date_to", "")), style=wx.TE_PROCESS_ENTER)
     date_to_field.SetMinSize((100, -1))
-    date_box.Add(date_to_field, 0)
+    date_to_picker = None
+    date_to_btn = wx.Button(panel, label="📅")
+    date_to_btn.SetToolTip(tr("search_pick_date_tooltip"))
+    date_to_btn.SetMinSize((28, -1))
+
+    def show_date_picker_for_to(_event=None):
+        _show_date_picker_popup(dialog, date_to_field, date_to_btn, "to")
+
+    date_to_row = wx.BoxSizer(wx.HORIZONTAL)
+    date_to_row.Add(date_to_field, 1, wx.EXPAND | wx.RIGHT, 5)
+    date_to_row.Add(date_to_btn, 0, wx.ALIGN_CENTER_VERTICAL)
+    date_box.Add(date_to_row, 1, wx.EXPAND)
+
+    date_from_btn.Bind(wx.EVT_BUTTON, show_date_picker_for_from)
+    date_to_btn.Bind(wx.EVT_BUTTON, show_date_picker_for_to)
+
+    _apply_date_filter_enabled(date_from_field, date_from_picker, date_from_enable_chk, date_from_btn)
+    _apply_date_filter_enabled(date_to_field, date_to_picker, date_to_enable_chk, date_to_btn)
 
     filters.Add(date_box, 1, wx.EXPAND | wx.RIGHT, 10)
 
     # Size filter
-    size_box = wx.StaticBoxSizer(
-        wx.StaticBox(panel, label=tr("search_size_filter_label")),
-        wx.HORIZONTAL,
-    )
-
-    size_box.Add(
-        wx.StaticText(panel, label=tr("search_size_from")),
-        0,
-        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
-    )
+    size_box = wx.StaticBoxSizer(wx.StaticBox(panel, label=tr("search_size_filter_label")), wx.HORIZONTAL)
+    size_box.Add(wx.StaticText(panel, label=tr("search_size_from")), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     size_from_field = wx.TextCtrl(panel, value=str(restored_state.get("size_from", "")), style=wx.TE_PROCESS_ENTER)
     size_from_field.SetMinSize((100, -1))
     size_box.Add(size_from_field, 0, wx.RIGHT, 10)
 
-    size_box.Add(
-        wx.StaticText(panel, label=tr("search_size_to")),
-        0,
-        wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5,
-    )
+    size_box.Add(wx.StaticText(panel, label=tr("search_size_to")), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     size_to_field = wx.TextCtrl(panel, value=str(restored_state.get("size_to", "")), style=wx.TE_PROCESS_ENTER)
     size_to_field.SetMinSize((100, -1))
     size_box.Add(size_to_field, 0)
 
+    size_box_measure = wx.StaticText(panel, label="KB")
+    size_box_measure.SetMinSize((15, -1))
+    size_box.Add(size_box_measure, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 5)
+
     filters.Add(size_box, 1, wx.EXPAND)
 
-    main.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+    main.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 20)
 
     search_btn = wx.Button(panel, label=tr("search_button"))
     stop_btn = wx.Button(panel, label=tr("search_stop_button"))
@@ -806,7 +870,13 @@ def show_search_form(owner):
     folder_field.SetValue(folder_value)
 
     def sync_file_mask_field():
-        file_mask_field.SetValue(_normalize_file_mask(file_mask_field.GetValue(), word_chk.GetValue(), excel_chk.GetValue()))
+        _apply_file_mask_state(file_mask_field, word_chk, excel_chk)
+
+    def clear_mask(_event=None):
+        _safe_set_control_value(file_mask_field, "", "_value_sync_guard")
+        _safe_set_control_value(word_chk, False, "_word_checkbox_sync_guard")
+        _safe_set_control_value(excel_chk, False, "_excel_checkbox_sync_guard")
+        _sync_file_mask_related_checkboxes(file_mask_field, word_chk, excel_chk)
 
     def set_status(folder_name, file_name=None):
         left_text, right_text = _format_search_status(folder_name, file_name)
@@ -825,9 +895,11 @@ def show_search_form(owner):
             excel_chk.GetValue(),
             case_sensitive_chk.GetValue(),
             whole_word_chk.GetValue(),
-            0,
+            int(date_from_enable_chk.GetValue() or date_to_enable_chk.GetValue()),
             date_from_field.GetValue(),
             date_to_field.GetValue(),
+            date_from_enable_chk.GetValue(),
+            date_to_enable_chk.GetValue(),
             0,
             size_from_field.GetValue(),
             size_to_field.GetValue(),
@@ -867,15 +939,7 @@ def show_search_form(owner):
         status_bar.SetStatusText("", 1)
 
     def refresh_query_history(_event=None):
-        current_text = query_field.GetValue().strip()
-        history = _load_search_history()
-        if current_text:
-            filtered = [item for item in history if current_text.lower() in item.lower()]
-        else:
-            filtered = history
-        query_field.SetItems(filtered[:30])
-        if filtered and not query_field.IsPopupShown():
-            wx.CallAfter(query_field.Popup)
+        return
 
     def run_search(_event=None):
         text_value = query_field.GetValue().strip()
@@ -888,7 +952,7 @@ def show_search_form(owner):
             return
 
         _save_search_history(text_value)
-        query_field.SetItems(_load_search_history())
+        _sync_query_history(query_field, text_value)
 
         if search_state["running"]:
             return
@@ -896,8 +960,10 @@ def show_search_form(owner):
         stop_event = threading.Event()
         sync_file_mask_field()
         mask_value = file_mask_field.GetValue().strip()
-        date_mode = 0
-        size_mode = 0
+        date_from_enabled = bool(date_from_enable_chk.GetValue())
+        date_to_enabled = bool(date_to_enable_chk.GetValue())
+        date_mode = 1 if ((date_from_enabled and date_from_field.GetValue().strip()) or (date_to_enabled and date_to_field.GetValue().strip())) else 0
+        size_mode = 1 if (size_from_field.GetValue().strip() or size_to_field.GetValue().strip()) else 0
 
         search_state["running"] = True
         search_state["stopped"] = False
@@ -919,8 +985,8 @@ def show_search_form(owner):
                     case_sensitive=case_sensitive_chk.GetValue(),
                     whole_word=whole_word_chk.GetValue(),
                     date_mode=date_mode,
-                    date_from=date_from_field.GetValue(),
-                    date_to=date_to_field.GetValue(),
+                    date_from=date_from_field.GetValue() if date_from_enabled else "",
+                    date_to=date_to_field.GetValue() if date_to_enabled else "",
                     size_mode=size_mode,
                     size_from=size_from_field.GetValue(),
                     size_to=size_to_field.GetValue(),
@@ -965,12 +1031,12 @@ def show_search_form(owner):
             except Exception:
                 pass
 
-    query_field.Bind(wx.EVT_TEXT, refresh_query_history)
-    query_field.Bind(wx.EVT_TEXT_ENTER, run_search)
-    file_mask_field.Bind(wx.EVT_TEXT_ENTER, run_search)
-    folder_field.Bind(wx.EVT_TEXT_ENTER, run_search)
+    clear_mask_btn.Bind(wx.EVT_BUTTON, clear_mask)
+    file_mask_field.Bind(wx.EVT_TEXT, lambda _event: sync_file_mask_field())
     word_chk.Bind(wx.EVT_CHECKBOX, lambda _event: sync_file_mask_field())
     excel_chk.Bind(wx.EVT_CHECKBOX, lambda _event: sync_file_mask_field())
+    date_from_enable_chk.Bind(wx.EVT_CHECKBOX, lambda _event: _apply_date_filter_enabled(date_from_field, date_from_picker, date_from_enable_chk, date_from_btn))
+    date_to_enable_chk.Bind(wx.EVT_CHECKBOX, lambda _event: _apply_date_filter_enabled(date_to_field, date_to_picker, date_to_enable_chk, date_to_btn))
     browse_btn.Bind(wx.EVT_BUTTON, lambda _event: (lambda chosen: folder_field.SetValue(chosen) if chosen else None)( _browse_for_folder(dialog, folder_field.GetValue()) ))
     search_btn.Bind(wx.EVT_BUTTON, run_search)
     stop_btn.Bind(wx.EVT_BUTTON, stop_search)
