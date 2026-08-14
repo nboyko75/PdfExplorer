@@ -211,7 +211,14 @@ def refresh_image_preview_bitmap(owner):
     if src_w <= 0 or src_h <= 0:
         return
 
-    fit_scale = min(target_w / src_w, target_h / src_h, 1.0)
+    page_mode = getattr(owner, "pdf_page_view_mode", "1_page_tall")
+    if page_mode == "1_page_tall":
+        fit_scale = min(target_w / src_w, target_h / src_h, 1.0)
+    elif page_mode == "2_pages_wide":
+        fit_scale = min(target_w / src_w, (target_h * 0.85) / src_h, 1.0)
+    else:
+        fit_scale = min((target_w * 0.95) / src_w, target_h / src_h, 1.0)
+
     image_zoom = max(0.1, float(getattr(owner, "current_image_zoom", 1.0)))
     scale = fit_scale * image_zoom
     render_w = max(1, int(src_w * scale))

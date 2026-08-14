@@ -320,8 +320,11 @@ class FileExplorer(wx.Frame):
             self.pdf_page_view_selected_mode = mode
         file_preview.sync_pdf_page_view_mode_controls(self)
 
-        if refresh_preview and is_pdf_file(self.current_preview_path):
-            file_preview.show_pdf_feed(self, self.current_preview_path)
+        if refresh_preview:
+            if is_pdf_file(self.current_preview_path):
+                file_preview.show_pdf_feed(self, self.current_preview_path)
+            elif self.current_preview_path:
+                file_preview.refresh_preview_for_page_view_mode(self, self.current_preview_path)
 
     def create_drag_overlay(self):
         return pdf_dragdrop.create_drag_overlay(self)

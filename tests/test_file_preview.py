@@ -93,6 +93,16 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         owner.preview_page_view_mode_btn.Show.assert_called_once_with(True)
 
+    def test_refresh_preview_for_page_view_mode_reloads_image_preview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(current_preview_path="sample.png")
+
+        with mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=True), \
+             mock.patch.object(file_preview.image_utils, "show_image_preview") as mocked_show_image_preview:
+            file_preview.refresh_preview_for_page_view_mode(owner, "sample.png")
+
+        mocked_show_image_preview.assert_called_once_with(owner, "sample.png", file_preview.tr)
+
 
 if __name__ == "__main__":
     unittest.main()

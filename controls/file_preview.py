@@ -257,6 +257,39 @@ def _get_preview_layout_mode(owner):
     return PAGE_VIEW_MODE_1_TALL
 
 
+def refresh_preview_for_page_view_mode(owner, path=None):
+    if owner is None:
+        return
+
+    current_path = path if path is not None else getattr(owner, "current_preview_path", None)
+    if not current_path:
+        return
+
+    if is_pdf_file(current_path):
+        show_pdf_feed(owner, current_path)
+        return
+
+    if image_utils.can_preview_image(current_path):
+        if getattr(owner, "current_image_preview", None) is not None and getattr(owner.current_image_preview, "IsOk", lambda: False)():
+            image_utils.refresh_image_preview_bitmap(owner)
+        else:
+            image_utils.show_image_preview(owner, current_path, tr)
+        return
+
+    if office_preview.can_preview_office(current_path):
+        try:
+            preview_pdf_path = office_preview.convert_office_to_preview_pdf(current_path)
+            show_pdf_feed(owner, preview_pdf_path)
+            return
+        except Exception as exc:
+            owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
+            owner.preview_text.Show(True)
+            owner.pdf_pages_panel.Hide()
+            owner.pdf_preview_container.Hide()
+            owner.filePreview.Layout()
+            return
+
+
 def sync_pdf_page_view_mode_controls(owner):
     current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
     if current_mode in FIXED_PAGE_VIEW_MODES:
