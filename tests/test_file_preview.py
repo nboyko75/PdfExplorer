@@ -103,6 +103,59 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         mocked_show_image_preview.assert_called_once_with(owner, "sample.png", file_preview.tr)
 
+    def test_update_page_buttons_state_restricts_adjust_and_optimize_to_pdf(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.pdf",
+            selected_pdf_page_panel=object(),
+            preview_rotate_menu_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_import_from_file_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_export_pages_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_move_page_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_remove_page_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_adjust_page_width_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_optimize_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "is_pdf_file", return_value=True), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False):
+            file_preview.update_page_buttons_state(owner)
+
+        owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(True)
+        owner.preview_optimize_btn.Enable.assert_called_once_with(True)
+
+        owner.current_preview_path = "sample.png"
+        owner.preview_adjust_page_width_btn.Enable.reset_mock()
+        owner.preview_optimize_btn.Enable.reset_mock()
+
+        with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False):
+            file_preview.update_page_buttons_state(owner)
+
+        owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(False)
+        owner.preview_optimize_btn.Enable.assert_called_once_with(False)
+
+    def test_on_pdf_page_drag_motion_ignores_non_pdf_preview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.png",
+            _pdf_drag_start_panel=object(),
+            _pdf_drag_start_pos=types.SimpleNamespace(x=10, y=10),
+        )
+        event = types.SimpleNamespace(
+            Dragging=mock.MagicMock(return_value=True),
+            LeftIsDown=mock.MagicMock(return_value=True),
+            GetPosition=mock.MagicMock(return_value=types.SimpleNamespace(x=20, y=20)),
+        )
+        page_panel = object()
+
+        with mock.patch.object(file_preview.pdf_dragdrop, "start_pdf_page_drag") as mocked_start_drag, \
+             mock.patch.object(file_preview, "get_pdf_page_panel_from_event", return_value=page_panel), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False):
+            file_preview.on_pdf_page_drag_motion(owner, event)
+
+        mocked_start_drag.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

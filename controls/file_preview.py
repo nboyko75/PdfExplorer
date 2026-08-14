@@ -63,6 +63,8 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_export_pages_btn.Enable(False)
     owner.preview_remove_page_btn.Enable(False)
     owner.preview_move_page_btn.Enable(False)
+    owner.preview_adjust_page_width_btn.Enable(False)
+    owner.preview_optimize_btn.Enable(False)
 
     owner.preview_text = wx.TextCtrl(
         owner.filePreview,
@@ -195,19 +197,19 @@ def get_selected_pdf_page_index(owner):
 
 
 def update_page_buttons_state(owner):
-    can_select_pdf_page = (
-        is_pdf_file(owner.current_preview_path)
-        and get_selected_pdf_page_index(owner) is not None
-    )
+    is_pdf_preview = is_pdf_file(owner.current_preview_path)
+    can_select_pdf_page = is_pdf_preview and get_selected_pdf_page_index(owner) is not None
     can_rotate_selected_page = can_select_pdf_page
     can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
     can_rotate = can_rotate_selected_page or can_rotate_image
-    can_act_on_pdf = is_pdf_file(owner.current_preview_path)
-    owner.preview_rotate_menu_btn.Enable(is_pdf_file(owner.current_preview_path) or can_rotate_image)
+    can_act_on_pdf = is_pdf_preview
+    owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
     owner.preview_import_from_file_btn.Enable(can_act_on_pdf)
     owner.preview_export_pages_btn.Enable(can_act_on_pdf)
-    owner.preview_move_page_btn.Enable(can_select_pdf_page) 
+    owner.preview_move_page_btn.Enable(can_select_pdf_page)
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
+    owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
+    owner.preview_optimize_btn.Enable(is_pdf_preview)
 
 
 def update_pdf_save_button_state(owner):
@@ -668,6 +670,8 @@ def on_pdf_page_select(owner, event):
 
 
 def on_pdf_page_drag_motion(owner, event):
+    if not is_pdf_file(getattr(owner, "current_preview_path", None)):
+        return
     pdf_dragdrop.on_pdf_page_drag_motion(owner, event)
 
 
@@ -1923,6 +1927,8 @@ def on_preview_right_click(event):
     remove_page_item.Enable(is_pdf_preview and get_selected_pdf_page_index(owner) is not None)
     move_page_item.Enable(is_pdf_preview)
     cancel_item.Enable(is_pdf_preview and has_unsaved_pdf_changes(owner.current_preview_path))
+    adjust_page_width_item.Enable(is_pdf_preview)
+    optimize_item.Enable(is_pdf_preview)
 
     owner.Bind(wx.EVT_MENU, on_preview_cancel, cancel_item)
     owner.Bind(wx.EVT_MENU, on_preview_zoom_in, zoom_in_item)
