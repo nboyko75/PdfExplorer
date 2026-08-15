@@ -42,7 +42,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_remove_page_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "delete", tr("preview_remove_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_adjust_page_width_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REPORT_VIEW, tr("preview_adjust_page_width_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_optimize_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "ok", tr("preview_optimize_button"), icon_size=preview_icon_size, button_size=preview_button_size)
-    owner.preview_load_all_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_HARDDISK, tr("preview_load_all_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_load_all_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "load_all", tr("preview_load_all_button"), icon_size=preview_icon_size, button_size=preview_button_size)
 
     owner.preview_toolbar.Add(owner.preview_import_from_file_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_export_pages_btn, 0, wx.RIGHT, 3)
@@ -727,25 +727,35 @@ def on_preview_load_all_pages(event):
     if not path:
         return
 
-    preview_path = path
-    if is_pdf_file(path):
-        preview_path = path
-    elif office_preview.can_preview_office(path):
-        try:
-            preview_path = office_preview.convert_office_to_preview_pdf(path)
-        except Exception:
-            return
-    else:
-        return
+    load_all_btn = getattr(owner, "preview_load_all_btn", None)
+    if load_all_btn is not None:
+        load_all_btn.Enable(False)
 
-    try:
-        if not os.path.isfile(preview_path):
+    cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
+    with cursor_context:
+        preview_path = path
+        if is_pdf_file(path):
+            preview_path = path
+        elif office_preview.can_preview_office(path):
+            try:
+                page_count = office_preview.get_office_document_page_count(path)
+                preview_path = office_preview.convert_office_to_preview_pdf(path, max_pages=page_count)
+            except Exception:
+                return
+        else:
             return
-        if get_pdf_page_count(preview_path) <= pdf_utils._get_show_pages_limit_for_path(path):
-            return
-        show_pdf_feed(owner, preview_path, force_all_pages=True)
-    except Exception:
-        pass
+
+        try:
+            if not os.path.isfile(preview_path):
+                return
+            if get_pdf_page_count(preview_path) <= pdf_utils._get_show_pages_limit_for_path(path):
+                return
+            show_pdf_feed(owner, preview_path, force_all_pages=True)
+        except Exception:
+            pass
+        finally:
+            if load_all_btn is not None:
+                load_all_btn.Enable(False)
 
 
 def show_pdf_feed(owner, path, force_all_pages=False):

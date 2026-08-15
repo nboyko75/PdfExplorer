@@ -304,19 +304,27 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
         app.Quit()
 
 
-def convert_office_to_preview_pdf(path):
+def convert_office_to_preview_pdf(path, max_pages=None):
     if sys.platform != "win32":
         raise RuntimeError("Office preview is supported on Windows only.")
 
     if not can_preview_office(path):
         raise RuntimeError("Unsupported Office file type for preview.")
 
-    page_limit = _get_show_pages_limit_for_path(path)
+    if max_pages is None:
+        page_limit = _get_show_pages_limit_for_path(path)
+    else:
+        try:
+            page_limit = max(1, int(max_pages))
+        except (TypeError, ValueError):
+            page_limit = _get_show_pages_limit_for_path(path)
 
     output_pdf = _build_cached_preview_pdf_path(path)
-    if os.path.isfile(output_pdf):
+    if os.path.isfile(output_pdf) and max_pages is None:
         _limit_preview_pdf_pages(output_pdf, page_limit)
         return output_pdf
+    if os.path.isfile(output_pdf) and max_pages is not None:
+        _safe_remove_file(output_pdf)
 
     temp_output_pdf = os.path.join(
         os.path.dirname(output_pdf),

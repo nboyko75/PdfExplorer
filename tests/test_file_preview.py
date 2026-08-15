@@ -175,6 +175,30 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         mocked_start_drag.assert_not_called()
 
+    def test_load_all_click_regenerates_full_office_preview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.docx",
+            preview_load_all_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=True), \
+             mock.patch.object(file_preview.office_preview, "get_office_document_page_count", return_value=18), \
+             mock.patch.object(file_preview.office_preview, "convert_office_to_preview_pdf") as mocked_convert, \
+             mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed, \
+             mock.patch.object(file_preview, "get_pdf_page_count", return_value=18), \
+             mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
+             mock.patch.object(file_preview.pdf_utils, "_get_show_pages_limit_for_path", return_value=10):
+            mocked_convert.return_value = "full_preview.pdf"
+            file_preview.on_preview_load_all_pages(types.SimpleNamespace())
+
+        mocked_convert.assert_called_once_with("sample.docx", max_pages=18)
+        mocked_show_pdf_feed.assert_called_once_with(owner, "full_preview.pdf", force_all_pages=True)
+        owner.preview_load_all_btn.Enable.assert_any_call(False)
+
     def test_load_all_button_enabled_for_office_preview_when_limit_active(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

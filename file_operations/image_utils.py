@@ -17,6 +17,7 @@ class IconManager:
         "cancel": "cancel.bmp",
         "copy": "copy.bmp",
         "file_view": "file_view.bmp",
+        "load_all": "load_all.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):
