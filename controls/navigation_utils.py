@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import file_operations.image_utils as image_utils
+from common.system import is_hidden
 from localization import tr
 from controls.window_tools import update_settings
 
@@ -53,33 +54,33 @@ def load_folder(owner, path):
     row_data = []
 
     for original_index, name in enumerate(items):
-        if not owner.show_hidden and (name.startswith(".") or name.startswith("$")):
+        full_path = os.path.join(path, name)
+
+        if not owner.show_hidden and is_hidden(full_path):
             continue
 
         if filter_text and filter_text not in name.lower():
             continue
 
-        full = os.path.join(path, name)
-
-        if os.path.isdir(full):
+        if os.path.isdir(full_path):
             typ = tr("file_type_folder")
             size = ""
             size_kb = None
             is_dir = True
-            image_index = image_utils.get_list_icon_index(owner, full, is_dir=True)
+            image_index = image_utils.get_list_icon_index(owner, full_path, is_dir=True)
         else:
             typ = tr("file_type_file")
             try:
-                size_kb = os.path.getsize(full) // 1024
+                size_kb = os.path.getsize(full_path) // 1024
                 size = f"{size_kb} {tr('file_size_unit_kb')}"
             except Exception:
                 size_kb = None
                 size = ""
             is_dir = False
-            image_index = image_utils.get_list_icon_index(owner, full, is_dir=False)
+            image_index = image_utils.get_list_icon_index(owner, full_path, is_dir=False)
 
         try:
-            modified_ts = os.path.getmtime(full)
+            modified_ts = os.path.getmtime(full_path)
             modified = datetime.fromtimestamp(modified_ts).strftime("%Y-%m-%d %H:%M:%S")
         except Exception:
             modified_ts = None

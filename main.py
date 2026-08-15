@@ -42,9 +42,10 @@ class FileExplorer(wx.Frame):
         if os.path.isfile(icon_path):
             self.SetIcon(wx.Icon(icon_path))
 
+        settings = load_settings()
         self.history = []
         self.history_index = -1
-        self.show_hidden = False
+        self.show_hidden = bool(settings.get("show_hidden", False))
         self.current_pdf_path = None
         self.selected_pdf_page_panel = None
         self.drag_overlay = None
@@ -58,7 +59,6 @@ class FileExplorer(wx.Frame):
         self.list_sort_direction = 0
         self.file_clipboard_paths = []
         self.file_clipboard_mode = None
-        settings = load_settings()
         saved_locale = str(settings.get("ui_locale", "uk")).lower()
         saved_locale = saved_locale.replace("-", "_")
         if saved_locale == "ua":
@@ -127,6 +127,7 @@ class FileExplorer(wx.Frame):
         self.path_box = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
 
         self.hidden_chk = wx.CheckBox(panel, label=tr("show_hidden_checkbox"))
+        self.hidden_chk.SetValue(self.show_hidden)
         self.language_combo = wx.ComboBox(panel, choices=[label for label, _ in LANGUAGE_CHOICES_SORTED], style=wx.CB_READONLY)
         self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
 
@@ -587,8 +588,12 @@ class FileExplorer(wx.Frame):
         search_form.show_search_form(self)
 
     def on_toggle_hidden(self, event):
-        self.show_hidden = self.hidden_chk.GetValue()
+        self.show_hidden = bool(self.hidden_chk.GetValue())
+        update_settings({"show_hidden": self.show_hidden})
+
         self.refresh()
+        if hasattr(self, "tree") and self.tree is not None:
+            tree_utils.refresh_tree_selection(self)
 
     def refresh(self):
         self.load_folder(self.path_box.GetValue())

@@ -1,6 +1,8 @@
 import os
 import wx
 
+from common.system import is_hidden
+from common.system import is_hidden
 from localization import tr
 from file_operations.pdf_utils import adjust_page_width, optimize_pdf, save_pdf
 import file_operations.image_utils as image_utils
@@ -148,10 +150,11 @@ def populate_tree_node(owner, item, path):
     entries.sort(key=lambda name: (not os.path.isdir(os.path.join(path, name)), name.lower()))
 
     for name in entries:
-        if not owner.show_hidden and (name.startswith(".") or name.startswith("$")):
+        full_path = normalize_tree_path(os.path.join(path, name))
+
+        if not owner.show_hidden and is_hidden(full_path):
             continue
 
-        full_path = normalize_tree_path(os.path.join(path, name))
         child = owner.tree.AppendItem(item, name)
         owner.tree.SetItemData(child, full_path)
 
