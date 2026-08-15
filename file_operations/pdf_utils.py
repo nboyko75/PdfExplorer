@@ -22,7 +22,56 @@ PDF_PREVIEW_RENDER_QUALITY_MULTIPLIER = 3.5
 PDF_PREVIEW_MIN_RENDER_SCALE = 0.75
 PDF_PREVIEW_MAX_RENDER_SCALE = 2.5
 PDF_PREVIEW_MAX_RENDER_HEIGHT = 1600
+DEFAULT_SHOW_PAGES_LIMIT = 10
+DEFAULT_PDF_SHOW_PAGES_LIMIT = 50
+DEFAULT_WORD_SHOW_PAGES_LIMIT = 10
+DEFAULT_EXCEL_SHOW_PAGES_LIMIT = 1
+DEFAULT_OTHER_SHOW_PAGES_LIMIT = 10
 _PDF_SESSION_BYTES = {}
+
+
+def _normalize_show_pages_limit(raw_limit, default_limit):
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        limit = default_limit
+    return max(1, limit)
+
+
+def _get_show_pages_limit_for_path(path):
+    settings = load_settings()
+    if isinstance(path, str):
+        _, ext = os.path.splitext(path)
+        ext = ext.lower()
+        if ext == ".pdf":
+            key = "pdf_show_pages_limit"
+            default_limit = DEFAULT_PDF_SHOW_PAGES_LIMIT
+        elif ext in {".doc", ".docx", ".docm"}:
+            key = "word_show_pages_limit"
+            default_limit = DEFAULT_WORD_SHOW_PAGES_LIMIT
+        elif ext in {".xls", ".xlsx", ".xlsm"}:
+            key = "excel_show_pages_limit"
+            default_limit = DEFAULT_EXCEL_SHOW_PAGES_LIMIT
+        else:
+            key = "other_show_pages_limit"
+            default_limit = DEFAULT_OTHER_SHOW_PAGES_LIMIT
+    else:
+        key = "pdf_show_pages_limit"
+        default_limit = DEFAULT_PDF_SHOW_PAGES_LIMIT
+
+    raw_limit = settings.get(key, settings.get("show_pages_limit", default_limit))
+    limit = _normalize_show_pages_limit(raw_limit, default_limit)
+    legacy_key = settings.get("show_pages_limit")
+    if key not in settings and legacy_key is None:
+        try:
+            update_settings({key: limit})
+        except Exception:
+            pass
+    return limit
+
+
+def _get_show_pages_limit():
+    return _get_show_pages_limit_for_path("document.pdf")
 
 
 def _get_optimize_pdf_settings():
@@ -680,14 +729,20 @@ def adjust_page_width(path):
             new_doc.close()
 
 
-def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=None, target_height=None, target_zoom=1.0, avg_width=None, avg_height=None):
+def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=None, target_height=None, target_zoom=1.0, avg_width=None, avg_height=None, force_all_pages=False):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")
 
     doc = _open_pdf_document(path)
     try:
         page_count = len(doc)
-        shown_pages = page_count if max_pages is None else min(page_count, max_pages)
+        settings_limit = _get_show_pages_limit_for_path(path)
+        if force_all_pages:
+            shown_pages = page_count
+        elif max_pages is None:
+            shown_pages = min(page_count, settings_limit)
+        else:
+            shown_pages = min(page_count, max_pages, settings_limit)
         previews = []
 
         if shown_pages <= 0:

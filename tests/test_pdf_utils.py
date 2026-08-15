@@ -68,6 +68,64 @@ class AdjustPageWidthTests(unittest.TestCase):
             self.assertEqual(widths_after, widths_before)
 
 
+class ShowPagesLimitTests(unittest.TestCase):
+    def test_get_pdf_page_previews_uses_configured_show_pages_limit(self):
+        doc = type(
+            "Doc",
+            (),
+            {
+                "__len__": lambda self: 5,
+                "__getitem__": lambda self, index: type("Page", (), {"rect": type("Rect", (), {"height": 800.0, "width": 600.0})(), "get_pixmap": lambda *args, **kwargs: type("Pix", (), {"n": 3, "alpha": False, "width": 100, "height": 100, "samples": b"\x00" * 300})()})(),
+                "close": lambda self: None,
+            },
+        )()
+
+        with mock.patch("file_operations.pdf_utils.load_settings", return_value={"pdf_show_pages_limit": 2}), \
+             mock.patch("file_operations.pdf_utils._open_pdf_document", return_value=doc), \
+             mock.patch("file_operations.pdf_utils.fitz.Matrix", side_effect=lambda sx, sy: (sx, sy)), \
+             mock.patch("file_operations.pdf_utils.wx.Bitmap.FromBuffer", side_effect=lambda width, height, samples: type("Bitmap", (), {"width": width, "height": height})()):
+            page_count, shown_pages, previews = pdf_utils.get_pdf_page_previews("dummy.pdf")
+
+        self.assertEqual(page_count, 5)
+        self.assertEqual(shown_pages, 2)
+        self.assertEqual(len(previews), 2)
+
+    def test_get_show_pages_limit_for_path_uses_document_category(self):
+        settings = {
+            "pdf_show_pages_limit": 2,
+            "word_show_pages_limit": 3,
+            "excel_show_pages_limit": 4,
+            "other_show_pages_limit": 5,
+        }
+
+        with mock.patch("file_operations.pdf_utils.load_settings", return_value=settings):
+            self.assertEqual(pdf_utils._get_show_pages_limit_for_path("report.pdf"), 2)
+            self.assertEqual(pdf_utils._get_show_pages_limit_for_path("report.docx"), 3)
+            self.assertEqual(pdf_utils._get_show_pages_limit_for_path("report.xlsx"), 4)
+            self.assertEqual(pdf_utils._get_show_pages_limit_for_path("archive.pptx"), 5)
+
+    def test_get_pdf_page_previews_can_force_all_pages(self):
+        doc = type(
+            "Doc",
+            (),
+            {
+                "__len__": lambda self: 5,
+                "__getitem__": lambda self, index: type("Page", (), {"rect": type("Rect", (), {"height": 800.0, "width": 600.0})(), "get_pixmap": lambda *args, **kwargs: type("Pix", (), {"n": 3, "alpha": False, "width": 100, "height": 100, "samples": b"\x00" * 300})()})(),
+                "close": lambda self: None,
+            },
+        )()
+
+        with mock.patch("file_operations.pdf_utils.load_settings", return_value={"show_pages_limit": 2}), \
+             mock.patch("file_operations.pdf_utils._open_pdf_document", return_value=doc), \
+             mock.patch("file_operations.pdf_utils.fitz.Matrix", side_effect=lambda sx, sy: (sx, sy)), \
+             mock.patch("file_operations.pdf_utils.wx.Bitmap.FromBuffer", side_effect=lambda width, height, samples: type("Bitmap", (), {"width": width, "height": height})()):
+            page_count, shown_pages, previews = pdf_utils.get_pdf_page_previews("dummy.pdf", force_all_pages=True)
+
+        self.assertEqual(page_count, 5)
+        self.assertEqual(shown_pages, 5)
+        self.assertEqual(len(previews), 5)
+
+
 class GetPdfPagePreviewsSizingTests(unittest.TestCase):
     @staticmethod
     def _make_fake_doc(width=600.0, height=800.0):

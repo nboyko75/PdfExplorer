@@ -131,6 +131,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "preview_adjust_page_width_button": "Ajust page width",
     "preview_remove_page_button": "Remove page",
     "preview_move_page_button": "Move page",
+    "preview_load_all_button": "Load all",
     "preview_import_button": "Import",
     "preview_import_from_file_button": "Import from file",
     "preview_import_from_scanner_button": "Import from scanner",

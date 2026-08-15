@@ -156,6 +156,70 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         mocked_start_drag.assert_not_called()
 
+    def test_load_all_button_enabled_for_office_preview_when_limit_active(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.docx",
+            selected_pdf_page_panel=None,
+            preview_rotate_menu_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_import_from_file_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_export_pages_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_move_page_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_remove_page_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_adjust_page_width_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_optimize_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_load_all_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=True), \
+             mock.patch.object(file_preview.office_preview, "_build_cached_preview_pdf_path", return_value="cached_preview.pdf"), \
+             mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
+             mock.patch.object(file_preview, "get_pdf_page_count", return_value=3), \
+             mock.patch.object(file_preview.pdf_utils, "_get_show_pages_limit_for_path", return_value=2):
+            file_preview.update_page_buttons_state(owner)
+
+        owner.preview_load_all_btn.Enable.assert_called_once_with(True)
+
+
+class OfficePreviewLimitTests(unittest.TestCase):
+    def test_export_word_to_pdf_limits_page_range(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["_export_word_to_pdf"])
+
+        fake_app = mock.Mock()
+        fake_doc = mock.Mock()
+        fake_app.Documents.Open.return_value = fake_doc
+
+        with mock.patch.object(office_preview, "win32_client", mock.Mock()), \
+             mock.patch.object(office_preview, "_get_show_pages_limit_for_path", return_value=3):
+            office_preview.win32_client.DispatchEx.return_value = fake_app
+            office_preview._export_word_to_pdf("report.docx", "preview.pdf")
+
+        fake_doc.ExportAsFixedFormat.assert_called_once_with("preview.pdf", 17, False, 0, 3, 1, 3)
+
+    def test_convert_office_to_preview_pdf_limits_pages_after_export(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["convert_office_to_preview_pdf"])
+
+        calls = {"isfile": 0}
+
+        def fake_isfile(path):
+            calls["isfile"] += 1
+            return calls["isfile"] >= 2
+
+        with mock.patch.object(office_preview, "can_preview_office", return_value=True), \
+             mock.patch.object(office_preview, "_build_cached_preview_pdf_path", return_value="preview.pdf"), \
+             mock.patch.object(office_preview.os.path, "isfile", side_effect=fake_isfile), \
+             mock.patch.object(office_preview.os.path, "exists", return_value=True), \
+             mock.patch.object(office_preview, "_export_word_to_pdf"), \
+             mock.patch.object(office_preview, "_limit_preview_pdf_pages") as mocked_limit, \
+             mock.patch.object(office_preview.os, "replace"), \
+             mock.patch.object(office_preview, "pythoncom", None), \
+             mock.patch.object(office_preview.sys, "platform", "win32"):
+            result = office_preview.convert_office_to_preview_pdf("report.docx")
+
+        self.assertEqual(result, "preview.pdf")
+        mocked_limit.assert_called_once_with("preview.pdf", __import__("file_operations.pdf_utils", fromlist=["DEFAULT_SHOW_PAGES_LIMIT"]).DEFAULT_SHOW_PAGES_LIMIT)
+
 
 if __name__ == "__main__":
     unittest.main()

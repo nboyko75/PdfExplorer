@@ -42,6 +42,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_remove_page_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "delete", tr("preview_remove_page_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_adjust_page_width_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_REPORT_VIEW, tr("preview_adjust_page_width_button"), icon_size=preview_icon_size, button_size=preview_button_size)
     owner.preview_optimize_btn = image_utils.create_bitmap_button2(owner.filePreview, icon_manager, "ok", tr("preview_optimize_button"), icon_size=preview_icon_size, button_size=preview_button_size)
+    owner.preview_load_all_btn = image_utils.create_bitmap_button(owner.filePreview, wx.ART_HARDDISK, tr("preview_load_all_button"), icon_size=preview_icon_size, button_size=preview_button_size)
 
     owner.preview_toolbar.Add(owner.preview_import_from_file_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_export_pages_btn, 0, wx.RIGHT, 3)
@@ -54,7 +55,9 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_move_page_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_remove_page_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0, wx.RIGHT, 3)
-    owner.preview_toolbar.Add(owner.preview_optimize_btn, 0)
+    owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 3)
+    owner.preview_toolbar.AddStretchSpacer(1)
+    owner.preview_toolbar.Add(owner.preview_load_all_btn, 0, wx.RIGHT, 3)
 
     owner.preview_save_btn.Enable(False)
     owner.preview_cancel_btn.Enable(False)
@@ -65,6 +68,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_move_page_btn.Enable(False)
     owner.preview_adjust_page_width_btn.Enable(False)
     owner.preview_optimize_btn.Enable(False)
+    owner.preview_load_all_btn.Enable(False)
 
     owner.preview_text = wx.TextCtrl(
         owner.filePreview,
@@ -121,6 +125,7 @@ def bind_preview_events(owner):
     owner.preview_optimize_btn.Bind(wx.EVT_BUTTON, on_preview_optimize)
     owner.preview_adjust_page_width_btn.Bind(wx.EVT_BUTTON, on_preview_adjust_page_width)
     owner.preview_remove_page_btn.Bind(wx.EVT_BUTTON, on_preview_remove_page)
+    owner.preview_load_all_btn.Bind(wx.EVT_BUTTON, on_preview_load_all_pages)
 
 
 def confirm_preview_change(owner, next_path):
@@ -196,13 +201,36 @@ def get_selected_pdf_page_index(owner):
     return getattr(owner.selected_pdf_page_panel, "page_index", None)
 
 
+def _is_preview_page_limit_active(path):
+    if not path:
+        return False
+
+    try:
+        if is_pdf_file(path):
+            page_count = get_pdf_page_count(path)
+            return page_count > pdf_utils._get_show_pages_limit_for_path(path)
+
+        if office_preview.can_preview_office(path):
+            preview_pdf_path = office_preview._build_cached_preview_pdf_path(path)
+            if not os.path.isfile(preview_pdf_path):
+                return False
+            page_count = get_pdf_page_count(preview_pdf_path)
+            return page_count > pdf_utils._get_show_pages_limit_for_path(path)
+    except Exception:
+        return False
+
+    return False
+
+
 def update_page_buttons_state(owner):
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
+    is_previewable_non_pdf = bool(owner.current_preview_path) and office_preview.can_preview_office(owner.current_preview_path)
     can_select_pdf_page = is_pdf_preview and get_selected_pdf_page_index(owner) is not None
     can_rotate_selected_page = can_select_pdf_page
     can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
     can_rotate = can_rotate_selected_page or can_rotate_image
     can_act_on_pdf = is_pdf_preview
+    page_limit_active = _is_preview_page_limit_active(owner.current_preview_path)
     owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
     owner.preview_import_from_file_btn.Enable(can_act_on_pdf)
     owner.preview_export_pages_btn.Enable(can_act_on_pdf)
@@ -210,6 +238,9 @@ def update_page_buttons_state(owner):
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
+    load_all_btn = getattr(owner, "preview_load_all_btn", None)
+    if load_all_btn is not None:
+        load_all_btn.Enable(page_limit_active and (is_pdf_preview or is_previewable_non_pdf))
 
 
 def update_pdf_save_button_state(owner):
@@ -245,6 +276,9 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     owner.preview_move_page_btn.Show(show_pdf_only)
     owner.preview_remove_page_btn.Show(show_pdf_only)
     owner.preview_page_view_mode_btn.Show(show_preview_layout)
+    load_all_btn = getattr(owner, "preview_load_all_btn", None)
+    if load_all_btn is not None:
+        load_all_btn.Show(show_pdf_only)
 
     owner.preview_toolbar.Layout()
     owner.filePreview.Layout()
@@ -690,7 +724,37 @@ def clear_pdf_feed(owner):
     update_page_buttons_state(owner)
 
 
-def show_pdf_feed(owner, path):
+def on_preview_load_all_pages(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner is None or not hasattr(owner, "current_preview_path"):
+        return
+
+    path = getattr(owner, "current_preview_path", None)
+    if not path:
+        return
+
+    preview_path = path
+    if is_pdf_file(path):
+        preview_path = path
+    elif office_preview.can_preview_office(path):
+        try:
+            preview_path = office_preview.convert_office_to_preview_pdf(path)
+        except Exception:
+            return
+    else:
+        return
+
+    try:
+        if not os.path.isfile(preview_path):
+            return
+        if get_pdf_page_count(preview_path) <= pdf_utils._get_show_pages_limit_for_path(path):
+            return
+        show_pdf_feed(owner, preview_path, force_all_pages=True)
+    except Exception:
+        pass
+
+
+def show_pdf_feed(owner, path, force_all_pages=False):
     update_preview_toolbar_visibility(owner, is_pdf=True, is_image=False)
     sync_pdf_page_view_mode_controls(owner)
     with owner.busy_cursor():
@@ -713,7 +777,8 @@ def show_pdf_feed(owner, path):
                 target_height=target_height,
                 target_zoom=target_zoom,
                 avg_width=avg_width,
-                avg_height=avg_height
+                avg_height=avg_height,
+                force_all_pages=force_all_pages,
             )
 
             gap_width = 22

@@ -214,6 +214,34 @@ def refresh_tree_selection(owner):
             refresh_tree_subtree(owner, selected_item, selected_path)
 
 
+def refresh_tree_selection_and_filelist(owner):
+    selected_item = owner.tree.GetSelection()
+    if not selected_item or not selected_item.IsOk():
+        selected_item = owner.tree.GetRootItem()
+
+    if selected_item and selected_item.IsOk() and selected_item == owner.tree.GetRootItem():
+        refresh_tree_root(owner)
+        return
+
+    current_folder = getattr(owner, "path_box", None)
+    current_folder_path = None
+    if current_folder is not None and hasattr(current_folder, "GetValue"):
+        current_folder_path = normalize_tree_path(current_folder.GetValue())
+
+    if selected_item and selected_item.IsOk():
+        selected_path = owner.tree.GetItemData(selected_item)
+        if isinstance(selected_path, str):
+            normalized_selected_path = normalize_tree_path(selected_path)
+            if os.path.isdir(normalized_selected_path):
+                if current_folder_path and normalized_selected_path == current_folder_path:
+                    owner.load_folder(normalized_selected_path)
+                    return
+                refresh_tree_subtree(owner, selected_item, normalized_selected_path)
+                return
+
+    refresh_tree_selection(owner)
+
+
 def init_tree(owner):
     root = owner.tree.AddRoot(tr("this_pc_root"))
     owner.tree.SetItemImage(root, owner.tree_icon_root)
@@ -342,7 +370,7 @@ def on_tree_right_click(owner, event):
         filelist.create_new_folder(owner, create_target)
 
     def handle_refresh(_):
-        refresh_tree_selection(owner)
+        refresh_tree_selection_and_filelist(owner)
 
     def handle_copy(_):
         filelist.on_tree_copy(owner, path)

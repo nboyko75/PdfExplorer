@@ -26,6 +26,23 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.refresh.assert_called_once_with()
         mocked_refresh_tree.assert_called_once_with(owner)
 
+    def test_tree_refresh_menu_refreshes_filelist_for_current_folder(self):
+        owner = types.SimpleNamespace(
+            tree=mock.MagicMock(),
+            path_box=types.SimpleNamespace(GetValue=lambda: "D:/Projects"),
+            load_folder=mock.MagicMock(),
+        )
+        item = mock.MagicMock()
+        item.IsOk.return_value = True
+        owner.tree.GetSelection.return_value = item
+        owner.tree.GetItemData.return_value = "D:/Projects"
+
+        with mock.patch.object(main.tree_utils, "refresh_tree_subtree") as mocked_refresh_tree_subtree:
+            main.tree_utils.refresh_tree_selection_and_filelist(owner)
+
+        owner.load_folder.assert_called_once_with("D:\\Projects")
+        mocked_refresh_tree_subtree.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
