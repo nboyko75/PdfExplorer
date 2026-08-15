@@ -276,8 +276,6 @@ def on_tree_select(owner, event):
         event.Veto()
         return
 
-    owner.show_file_preview(path)
-
     if path and os.path.isdir(path):
         owner.open_path(path)
 

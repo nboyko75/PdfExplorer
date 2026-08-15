@@ -154,6 +154,84 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.pdf_page_view_mode, file_preview.PAGE_VIEW_MODE_MANUAL)
         mocked_show_pdf_feed.assert_called_once_with(owner, "converted.pdf")
 
+    def test_manual_zoom_works_for_html_preview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.html",
+            current_html_zoom=1.0,
+            busy_cursor=lambda: file_preview.nullcontext(),
+            pdf_preview_container=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            html_preview=types.SimpleNamespace(SetZoom=mock.MagicMock(), SetPage=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=True), \
+             mock.patch.object(file_preview, "show_html_preview") as mocked_show_html_preview:
+            file_preview.on_preview_zoom_in(types.SimpleNamespace())
+
+        self.assertEqual(owner.current_html_zoom, 1.25)
+        mocked_show_html_preview.assert_called_once_with(owner, "sample.html")
+
+    def test_tree_file_selection_does_not_preview_file(self):
+        tree_utils = __import__("controls.tree_utils", fromlist=["on_tree_select"])
+        owner = types.SimpleNamespace(
+            tree=types.SimpleNamespace(GetItemData=lambda _item: "sample.html"),
+            show_file_preview=mock.MagicMock(),
+            open_path=mock.MagicMock(),
+            confirm_preview_change=lambda path: True,
+        )
+        event = types.SimpleNamespace(GetItem=lambda: object(), Veto=mock.MagicMock())
+
+        with mock.patch("controls.tree_utils.os.path.isdir", return_value=False):
+            tree_utils.on_tree_select(owner, event)
+
+        owner.show_file_preview.assert_not_called()
+        owner.open_path.assert_not_called()
+
+    def test_list_panel_uses_single_selection_style(self):
+        filelist = __import__("controls.filelist", fromlist=["build_list_panel"])
+
+        class _FakePanel:
+            def __init__(self, *args, **kwargs):
+                self.SetSizer = mock.MagicMock()
+
+        class _FakeIconManager:
+            def get_bitmap(self, _name, size=(16, 16)):
+                return mock.MagicMock(IsOk=mock.MagicMock(return_value=True))
+
+        owner = types.SimpleNamespace(
+            icon_manager=_FakeIconManager(),
+            list_host_panel=None,
+            list_toolbar=None,
+            list_scan_btn=None,
+            list_open_btn=None,
+            list_rename_btn=None,
+            list_new_folder_btn=None,
+            list_copy_btn=None,
+            list_cut_btn=None,
+            list_paste_btn=None,
+            list_delete_btn=None,
+            filter_label=None,
+            search_box=None,
+        )
+
+        with mock.patch.object(filelist, "update_list_toolbar_buttons"), \
+             mock.patch.object(filelist.image_utils, "create_bitmap_button2", return_value=mock.MagicMock()), \
+             mock.patch.object(filelist.image_utils, "create_bitmap_button", return_value=mock.MagicMock()), \
+             mock.patch.object(filelist.image_utils, "init_list_images"), \
+             mock.patch.object(filelist, "tr", side_effect=lambda key, **kwargs: key), \
+             mock.patch.object(filelist.wx, "Panel", side_effect=_FakePanel), \
+             mock.patch.object(filelist.wx, "BoxSizer", return_value=mock.MagicMock(Add=mock.MagicMock())), \
+             mock.patch.object(filelist.wx, "StaticText", return_value=mock.MagicMock()), \
+             mock.patch.object(filelist.wx, "TextCtrl", return_value=mock.MagicMock(SetHint=mock.MagicMock())), \
+             mock.patch.object(filelist.wx, "ListCtrl") as mocked_list_ctrl:
+            filelist.build_list_panel(owner, object())
+
+        self.assertTrue(mocked_list_ctrl.call_args.kwargs["style"] & filelist.wx.LC_SINGLE_SEL)
+
     def test_on_pdf_page_drag_motion_ignores_non_pdf_preview(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

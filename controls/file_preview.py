@@ -2,6 +2,11 @@ import os
 from contextlib import nullcontext
 import wx
 
+try:
+    import wx.html2 as wx_html2
+except ImportError:  # pragma: no cover - optional runtime dependency
+    wx_html2 = None
+
 from localization import tr
 from controls.window_tools import load_settings, update_settings
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
@@ -200,6 +205,13 @@ def get_selected_pdf_page_index(owner):
     return getattr(owner.selected_pdf_page_panel, "page_index", None)
 
 
+def can_preview_html(path):
+    if not isinstance(path, str) or not os.path.isfile(path):
+        return False
+    _, ext = os.path.splitext(path)
+    return ext.lower() in {".html", ".htm"}
+
+
 def _is_preview_page_limit_active(path):
     if not path:
         return False
@@ -220,7 +232,10 @@ def _is_preview_page_limit_active(path):
 
 def update_page_buttons_state(owner):
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
-    is_previewable_non_pdf = bool(owner.current_preview_path) and office_preview.can_preview_office(owner.current_preview_path)
+    is_previewable_non_pdf = bool(owner.current_preview_path) and (
+        office_preview.can_preview_office(owner.current_preview_path)
+        or can_preview_html(owner.current_preview_path)
+    )
     can_select_pdf_page = is_pdf_preview and get_selected_pdf_page_index(owner) is not None
     can_rotate_selected_page = can_select_pdf_page
     can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
@@ -256,6 +271,7 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
             is_pdf_file(current_path)
             or image_utils.can_preview_image(current_path)
             or office_preview.can_preview_office(current_path)
+            or can_preview_html(current_path)
         )
     )
 
@@ -320,6 +336,10 @@ def refresh_preview_for_page_view_mode(owner, path=None):
             owner.pdf_preview_container.Hide()
             owner.filePreview.Layout()
             return
+
+    if can_preview_html(current_path):
+        show_html_preview(owner, current_path)
+        return
 
 
 def sync_pdf_page_view_mode_controls(owner):
@@ -392,6 +412,7 @@ def build_page_view_mode_menu(owner, menu):
         is_pdf_preview
         or image_utils.can_preview_image(owner.current_preview_path)
         or office_preview.can_preview_office(owner.current_preview_path)
+        or can_preview_html(owner.current_preview_path)
     )
     show_1_page_wide_item.Enable(can_preview_layout)
     show_2_pages_wide_item.Enable(can_preview_layout)
@@ -720,6 +741,50 @@ def clear_pdf_feed(owner):
     update_page_buttons_state(owner)
 
 
+def _ensure_html_preview_widget(owner):
+    if getattr(owner, "html_preview", None) is not None:
+        return owner.html_preview
+
+    if not hasattr(owner, "pdf_preview_container") or owner.pdf_preview_container is None:
+        return None
+
+    if wx_html2 is not None:
+        html_preview = wx_html2.WebView.New(owner.pdf_preview_container)
+        html_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
+        owner.html_preview = html_preview
+        return html_preview
+
+    owner.html_preview = None
+    return None
+
+
+def show_html_preview(owner, path):
+    owner.preview_text.Show(False)
+    owner.pdf_pages_panel.Hide()
+
+    html_preview = _ensure_html_preview_widget(owner)
+    if html_preview is None:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            owner.preview_text.SetValue(handle.read())
+        owner.preview_text.Show(True)
+        owner.pdf_preview_container.Hide()
+        owner.filePreview.Layout()
+        return
+
+    try:
+        owner.current_html_zoom = max(0.2, min(float(getattr(owner, "current_html_zoom", 1.0)), 4.0))
+        html_preview.SetZoom(owner.current_html_zoom)
+        normalized_path = os.path.abspath(path).replace("\\", "/")
+        html_preview.LoadURL("file:///" + normalized_path)
+    except Exception:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            html_preview.SetPage(handle.read(), "")
+
+    owner.pdf_preview_container.Show(True)
+    owner.pdf_preview_container.Layout()
+    owner.filePreview.Layout()
+
+
 def _resolve_preview_pdf_path(path, max_pages=None):
     if not path:
         return None
@@ -912,6 +977,7 @@ def show_file_preview(owner, path):
     owner.selected_pdf_page_panel = None
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0
+    owner.current_html_zoom = 1.0
     owner.preview_text.Show(False)
     owner.pdf_pages_panel.Hide()
     owner.pdf_preview_container.Hide()
@@ -944,6 +1010,12 @@ def show_file_preview(owner, path):
     if image_utils.can_preview_image(path):
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
         image_utils.show_image_preview(owner, path, tr)
+        return
+
+    if can_preview_html(path):
+        update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
+        owner.current_html_zoom = max(0.2, min(float(getattr(owner, "current_html_zoom", 1.0)), 4.0))
+        show_html_preview(owner, path)
         return
 
     if can_preview_office:
@@ -1609,6 +1681,12 @@ def on_preview_zoom_in(event):
                 show_pdf_feed(owner, preview_pdf_path)
             return
 
+        if can_preview_html(owner.current_preview_path):
+            with owner.busy_cursor():
+                owner.current_html_zoom = min(getattr(owner, "current_html_zoom", 1.0) * 1.25, 4.0)
+                show_html_preview(owner, owner.current_preview_path)
+            return
+
         if image_utils.can_preview_image(owner.current_preview_path):
             with owner.busy_cursor():
                 owner.current_image_zoom = min(getattr(owner, "current_image_zoom", 1.0) * 1.25, 8.0)
@@ -1637,6 +1715,12 @@ def on_preview_zoom_out(event):
                 owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
                 preview_pdf_path = office_preview.convert_office_to_preview_pdf(owner.current_preview_path)
                 show_pdf_feed(owner, preview_pdf_path)
+            return
+
+        if can_preview_html(owner.current_preview_path):
+            with owner.busy_cursor():
+                owner.current_html_zoom = max(getattr(owner, "current_html_zoom", 1.0) / 1.25, 0.2)
+                show_html_preview(owner, owner.current_preview_path)
             return
 
         if image_utils.can_preview_image(owner.current_preview_path):

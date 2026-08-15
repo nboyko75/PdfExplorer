@@ -146,7 +146,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.filter_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
 
-    owner.list = wx.ListCtrl(owner.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+    owner.list = wx.ListCtrl(owner.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SINGLE_SEL)
     owner.list.InsertColumn(0, tr("name_column"), width=450)
     owner.list.InsertColumn(1, tr("type_column"), width=120)
     owner.list.InsertColumn(2, tr("size_column"), width=120)
