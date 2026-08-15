@@ -131,25 +131,128 @@ def _resolve_export_page_limit(path, max_pages=None):
     return max(1, limit)
 
 
-def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
-    page_limit = _resolve_export_page_limit(source_path, max_pages)
-    if win32_client is None:
-        script = f"""
+def _build_office_ps_script(path, output_pdf=None, max_pages=None):
+    if not can_preview_office(path):
+        raise RuntimeError("Unsupported Office file type for preview.")
+
+    _, ext = os.path.splitext(path)
+    ext = ext.lower()
+
+    if ext in {".doc", ".docx", ".docm"}:
+        limit = _resolve_export_page_limit(path, max_pages) if output_pdf else 0
+        return f"""
 $word = $null
 $doc = $null
 try {{
     $word = New-Object -ComObject Word.Application
     $word.Visible = $false
     $word.DisplayAlerts = 0
-    $doc = $word.Documents.Open($src)
-    $doc.ExportAsFixedFormat($dst, 17, $false, 0, 3, 1, {page_limit})
+    $doc = $word.Documents.Open($src, $false)
+    $count = $doc.ComputeStatistics(2)
+    if ($dst -and $dst.Length -gt 0) {{
+        $doc.ExportAsFixedFormat($dst, 17, $false, 0, 3, 1, {limit})
+    }}
+    [int]$count
 }}
 finally {{
     if ($doc -ne $null) {{ $doc.Close($false) }}
     if ($word -ne $null) {{ $word.Quit() }}
 }}
 """
-        _run_powershell_office_export(script, source_path, output_pdf)
+
+    if ext in {".xls", ".xlsx", ".xlsm"}:
+        limit = _resolve_export_page_limit(path, max_pages) if output_pdf else 0
+        return f"""
+$excel = $null
+$book = $null
+try {{
+    $excel = New-Object -ComObject Excel.Application
+    $excel.Visible = $false
+    $excel.DisplayAlerts = $false
+    $book = $excel.Workbooks.Open($src)
+    $count = $book.Worksheets.Count
+    if ($dst -and $dst.Length -gt 0) {{
+        $book.ExportAsFixedFormat(0, $dst, 0, $false, $false, 1, {limit}, $false)
+    }}
+    [int]$count
+}}
+finally {{
+    if ($book -ne $null) {{ $book.Close($false) }}
+    if ($excel -ne $null) {{ $excel.Quit() }}
+}}
+"""
+
+    if ext in {".ppt", ".pptx", ".pptm"}:
+        return """
+$ppt = $null
+$presentation = $null
+try {
+    $ppt = New-Object -ComObject PowerPoint.Application
+    $presentation = $ppt.Presentations.Open($src)
+    $count = $presentation.Slides.Count
+    if ($dst -and $dst.Length -gt 0) {
+        $presentation.SaveAs($dst, 32)
+    }
+    [int]$count
+}
+finally {
+    if ($presentation -ne $null) { $presentation.Close() }
+    if ($ppt -ne $null) { $ppt.Quit() }
+}
+"""
+
+    raise RuntimeError("Unsupported Office file type for preview.")
+
+
+def _run_office_ps_script(path, output_pdf=None, max_pages=None):
+    script = _build_office_ps_script(path, output_pdf=output_pdf, max_pages=max_pages)
+    script_fd, script_path = tempfile.mkstemp(prefix="docexplorer_office_", suffix=".ps1")
+    os.close(script_fd)
+    try:
+        with open(script_path, "w", encoding="utf-8-sig", newline="\n") as handle:
+            handle.write("param([string]$src, [string]$dst)\n")
+            handle.write("$ErrorActionPreference = 'Stop'\n")
+            handle.write(script)
+
+        command = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_path,
+            path,
+            output_pdf or "",
+        ]
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            details = (result.stderr or result.stdout or "PowerShell Office script failed.").strip()
+            raise RuntimeError(details)
+
+        raw = (result.stdout or "").strip()
+        if not raw:
+            return 0
+        try:
+            return max(0, int(float(raw)))
+        except ValueError:
+            return 0
+    finally:
+        try:
+            os.remove(script_path)
+        except OSError:
+            pass
+
+
+def get_office_document_page_count(path):
+    if not can_preview_office(path):
+        return 0
+    return _run_office_ps_script(path)
+
+
+def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
+    page_limit = _resolve_export_page_limit(source_path, max_pages)
+    if win32_client is None:
+        _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=page_limit)
         return
 
     app = win32_client.DispatchEx("Word.Application")
@@ -168,22 +271,7 @@ finally {{
 def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
     page_limit = _resolve_export_page_limit(source_path, max_pages)
     if win32_client is None:
-        script = f"""
-$excel = $null
-$book = $null
-try {{
-    $excel = New-Object -ComObject Excel.Application
-    $excel.Visible = $false
-    $excel.DisplayAlerts = $false
-    $book = $excel.Workbooks.Open($src)
-    $book.ExportAsFixedFormat(0, $dst, 0, $false, $false, 1, {page_limit}, $false)
-}}
-finally {{
-    if ($book -ne $null) {{ $book.Close($false) }}
-    if ($excel -ne $null) {{ $excel.Quit() }}
-}}
-"""
-        _run_powershell_office_export(script, source_path, output_pdf)
+        _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=page_limit)
         return
 
     app = win32_client.DispatchEx("Excel.Application")
@@ -201,20 +289,7 @@ finally {{
 
 def _export_powerpoint_to_pdf(source_path, output_pdf):
     if win32_client is None:
-        script = """
-$ppt = $null
-$presentation = $null
-try {
-    $ppt = New-Object -ComObject PowerPoint.Application
-    $presentation = $ppt.Presentations.Open($src)
-    $presentation.SaveAs($dst, 32)
-}
-finally {
-    if ($presentation -ne $null) { $presentation.Close() }
-    if ($ppt -ne $null) { $ppt.Quit() }
-}
-"""
-        _run_powershell_office_export(script, source_path, output_pdf)
+        _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=None)
         return
 
     app = win32_client.DispatchEx("PowerPoint.Application")

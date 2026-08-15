@@ -99,6 +99,7 @@ TRANSLATIONS = {
     "preview_adjust_page_width_button": "Підігнати ширину сторінок",
     "preview_remove_page_button": "Видалити сторінку",
     "preview_move_page_button": "Перемістити сторінку",
+    "preview_load_all_button": "Завантажити все",
     "preview_import_button": "Імпортувати",
     "preview_import_from_file_button": "Імпортувати з файлу",
 

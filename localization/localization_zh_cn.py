@@ -130,6 +130,7 @@ TRANSLATIONS = {
     "preview_adjust_page_width_button": "调整页面宽度",
     "preview_remove_page_button": "删除页面",
     "preview_move_page_button": "移动页面",
+    "preview_load_all_button": "加载全部",
     "preview_import_button": "导入",
     "preview_import_from_file_button": "从文件导入",
 

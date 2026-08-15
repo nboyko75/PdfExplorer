@@ -130,6 +130,7 @@ TRANSLATIONS = {
     "preview_adjust_page_width_button": "Ajuster la largeur des pages",
     "preview_remove_page_button": "Supprimer la page",
     "preview_move_page_button": "Deplacer la page",
+    "preview_load_all_button": "Tout charger",
     "preview_import_button": "Importer",
     "preview_import_from_file_button": "Importer depuis un fichier",
 

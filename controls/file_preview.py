@@ -56,7 +56,6 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_remove_page_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 3)
-    owner.preview_toolbar.AddStretchSpacer(1)
     owner.preview_toolbar.Add(owner.preview_load_all_btn, 0, wx.RIGHT, 3)
 
     owner.preview_save_btn.Enable(False)
@@ -211,10 +210,7 @@ def _is_preview_page_limit_active(path):
             return page_count > pdf_utils._get_show_pages_limit_for_path(path)
 
         if office_preview.can_preview_office(path):
-            preview_pdf_path = office_preview._build_cached_preview_pdf_path(path)
-            if not os.path.isfile(preview_pdf_path):
-                return False
-            page_count = get_pdf_page_count(preview_pdf_path)
+            page_count = office_preview.get_office_document_page_count(path)
             return page_count > pdf_utils._get_show_pages_limit_for_path(path)
     except Exception:
         return False
@@ -240,7 +236,8 @@ def update_page_buttons_state(owner):
     owner.preview_optimize_btn.Enable(is_pdf_preview)
     load_all_btn = getattr(owner, "preview_load_all_btn", None)
     if load_all_btn is not None:
-        load_all_btn.Enable(page_limit_active and (is_pdf_preview or is_previewable_non_pdf))
+        load_all_btn_enable = page_limit_active and (is_pdf_preview or is_previewable_non_pdf)
+        load_all_btn.Enable(load_all_btn_enable)
 
 
 def update_pdf_save_button_state(owner):
@@ -276,9 +273,6 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     owner.preview_move_page_btn.Show(show_pdf_only)
     owner.preview_remove_page_btn.Show(show_pdf_only)
     owner.preview_page_view_mode_btn.Show(show_preview_layout)
-    load_all_btn = getattr(owner, "preview_load_all_btn", None)
-    if load_all_btn is not None:
-        load_all_btn.Show(show_pdf_only)
 
     owner.preview_toolbar.Layout()
     owner.filePreview.Layout()
@@ -891,11 +885,14 @@ def show_file_preview(owner, path):
     owner.selected_pdf_page_panel = None
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0
-    update_page_buttons_state(owner)
-    update_pdf_save_button_state(owner)
     owner.preview_text.Show(False)
     owner.pdf_pages_panel.Hide()
     owner.pdf_preview_container.Hide()
+
+    can_preview_office = office_preview.can_preview_office(path)
+    if not can_preview_office:
+        update_page_buttons_state(owner)
+        update_pdf_save_button_state(owner)
 
     if not path:
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
@@ -922,7 +919,7 @@ def show_file_preview(owner, path):
         image_utils.show_image_preview(owner, path, tr)
         return
 
-    if office_preview.can_preview_office(path):
+    if can_preview_office:
         try:
             cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
             with cursor_context:
@@ -1575,6 +1572,14 @@ def on_preview_zoom_in(event):
                 show_pdf_feed(owner, owner.current_preview_path)
             return
 
+        if office_preview.can_preview_office(owner.current_preview_path):
+            with owner.busy_cursor():
+                owner.pdf_preview_zoom = min(getattr(owner, "pdf_preview_zoom", 1.0) * 1.25, 3.0)
+                owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
+                preview_pdf_path = office_preview.convert_office_to_preview_pdf(owner.current_preview_path)
+                show_pdf_feed(owner, preview_pdf_path)
+            return
+
         if image_utils.can_preview_image(owner.current_preview_path):
             with owner.busy_cursor():
                 owner.current_image_zoom = min(getattr(owner, "current_image_zoom", 1.0) * 1.25, 8.0)
@@ -1595,6 +1600,14 @@ def on_preview_zoom_out(event):
                 owner.pdf_preview_zoom = max(owner.pdf_preview_zoom / 1.25, 0.4)
                 owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
                 show_pdf_feed(owner, owner.current_preview_path)
+            return
+
+        if office_preview.can_preview_office(owner.current_preview_path):
+            with owner.busy_cursor():
+                owner.pdf_preview_zoom = max(getattr(owner, "pdf_preview_zoom", 1.0) / 1.25, 0.4)
+                owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
+                preview_pdf_path = office_preview.convert_office_to_preview_pdf(owner.current_preview_path)
+                show_pdf_feed(owner, preview_pdf_path)
             return
 
         if image_utils.can_preview_image(owner.current_preview_path):

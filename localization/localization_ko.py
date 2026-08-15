@@ -130,6 +130,7 @@ TRANSLATIONS = {
     "preview_adjust_page_width_button": "페이지 너비 맞춤",
     "preview_remove_page_button": "페이지 제거",
     "preview_move_page_button": "페이지 이동",
+    "preview_load_all_button": "모두 불러오기",
     "preview_import_button": "가져오기",
     "preview_import_from_file_button": "파일에서 가져오기",
 

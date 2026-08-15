@@ -130,6 +130,7 @@ TRANSLATIONS = {
     "preview_adjust_page_width_button": "ページ幅を調整",
     "preview_remove_page_button": "ページを削除",
     "preview_move_page_button": "ページを移動",
+    "preview_load_all_button": "すべて読み込む",
     "preview_import_button": "インポート",
     "preview_import_from_file_button": "ファイルからインポート",
 

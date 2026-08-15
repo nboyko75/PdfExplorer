@@ -135,6 +135,25 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(False)
         owner.preview_optimize_btn.Enable.assert_called_once_with(False)
 
+    def test_manual_zoom_works_for_office_preview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.docx",
+            pdf_preview_zoom=1.0,
+            pdf_page_view_mode=file_preview.PAGE_VIEW_MODE_1_WIDE,
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
+             mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=True), \
+             mock.patch.object(file_preview.office_preview, "convert_office_to_preview_pdf", return_value="converted.pdf"), \
+             mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed:
+            file_preview.on_preview_zoom_in(types.SimpleNamespace())
+
+        self.assertEqual(owner.pdf_preview_zoom, 1.25)
+        self.assertEqual(owner.pdf_page_view_mode, file_preview.PAGE_VIEW_MODE_MANUAL)
+        mocked_show_pdf_feed.assert_called_once_with(owner, "converted.pdf")
+
     def test_on_pdf_page_drag_motion_ignores_non_pdf_preview(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
@@ -173,13 +192,23 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
              mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=True), \
-             mock.patch.object(file_preview.office_preview, "_build_cached_preview_pdf_path", return_value="cached_preview.pdf"), \
-             mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
-             mock.patch.object(file_preview, "get_pdf_page_count", return_value=3), \
+             mock.patch.object(file_preview.office_preview, "get_office_document_page_count", return_value=3), \
              mock.patch.object(file_preview.pdf_utils, "_get_show_pages_limit_for_path", return_value=2):
             file_preview.update_page_buttons_state(owner)
 
         owner.preview_load_all_btn.Enable.assert_called_once_with(True)
+
+    def test_office_document_page_count_uses_power_shell_before_export(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["get_office_document_page_count"])
+
+        with mock.patch.object(office_preview, "can_preview_office", return_value=True), \
+             mock.patch.object(office_preview.subprocess, "run") as mocked_run, \
+             mock.patch.object(office_preview, "_safe_remove_file"):
+            mocked_run.return_value.returncode = 0
+            mocked_run.return_value.stdout = "12\n"
+            self.assertEqual(office_preview.get_office_document_page_count("sample.docx"), 12)
+
+        mocked_run.assert_called_once()
 
 
 class OfficePreviewLimitTests(unittest.TestCase):
