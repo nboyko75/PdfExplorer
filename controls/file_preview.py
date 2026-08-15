@@ -308,7 +308,9 @@ def refresh_preview_for_page_view_mode(owner, path=None):
 
     if office_preview.can_preview_office(current_path):
         try:
-            preview_pdf_path = office_preview.convert_office_to_preview_pdf(current_path)
+            preview_pdf_path = _resolve_preview_pdf_path(current_path)
+            if preview_pdf_path is None:
+                raise RuntimeError(tr("unable_preview_file"))
             show_pdf_feed(owner, preview_pdf_path)
             return
         except Exception as exc:
@@ -718,6 +720,24 @@ def clear_pdf_feed(owner):
     update_page_buttons_state(owner)
 
 
+def _resolve_preview_pdf_path(path, max_pages=None):
+    if not path:
+        return None
+
+    if is_pdf_file(path):
+        return path
+
+    if office_preview.can_preview_office(path):
+        try:
+            if max_pages is None:
+                return office_preview.convert_office_to_preview_pdf(path)
+            return office_preview.convert_office_to_preview_pdf(path, max_pages=max_pages)
+        except Exception:
+            return None
+
+    return None
+
+
 def on_preview_load_all_pages(event):
     owner = _get_preview_owner_from_event(event)
     if owner is None or not hasattr(owner, "current_preview_path"):
@@ -733,20 +753,17 @@ def on_preview_load_all_pages(event):
 
     cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
     with cursor_context:
-        preview_path = path
-        if is_pdf_file(path):
-            preview_path = path
-        elif office_preview.can_preview_office(path):
-            try:
-                page_count = office_preview.get_office_document_page_count(path)
-                preview_path = office_preview.convert_office_to_preview_pdf(path, max_pages=page_count)
-            except Exception:
-                return
-        else:
-            return
-
         try:
-            if not os.path.isfile(preview_path):
+            if not office_preview.can_preview_office(path) and not is_pdf_file(path):
+                return
+
+            if office_preview.can_preview_office(path):
+                page_count = office_preview.get_office_document_page_count(path)
+                preview_path = _resolve_preview_pdf_path(path, max_pages=page_count)
+            else:
+                preview_path = _resolve_preview_pdf_path(path)
+
+            if not preview_path or not os.path.isfile(preview_path):
                 return
             if get_pdf_page_count(preview_path) <= pdf_utils._get_show_pages_limit_for_path(path):
                 return
@@ -933,7 +950,9 @@ def show_file_preview(owner, path):
         try:
             cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
             with cursor_context:
-                preview_pdf_path = office_preview.convert_office_to_preview_pdf(path)
+                preview_pdf_path = _resolve_preview_pdf_path(path)
+                if preview_pdf_path is None:
+                    raise RuntimeError(tr("unable_preview_file"))
                 show_pdf_feed(owner, preview_pdf_path)
                 update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
                 update_page_buttons_state(owner)
