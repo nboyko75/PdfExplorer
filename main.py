@@ -46,6 +46,7 @@ class FileExplorer(wx.Frame):
         self.history = []
         self.history_index = -1
         self.show_hidden = bool(settings.get("show_hidden", False))
+        self.preview_enabled = bool(settings.get("preview_enabled", True))
         self.current_pdf_path = None
         self.selected_pdf_page_panel = None
         self.drag_overlay = None
@@ -596,7 +597,10 @@ class FileExplorer(wx.Frame):
 
         self.refresh()
         if hasattr(self, "tree") and self.tree is not None:
-            tree_utils.refresh_tree_selection(self)
+            if hasattr(self.tree, "GetSelection"):
+                tree_utils.refresh_tree_selection_and_filelist(self)
+            else:
+                tree_utils.refresh_tree_selection(self)
 
     def refresh(self):
         self.load_folder(self.path_box.GetValue())

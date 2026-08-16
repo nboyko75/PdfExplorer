@@ -191,6 +191,25 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.show_file_preview.assert_not_called()
         owner.open_path.assert_not_called()
 
+    def test_preview_checkbox_toggle_does_not_restore_last_preview_when_reenabled(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="last_selected.pdf",
+            preview_enabled=False,
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "show_file_preview") as mocked_show_file_preview:
+            event = types.SimpleNamespace(GetEventObject=lambda: types.SimpleNamespace(GetValue=lambda: True))
+            with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner):
+                file_preview.on_preview_checkbox_toggle(event)
+
+        self.assertTrue(owner.preview_enabled)
+        mocked_show_file_preview.assert_called_once_with(owner, None)
+
     def test_preview_toggle_checkbox_defaults_to_checked(self):
         file_preview = _import_file_preview_with_mocked_wx()
 

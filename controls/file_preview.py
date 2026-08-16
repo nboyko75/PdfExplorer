@@ -28,10 +28,10 @@ def build_file_preview_pane(owner, file_splitter):
     """Create and configure the file preview pane UI."""
     owner.filePreview = wx.Panel(file_splitter, style=wx.BORDER_SUNKEN)
     owner.preview_toolbar = wx.BoxSizer(wx.HORIZONTAL)
-    owner.preview_enabled = True
+    owner.preview_enabled = getattr(owner, "preview_enabled", True)
 
     owner.preview_checkbox = wx.CheckBox(owner.filePreview, label=tr("preview_checkbox_label"))
-    owner.preview_checkbox.SetValue(True)
+    owner.preview_checkbox.SetValue(owner.preview_enabled)
     owner.preview_toolbar.Add(owner.preview_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 5)
 
     preview_icon_size = (16, 16)
@@ -243,7 +243,7 @@ def update_page_buttons_state(owner):
     can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
     can_rotate = can_rotate_selected_page or can_rotate_image
     can_act_on_pdf = is_pdf_preview
-    
+
     owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
     owner.preview_import_from_file_btn.Enable(can_act_on_pdf)
     owner.preview_export_pages_btn.Enable(can_act_on_pdf)
@@ -251,6 +251,7 @@ def update_page_buttons_state(owner):
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
+    update_load_all_btn_state(owner)
 
 
 def update_load_all_btn_state(owner):
@@ -989,10 +990,8 @@ def on_preview_checkbox_toggle(event):
 
     checkbox = event.GetEventObject()
     owner.preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
-    if owner.preview_enabled:
-        show_file_preview(owner, getattr(owner, "current_preview_path", None))
-    else:
-        show_file_preview(owner, None)
+    update_settings({"preview_enabled": owner.preview_enabled})
+    show_file_preview(owner, None)
 
 
 def show_file_preview(owner, path):
