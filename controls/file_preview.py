@@ -251,7 +251,8 @@ def update_page_buttons_state(owner):
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
-    update_load_all_btn_state(owner)
+    ## update_load_all_btn_state is called on file select only to avoid duplicate calls
+    ## update_load_all_btn_state(owner)
 
 
 def update_load_all_btn_state(owner):
