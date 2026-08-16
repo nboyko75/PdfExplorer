@@ -9,7 +9,7 @@ if not os.path.exists(venv_python):
 
 cmd = [venv_python, '-m', 'pip', 'install', '--upgrade', 'pyinstaller']
 print('Running:', ' '.join(cmd))
-result = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True)
+result = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
 print(result.stdout)
 print(result.stderr)
 if result.returncode != 0:
@@ -17,7 +17,7 @@ if result.returncode != 0:
 
 cmd = [venv_python, '-m', 'PyInstaller', os.path.join(project_dir, 'DocExplorer.spec')]
 print('Running:', ' '.join(cmd))
-result = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True)
+result = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
 print(result.stdout)
 print(result.stderr)
 if result.returncode != 0:

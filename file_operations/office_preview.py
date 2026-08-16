@@ -46,7 +46,7 @@ def _run_powershell_office_export(script_body, source_path, output_pdf):
             source_path,
             output_pdf,
         ]
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
         if result.returncode != 0:
             details = (result.stderr or result.stdout or "PowerShell Office export failed.").strip()
             raise RuntimeError(details)
@@ -224,7 +224,7 @@ def _run_office_ps_script(path, output_pdf=None, max_pages=None):
             path,
             output_pdf or "",
         ]
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
         if result.returncode != 0:
             details = (result.stderr or result.stdout or "PowerShell Office script failed.").strip()
             raise RuntimeError(details)
