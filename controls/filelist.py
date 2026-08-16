@@ -835,9 +835,6 @@ def on_tree_delete(owner, path=None):
 
 
 def handle_file_ops_shortcut(owner, event):
-    if not event.ControlDown():
-        return False
-
     focus = wx.Window.FindFocus()
     if focus is None:
         return False
@@ -850,6 +847,17 @@ def handle_file_ops_shortcut(owner, event):
     key_code = event.GetKeyCode()
     if 97 <= key_code <= 122:
         key_code -= 32
+
+    ctrl_pressed = bool(getattr(event, "ControlDown", lambda: False)())
+    if key_code == wx.WXK_DELETE:
+        if list_has_focus:
+            on_list_delete(owner, None)
+        else:
+            on_tree_delete(owner)
+        return True
+
+    if not ctrl_pressed:
+        return False
 
     if key_code == ord("C"):
         if list_has_focus:
@@ -890,7 +898,10 @@ def _is_window_or_descendant(window, parent):
     while current is not None:
         if current == parent:
             return True
-        current = current.GetParent()
+        get_parent = getattr(current, "GetParent", None)
+        if not callable(get_parent):
+            break
+        current = get_parent()
     return False
 
 

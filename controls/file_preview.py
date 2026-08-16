@@ -238,16 +238,12 @@ def _is_preview_page_limit_active(path):
 
 def update_page_buttons_state(owner):
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
-    is_previewable_non_pdf = bool(owner.current_preview_path) and (
-        office_preview.can_preview_office(owner.current_preview_path)
-        or can_preview_html(owner.current_preview_path)
-    )
     can_select_pdf_page = is_pdf_preview and get_selected_pdf_page_index(owner) is not None
     can_rotate_selected_page = can_select_pdf_page
     can_rotate_image = image_utils.can_preview_image(owner.current_preview_path)
     can_rotate = can_rotate_selected_page or can_rotate_image
     can_act_on_pdf = is_pdf_preview
-    page_limit_active = _is_preview_page_limit_active(owner.current_preview_path)
+    
     owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
     owner.preview_import_from_file_btn.Enable(can_act_on_pdf)
     owner.preview_export_pages_btn.Enable(can_act_on_pdf)
@@ -255,6 +251,15 @@ def update_page_buttons_state(owner):
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
+
+
+def update_load_all_btn_state(owner):
+    is_pdf_preview = is_pdf_file(owner.current_preview_path)
+    is_previewable_non_pdf = bool(owner.current_preview_path) and (
+        office_preview.can_preview_office(owner.current_preview_path)
+        or can_preview_html(owner.current_preview_path)
+    )
+    page_limit_active = _is_preview_page_limit_active(owner.current_preview_path)
     load_all_btn = getattr(owner, "preview_load_all_btn", None)
     if load_all_btn is not None:
         load_all_btn_enable = page_limit_active and (is_pdf_preview or is_previewable_non_pdf)
@@ -713,6 +718,7 @@ def select_pdf_page(owner, page_panel):
     owner.selected_pdf_page_panel.SetBackgroundColour(wx.Colour(200, 230, 255))
     owner.selected_pdf_page_panel.Refresh()
     update_page_buttons_state(owner)
+    update_load_all_btn_state(owner)
 
 
 def on_pdf_page_select(owner, event):
@@ -1054,7 +1060,6 @@ def show_file_preview(owner, path):
                     raise RuntimeError(tr("unable_preview_file"))
                 show_pdf_feed(owner, preview_pdf_path)
                 update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-                update_page_buttons_state(owner)
                 update_pdf_save_button_state(owner)
                 return
         except Exception as exc:
@@ -1611,7 +1616,6 @@ def on_preview_import_from_file(event):
                 dialog_result["insert_at_index"],
             )
             show_pdf_feed(owner, owner.current_preview_path)
-            update_page_buttons_state(owner)
             update_pdf_save_button_state(owner)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
@@ -1942,7 +1946,6 @@ def on_preview_remove_page(event, owner=None):
                     ## save_pdf(owner.current_preview_path)
                     ## owner.refresh_list_item_size(owner.current_preview_path)
                     show_pdf_feed(owner, owner.current_preview_path)
-                    update_page_buttons_state(owner)
                     update_pdf_save_button_state(owner)
             except Exception as exc:
                 wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
@@ -2063,7 +2066,6 @@ def on_preview_move_page(event):
         with owner.busy_cursor():
             move_pdf_page(owner.current_preview_path, source_index, destination_index)
             show_pdf_feed(owner, owner.current_preview_path)
-            update_page_buttons_state(owner)
             update_pdf_save_button_state(owner)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)

@@ -250,6 +250,24 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         self.assertTrue(owner.preview_checkbox.GetValue())
 
+    def test_handle_file_ops_shortcut_supports_delete_key(self):
+        filelist = __import__("controls.filelist", fromlist=["handle_file_ops_shortcut", "on_list_delete", "on_tree_delete"])
+        owner = types.SimpleNamespace(
+            list=object(),
+            tree=object(),
+        )
+        focus = types.SimpleNamespace(GetParent=lambda: owner.list)
+        event = types.SimpleNamespace(ControlDown=mock.MagicMock(return_value=False), GetKeyCode=mock.MagicMock(return_value=filelist.wx.WXK_DELETE))
+
+        with mock.patch.object(filelist.wx.Window, "FindFocus", return_value=focus), \
+             mock.patch.object(filelist, "on_list_delete") as mocked_list_delete, \
+             mock.patch.object(filelist, "on_tree_delete") as mocked_tree_delete:
+            result = filelist.handle_file_ops_shortcut(owner, event)
+
+        self.assertTrue(result)
+        mocked_list_delete.assert_called_once_with(owner, None)
+        mocked_tree_delete.assert_not_called()
+
     def test_list_panel_allows_multiple_selection_style(self):
         filelist = __import__("controls.filelist", fromlist=["build_list_panel"])
 

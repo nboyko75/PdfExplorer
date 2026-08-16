@@ -41,7 +41,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             main.tree_utils.refresh_tree_selection_and_filelist(owner)
 
         owner.load_folder.assert_called_once_with("D:\\Projects")
-        mocked_refresh_tree_subtree.assert_not_called()
+        mocked_refresh_tree_subtree.assert_called_once_with(owner, item, "D:\\Projects")
 
 
 if __name__ == "__main__":

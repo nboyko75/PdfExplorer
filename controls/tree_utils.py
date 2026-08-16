@@ -237,6 +237,7 @@ def refresh_tree_selection_and_filelist(owner):
             if os.path.isdir(normalized_selected_path):
                 if current_folder_path and normalized_selected_path == current_folder_path:
                     owner.load_folder(normalized_selected_path)
+                    refresh_tree_subtree(owner, selected_item, normalized_selected_path)
                     return
                 refresh_tree_subtree(owner, selected_item, normalized_selected_path)
                 return
