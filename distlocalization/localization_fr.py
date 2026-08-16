@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "size_column": "Taille",
     "modified_column": "Modifié",
     "preview_select_file": "Selectionnez un fichier pour l'apercu.",
+    "preview_checkbox_label": "Aperçu",
     "folder_selected": "Dossier selectionne :\n{path}",
     "no_preview_available": "Aucun apercu disponible pour cet element.",
     "unable_preview_pdf": "Impossible d'afficher l'apercu PDF.\n{exc}",

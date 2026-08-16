@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "size_column": "크기",
     "modified_column": "수정일",
     "preview_select_file": "미리 볼 파일을 선택하세요.",
+    "preview_checkbox_label": "미리보기",
     "folder_selected": "선택한 폴더:\n{path}",
     "no_preview_available": "이 항목은 미리보기를 지원하지 않습니다.",
     "unable_preview_pdf": "PDF 미리보기를 할 수 없습니다.\n{exc}",

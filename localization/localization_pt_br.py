@@ -56,6 +56,7 @@ TRANSLATIONS = {
     "size_column": "Tamanho",
     "modified_column": "Modificado",
     "preview_select_file": "Selecione um arquivo para visualizar.",
+    "preview_checkbox_label": "Visualização",
     "folder_selected": "Pasta selecionada:\n{path}",
     "no_preview_available": "Nenhuma visualizacao disponivel para este item.",
     "unable_preview_pdf": "Nao foi possivel visualizar o PDF.\n{exc}",

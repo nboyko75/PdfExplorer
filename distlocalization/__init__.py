@@ -55,6 +55,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "size_column": "Size",
     "modified_column": "Modified",
     "preview_select_file": "Select a file to preview.",
+    "preview_checkbox_label": "Preview",
     "folder_selected": "Folder selected:\n{path}",
     "no_preview_available": "No preview available for this item.",
     "unable_preview_pdf": "Unable to preview PDF.\n{exc}",

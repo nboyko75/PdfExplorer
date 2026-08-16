@@ -56,6 +56,7 @@ TRANSLATIONS = {
     "size_column": "サイズ",
     "modified_column": "更新日時",
     "preview_select_file": "プレビューするファイルを選択してください。",
+    "preview_checkbox_label": "プレビュー",
     "folder_selected": "選択したフォルダー:\n{path}",
     "no_preview_available": "この項目のプレビューは利用できません。",
     "unable_preview_pdf": "PDF をプレビューできません。\n{exc}",

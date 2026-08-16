@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "size_column": "Размер",
     "modified_column": "Изменен",
     "preview_select_file": "Выберите файл для предпросмотра.",
+    "preview_checkbox_label": "Предпросмотр",
     "folder_selected": "Выбрана папка:\n{path}",
     "no_preview_available": "Предпросмотр для этого элемента недоступен.",
     "unable_preview_pdf": "Не удалось просмотреть PDF.\n{exc}",

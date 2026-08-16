@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "size_column": "Grosse",
     "modified_column": "Geändert",
     "preview_select_file": "Datei zur Vorschau auswahlen.",
+    "preview_checkbox_label": "Vorschau",
     "folder_selected": "Ordner ausgewahlt:\n{path}",
     "no_preview_available": "Fur dieses Element ist keine Vorschau verfugbar.",
     "unable_preview_pdf": "PDF-Vorschau nicht moglich.\n{exc}",

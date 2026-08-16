@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "size_column": "大小",
     "modified_column": "修改时间",
     "preview_select_file": "请选择要预览的文件。",
+    "preview_checkbox_label": "预览",
     "folder_selected": "已选择文件夹:\n{path}",
     "no_preview_available": "此项目没有可用预览。",
     "unable_preview_pdf": "无法预览 PDF。\n{exc}",

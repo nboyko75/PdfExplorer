@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "size_column": "Dimensione",
     "modified_column": "Modificato",
     "preview_select_file": "Seleziona un file da visualizzare.",
+    "preview_checkbox_label": "Anteprima",
     "folder_selected": "Cartella selezionata:\n{path}",
     "no_preview_available": "Nessuna anteprima disponibile per questo elemento.",
     "unable_preview_pdf": "Impossibile visualizzare l'anteprima PDF.\n{exc}",

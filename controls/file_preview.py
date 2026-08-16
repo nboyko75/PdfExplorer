@@ -28,6 +28,11 @@ def build_file_preview_pane(owner, file_splitter):
     """Create and configure the file preview pane UI."""
     owner.filePreview = wx.Panel(file_splitter, style=wx.BORDER_SUNKEN)
     owner.preview_toolbar = wx.BoxSizer(wx.HORIZONTAL)
+    owner.preview_enabled = True
+
+    owner.preview_checkbox = wx.CheckBox(owner.filePreview, label=tr("preview_checkbox_label"))
+    owner.preview_checkbox.SetValue(True)
+    owner.preview_toolbar.Add(owner.preview_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 5)
 
     preview_icon_size = (16, 16)
     preview_button_size = (24, 24)
@@ -112,6 +117,7 @@ def build_file_preview_pane(owner, file_splitter):
 
 def bind_preview_events(owner):
     """Bind preview pane event handlers."""
+    owner.preview_checkbox.Bind(wx.EVT_CHECKBOX, on_preview_checkbox_toggle)
     owner.preview_import_from_file_btn.Bind(wx.EVT_BUTTON, on_preview_import_menu)
     owner.preview_export_pages_btn.Bind(wx.EVT_BUTTON, on_preview_export_pages)
     owner.preview_save_btn.Bind(wx.EVT_BUTTON, on_preview_save_menu)
@@ -970,7 +976,28 @@ def _reset_pdf_view_mode_for_new_file(owner, previous_path, next_path):
     owner.pdf_page_view_mode = selected_mode
 
 
+def on_preview_checkbox_toggle(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner is None:
+        return
+
+    checkbox = event.GetEventObject()
+    owner.preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
+    if owner.preview_enabled:
+        show_file_preview(owner, getattr(owner, "current_preview_path", None))
+    else:
+        show_file_preview(owner, None)
+
+
 def show_file_preview(owner, path):
+    if not getattr(owner, "preview_enabled", True):
+        owner.current_preview_path = path
+        owner.preview_text.Show(False)
+        owner.pdf_pages_panel.Hide()
+        owner.pdf_preview_container.Hide()
+        owner.filePreview.Layout()
+        return
+
     previous_path = getattr(owner, "current_preview_path", None)
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)

@@ -191,7 +191,66 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.show_file_preview.assert_not_called()
         owner.open_path.assert_not_called()
 
-    def test_list_panel_uses_single_selection_style(self):
+    def test_preview_toggle_checkbox_defaults_to_checked(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+
+        class _FakePanel:
+            def __init__(self, *args, **kwargs):
+                self.SetSizer = mock.MagicMock()
+                self.Hide = mock.MagicMock()
+                self.Show = mock.MagicMock()
+                self.Layout = mock.MagicMock()
+                self.SetScrollRate = mock.MagicMock()
+                self.Bind = mock.MagicMock()
+                self.SetMinSize = mock.MagicMock()
+                self.SetValue = mock.MagicMock()
+
+        class _FakeButton:
+            def __init__(self, *args, **kwargs):
+                self.Enable = mock.MagicMock()
+                self.Bind = mock.MagicMock()
+
+        class _FakeCheckBox:
+            def __init__(self, *args, **kwargs):
+                self.SetValue = mock.MagicMock()
+                self.GetValue = mock.MagicMock(return_value=True)
+                self.Bind = mock.MagicMock()
+
+        class _FakeSplitter:
+            def __init__(self):
+                self.SplitHorizontally = mock.MagicMock()
+
+        owner = types.SimpleNamespace(
+            icon_manager=mock.MagicMock(),
+            filePreview=None,
+            list_host_panel=mock.MagicMock(),
+            list=mock.MagicMock(),
+        )
+
+        with mock.patch.object(file_preview.image_utils, "create_bitmap_button2", return_value=_FakeButton()), \
+             mock.patch.object(file_preview.image_utils, "create_bitmap_button", return_value=_FakeButton()), \
+             mock.patch.object(file_preview, "tr", side_effect=lambda key, **kwargs: key), \
+             mock.patch.object(file_preview.wx, "Panel", side_effect=_FakePanel), \
+             mock.patch.object(file_preview.wx, "ScrolledWindow", side_effect=_FakePanel), \
+             mock.patch.object(file_preview.wx, "StaticBitmap", side_effect=_FakePanel), \
+             mock.patch.object(file_preview.wx, "TextCtrl", return_value=_FakePanel()), \
+             mock.patch.object(file_preview.wx, "CheckBox", return_value=_FakeCheckBox()), \
+             mock.patch.object(file_preview.wx, "BoxSizer", return_value=mock.MagicMock(Add=mock.MagicMock())), \
+             mock.patch.object(file_preview.wx, "HSCROLL", 0), \
+             mock.patch.object(file_preview.wx, "VSCROLL", 0), \
+             mock.patch.object(file_preview.wx, "BORDER_SUNKEN", 0), \
+             mock.patch.object(file_preview.wx, "ART_FILE_OPEN", 0), \
+             mock.patch.object(file_preview.wx, "ART_FILE_SAVE", 0), \
+             mock.patch.object(file_preview.wx, "ART_MINUS", 0), \
+             mock.patch.object(file_preview.wx, "ART_PLUS", 0), \
+             mock.patch.object(file_preview.wx, "ART_LIST_VIEW", 0), \
+             mock.patch.object(file_preview.wx, "ART_GO_FORWARD", 0), \
+             mock.patch.object(file_preview.wx, "ART_REPORT_VIEW", 0):
+            file_preview.build_file_preview_pane(owner, _FakeSplitter())
+
+        self.assertTrue(owner.preview_checkbox.GetValue())
+
+    def test_list_panel_allows_multiple_selection_style(self):
         filelist = __import__("controls.filelist", fromlist=["build_list_panel"])
 
         class _FakePanel:
@@ -230,7 +289,8 @@ class FilePreviewManualZoomTests(unittest.TestCase):
              mock.patch.object(filelist.wx, "ListCtrl") as mocked_list_ctrl:
             filelist.build_list_panel(owner, object())
 
-        self.assertTrue(mocked_list_ctrl.call_args.kwargs["style"] & filelist.wx.LC_SINGLE_SEL)
+        style = mocked_list_ctrl.call_args.kwargs["style"]
+        self.assertFalse(style & filelist.wx.LC_SINGLE_SEL)
 
     def test_on_pdf_page_drag_motion_ignores_non_pdf_preview(self):
         file_preview = _import_file_preview_with_mocked_wx()

@@ -56,6 +56,7 @@ TRANSLATIONS = {
     "size_column": "Tamano",
     "modified_column": "Modificado",
     "preview_select_file": "Seleccione un archivo para previsualizar.",
+    "preview_checkbox_label": "Vista previa",
     "folder_selected": "Carpeta seleccionada:\n{path}",
     "no_preview_available": "No hay vista previa disponible para este elemento.",
     "unable_preview_pdf": "No se puede previsualizar el PDF.\n{exc}",
