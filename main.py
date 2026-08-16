@@ -142,7 +142,7 @@ class FileExplorer(wx.Frame):
         # ===== Split view =====
         self.main_splitter = wx.SplitterWindow(panel)
 
-        self.tree = wx.TreeCtrl(self.main_splitter, style=wx.TR_HAS_BUTTONS | wx.TR_MULTIPLE)
+        self.tree = wx.TreeCtrl(self.main_splitter, style=wx.TR_HAS_BUTTONS)
         self.init_tree_images()
         self.filePanel = wx.Panel(self.main_splitter)
         self.main_splitter.SplitVertically(self.tree, self.filePanel, 320)
@@ -507,6 +507,9 @@ class FileExplorer(wx.Frame):
 
     def on_tree_select(self, event):
         return tree_utils.on_tree_select(self, event)
+
+    def on_tree_activated(self, event):
+        return tree_utils.on_tree_activated(self, event)
 
     def on_tree_right_click(self, event):
         return tree_utils.on_tree_right_click(self, event)

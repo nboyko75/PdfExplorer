@@ -6,12 +6,14 @@ from common.system import is_hidden
 from localization import tr
 from file_operations.pdf_utils import adjust_page_width, optimize_pdf, save_pdf
 import file_operations.image_utils as image_utils
+import controls.file_preview as file_preview
 import controls.filelist as filelist
 
 
 def bind_tree_events(owner):
     owner.tree.Bind(wx.EVT_TREE_ITEM_EXPANDING, owner.on_tree_expand)
     owner.tree.Bind(wx.EVT_TREE_SEL_CHANGING, owner.on_tree_select)
+    owner.tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, owner.on_tree_activated)
     owner.tree.Bind(wx.EVT_CONTEXT_MENU, owner.on_tree_right_click)
 
 
@@ -276,8 +278,35 @@ def on_tree_select(owner, event):
         event.Veto()
         return
 
-    if path and os.path.isdir(path):
+    if not path:
+        return
+
+    if os.path.isfile(path):
+        if hasattr(owner, "show_file_preview"):
+            owner.show_file_preview(path)
+        else:
+            file_preview.show_file_preview(owner, path)
+        return
+
+    if os.path.isdir(path):
         owner.open_path(path)
+
+
+def on_tree_activated(owner, event):
+    item = event.GetItem()
+    path = normalize_tree_path(owner.tree.GetItemData(item))
+    if not path:
+        return
+
+    if os.path.isdir(path):
+        owner.open_path(path)
+        return
+
+    if os.path.isfile(path):
+        try:
+            os.startfile(path)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 
 
 def on_tree_right_click(owner, event):
