@@ -657,10 +657,6 @@ def optimize_pdf(path):
 
 def _is_scanned_single_image_pdf(doc):
     for page in doc:
-        images = page.get_images(full=True)
-        if len(images) != 1:
-            return False
-
         text = page.get_text("text")
         if text and text.strip():
             return False
@@ -676,9 +672,6 @@ def adjust_page_width(path):
     new_doc = None
     try:
         if len(doc) == 0:
-            return path
-
-        if not _is_scanned_single_image_pdf(doc):
             return path
 
         new_doc = fitz.open()
@@ -749,31 +742,28 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
             return page_count, shown_pages, previews
 
         if target_width is not None or target_height is not None:
+            if avg_width is not None or avg_height is not None:
+                avg_width_value = float(avg_width) if avg_width is not None and avg_width > 0 else None
+                avg_height_value = float(avg_height) if avg_height is not None and avg_height > 0 else None
+
+                if target_width is None and target_height is None:
+                    common_scale = 1.0
+                elif target_width is None:
+                    common_scale = float(target_height) / float(avg_height_value or 1.0)
+                elif target_height is None:
+                    common_scale = float(target_width) / float(avg_width_value or 1.0)
+                else:
+                    scale_x = float(target_width) / float(avg_width_value or float(target_width))
+                    scale_y = float(target_height) / float(avg_height_value or float(target_height))
+                    common_scale = min(scale_x, scale_y)
+            else:
+                common_scale = 1.0
+
             for index in range(shown_pages):
                 page = doc[index]
                 rect = page.rect
-                if target_width is None and target_height is None:
-                    rect_width = rect.width
-                    rect_height = rect.height
-                elif target_width is None:
-                    scale = float(target_height) / float(rect.height)
-                    rect_width = float(rect.width) * scale
-                    rect_height = float(rect.height) * scale
-                elif target_height is None:
-                    scale = float(target_width) / float(rect.width)
-                    rect_width = float(rect.width) * scale
-                    rect_height = float(rect.height) * scale
-                else:
-                    scale_x = float(target_width) / float(rect.width)
-                    scale_y = float(target_height) / float(rect.height)
-                    if avg_width is not None and avg_height is None:
-                        scale = scale_x
-                    elif avg_height is not None and avg_width is None:
-                        scale = scale_y
-                    else:
-                        scale = min(scale_x, scale_y)
-                    rect_width = float(rect.width) * scale
-                    rect_height = float(rect.height) * scale
+                rect_width = float(rect.width) * common_scale
+                rect_height = float(rect.height) * common_scale
                 matrix = fitz.Matrix(
                     float(rect_width) / float(rect.width),
                     float(rect_height) / float(rect.height),

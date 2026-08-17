@@ -395,6 +395,32 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_show_pdf_feed.assert_called_once_with(owner, "full_preview.pdf", force_all_pages=True)
         owner.preview_load_all_btn.Enable.assert_any_call(False)
 
+    def test_import_from_file_imports_all_selected_files_in_sequence(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="target.pdf",
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=True), \
+             mock.patch.object(file_preview, "_show_import_pdf_dialog", return_value={
+                 "source_paths": ["first.pdf", "second.pdf"],
+                 "insert_at_index": 2,
+             }), \
+             mock.patch.object(file_preview, "get_pdf_page_count", side_effect=[10, 3, 5]), \
+             mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed, \
+             mock.patch.object(file_preview, "update_pdf_save_button_state") as mocked_update_save, \
+             mock.patch.object(file_preview, "import_pdf_pages") as mocked_import:
+            file_preview.on_preview_import_from_file(types.SimpleNamespace())
+
+        self.assertEqual(mocked_import.call_args_list, [
+            mock.call("target.pdf", "first.pdf", 2),
+            mock.call("target.pdf", "second.pdf", 5),
+        ])
+        mocked_show_pdf_feed.assert_called_once_with(owner, "target.pdf")
+        mocked_update_save.assert_called_once_with(owner)
+
     def test_load_all_button_enabled_for_office_preview_when_limit_active(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
