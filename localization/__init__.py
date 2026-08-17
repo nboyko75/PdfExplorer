@@ -4,6 +4,11 @@ from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "app_title": "Document Explorer",
+    "menu_file": "File",
+    "menu_navigation": "Navigation",
+    "menu_document": "Document",
+    "menu_help": "Help",
+    "menu_about": "About",
     "back_button": "Back",
     "forward_button": "Forward",
     "search_hint": "Search...",

@@ -112,7 +112,189 @@ class FileExplorer(wx.Frame):
             if not was_busy and wx.IsBusy():
                 wx.EndBusyCursor()
 
+    def _build_main_menu_bar(self):
+        self.menu_bar = wx.MenuBar()
+
+        self.file_menu = wx.Menu()
+        self.file_scan_item = self.file_menu.Append(wx.ID_ANY, tr("scan"))
+        self.file_open_item = self.file_menu.Append(wx.ID_ANY, tr("context_open"))
+        self.file_rename_item = self.file_menu.Append(wx.ID_ANY, tr("context_rename"))
+        self.file_new_folder_item = self.file_menu.Append(wx.ID_ANY, tr("context_new_folder"))
+        self.file_refresh_item = self.file_menu.Append(wx.ID_ANY, tr("context_refresh"))
+        self.file_menu.AppendSeparator()
+        self.file_copy_item = self.file_menu.Append(wx.ID_ANY, tr("context_copy"))
+        self.file_cut_item = self.file_menu.Append(wx.ID_ANY, tr("context_cut"))
+        self.file_paste_item = self.file_menu.Append(wx.ID_ANY, tr("context_paste"))
+        self.file_delete_item = self.file_menu.Append(wx.ID_ANY, tr("context_delete"))
+        self.menu_bar.Append(self.file_menu, tr("menu_file"))
+
+        self.navigation_menu = wx.Menu()
+        self.nav_back_item = self.navigation_menu.Append(wx.ID_ANY, tr("back_button"))
+        self.nav_forward_item = self.navigation_menu.Append(wx.ID_ANY, tr("forward_button"))
+        self.nav_search_item = self.navigation_menu.Append(wx.ID_ANY, tr("search_in_files_button"))
+        self.navigation_menu.AppendSeparator()
+        self.nav_exit_item = self.navigation_menu.Append(wx.ID_ANY, tr("exit_button"))
+        self.menu_bar.Append(self.navigation_menu, tr("menu_navigation"))
+
+        self.document_menu = wx.Menu()
+        self.doc_import_item = self.document_menu.Append(wx.ID_ANY, tr("preview_import_from_file_button"))
+        self.doc_import_scanner_item = self.document_menu.Append(wx.ID_ANY, tr("preview_import_from_scanner_button"))
+        self.doc_export_item = self.document_menu.Append(wx.ID_ANY, tr("preview_export_pages_button"))
+        self.document_menu.AppendSeparator()
+        self.doc_save_item = self.document_menu.Append(wx.ID_ANY, tr("preview_save_button"))
+        self.doc_cancel_item = self.document_menu.Append(wx.ID_ANY, tr("preview_cancel_button"))
+        self.document_menu.AppendSeparator()
+        self.doc_zoom_in_item = self.document_menu.Append(wx.ID_ANY, tr("preview_zoom_in_button"))
+        self.doc_zoom_out_item = self.document_menu.Append(wx.ID_ANY, tr("preview_zoom_out_button"))
+        self.document_menu.AppendSeparator()
+        self.doc_1_page_wide_item = self.document_menu.Append(wx.ID_ANY, tr("preview_show_1_page_wide"))
+        self.doc_2_pages_wide_item = self.document_menu.Append(wx.ID_ANY, tr("preview_show_2_pages_wide"))
+        self.doc_1_page_tall_item = self.document_menu.Append(wx.ID_ANY, tr("preview_show_1_page_tall"))
+        self.doc_manual_scale_item = self.document_menu.Append(wx.ID_ANY, tr("preview_show_manual_scale"))
+        self.document_menu.AppendSeparator()
+        self.doc_rotate_all_left_item = self.document_menu.Append(wx.ID_ANY, tr("preview_rotate_all_left_button"))
+        self.doc_rotate_left_item = self.document_menu.Append(wx.ID_ANY, tr("preview_rotate_left_button"))
+        self.doc_rotate_right_item = self.document_menu.Append(wx.ID_ANY, tr("preview_rotate_right_button"))
+        self.doc_rotate_all_right_item = self.document_menu.Append(wx.ID_ANY, tr("preview_rotate_all_right_button"))
+        self.document_menu.AppendSeparator()
+        self.doc_move_page_item = self.document_menu.Append(wx.ID_ANY, tr("preview_move_page_button"))
+        self.doc_remove_page_item = self.document_menu.Append(wx.ID_ANY, tr("preview_remove_page_button"))
+        self.doc_adjust_page_width_item = self.document_menu.Append(wx.ID_ANY, tr("preview_adjust_page_width_button"))
+        self.doc_optimize_item = self.document_menu.Append(wx.ID_ANY, tr("preview_optimize_button"))
+        self.menu_bar.Append(self.document_menu, tr("menu_document"))
+
+        self.help_menu = wx.Menu()
+        self.help_about_item = self.help_menu.Append(wx.ID_ANY, tr("menu_about"))
+        self.menu_bar.Append(self.help_menu, tr("menu_help"))
+
+        self.SetMenuBar(self.menu_bar)
+
+        self._bind_main_menu_items()
+        self._update_main_menu_state()
+
+    def _bind_main_menu_items(self):
+        self.Bind(wx.EVT_MENU, self.on_list_scan, self.file_scan_item)
+        self.Bind(wx.EVT_MENU, self.on_list_open, self.file_open_item)
+        self.Bind(wx.EVT_MENU, self.on_list_rename, self.file_rename_item)
+        self.Bind(wx.EVT_MENU, self.on_list_new_folder, self.file_new_folder_item)
+        self.Bind(wx.EVT_MENU, self.on_refresh_menu, self.file_refresh_item)
+        self.Bind(wx.EVT_MENU, self.on_list_copy, self.file_copy_item)
+        self.Bind(wx.EVT_MENU, self.on_list_cut, self.file_cut_item)
+        self.Bind(wx.EVT_MENU, self.on_list_paste, self.file_paste_item)
+        self.Bind(wx.EVT_MENU, self.on_list_delete, self.file_delete_item)
+
+        self.Bind(wx.EVT_MENU, self.go_back, self.nav_back_item)
+        self.Bind(wx.EVT_MENU, self.go_forward, self.nav_forward_item)
+        self.Bind(wx.EVT_MENU, self.on_search_in_files, self.nav_search_item)
+        self.Bind(wx.EVT_MENU, self.on_exit, self.nav_exit_item)
+
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_import_from_file, self.doc_import_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_import_from_scanner, self.doc_import_scanner_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_export_pages, self.doc_export_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_save, self.doc_save_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_cancel, self.doc_cancel_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_zoom_in, self.doc_zoom_in_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_zoom_out, self.doc_zoom_out_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_show_1_page_wide, self.doc_1_page_wide_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_show_2_pages_wide, self.doc_2_pages_wide_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_show_1_page_tall, self.doc_1_page_tall_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_show_manual_scale, self.doc_manual_scale_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_rotate_all_left, self.doc_rotate_all_left_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_rotate_left, self.doc_rotate_left_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_rotate_right, self.doc_rotate_right_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_rotate_all_right, self.doc_rotate_all_right_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_move_page, self.doc_move_page_item)
+        self.Bind(wx.EVT_MENU, lambda event: file_preview.on_preview_remove_page(event, owner=self), self.doc_remove_page_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_adjust_page_width, self.doc_adjust_page_width_item)
+        self.Bind(wx.EVT_MENU, file_preview.on_preview_optimize, self.doc_optimize_item)
+
+        self.Bind(wx.EVT_MENU, self.on_about, self.help_about_item)
+
+    def _update_main_menu_state(self):
+        if not hasattr(self, "file_menu"):
+            return
+
+        current_path = self.path_box.GetValue() if hasattr(self, "path_box") and self.path_box is not None else ""
+        selected_items = filelist.get_selected_list_paths(self) if hasattr(self, "list") and self.list is not None else []
+        has_single_selection = len(selected_items) == 1 and os.path.exists(selected_items[0])
+        can_paste = bool(current_path and os.path.isdir(current_path) and filelist._can_paste_into_directory(self, current_path))
+
+        self.file_scan_item.Enable(True)
+        self.file_open_item.Enable(has_single_selection)
+        self.file_rename_item.Enable(has_single_selection)
+        self.file_new_folder_item.Enable(bool(current_path and os.path.isdir(current_path)))
+        self.file_refresh_item.Enable(True)
+        self.file_copy_item.Enable(bool(selected_items))
+        self.file_cut_item.Enable(bool(selected_items))
+        self.file_paste_item.Enable(can_paste)
+        self.file_delete_item.Enable(bool(selected_items))
+
+        self.nav_back_item.Enable(bool(getattr(self, "history", [])))
+        self.nav_forward_item.Enable(bool(getattr(self, "history", [])) and self.history_index < len(self.history) - 1)
+        self.nav_search_item.Enable(True)
+        self.nav_exit_item.Enable(True)
+
+        current_preview = getattr(self, "current_preview_path", None)
+        is_pdf_preview = bool(current_preview and is_pdf_file(current_preview))
+        is_image_preview = bool(current_preview and image_utils.can_preview_image(current_preview))
+        is_office_preview = bool(current_preview and file_preview.office_preview.can_preview_office(current_preview))
+        is_html_preview = bool(current_preview and file_preview.can_preview_html(current_preview))
+        is_previewable = bool(current_preview) and (is_pdf_preview or is_image_preview or is_office_preview or is_html_preview)
+
+        self.doc_import_item.Enable(is_pdf_preview)
+        self.doc_import_scanner_item.Enable(is_pdf_preview)
+        self.doc_export_item.Enable(is_pdf_preview)
+        self.doc_save_item.Enable(is_pdf_preview and file_preview.has_unsaved_pdf_changes(self.current_preview_path))
+        self.doc_cancel_item.Enable(is_pdf_preview and file_preview.has_unsaved_pdf_changes(self.current_preview_path))
+        self.doc_zoom_in_item.Enable(is_previewable)
+        self.doc_zoom_out_item.Enable(is_previewable)
+        self.doc_1_page_wide_item.Enable(is_previewable)
+        self.doc_2_pages_wide_item.Enable(is_previewable)
+        self.doc_1_page_tall_item.Enable(is_previewable)
+        self.doc_manual_scale_item.Enable(is_previewable)
+        self.doc_rotate_all_left_item.Enable(is_pdf_preview)
+        self.doc_rotate_left_item.Enable(is_pdf_preview or is_image_preview)
+        self.doc_rotate_right_item.Enable(is_pdf_preview or is_image_preview)
+        self.doc_rotate_all_right_item.Enable(is_pdf_preview)
+        self.doc_move_page_item.Enable(is_pdf_preview)
+        self.doc_remove_page_item.Enable(is_pdf_preview and file_preview.get_selected_pdf_page_index(self) is not None)
+        self.doc_adjust_page_width_item.Enable(is_pdf_preview)
+        self.doc_optimize_item.Enable(is_pdf_preview)
+
+    def on_refresh_menu(self, _):
+        current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
+        if current_folder and os.path.isdir(current_folder):
+            self.load_folder(current_folder)
+        else:
+            self.refresh_tree_placeholders()
+
+    def on_about(self, _):
+        dialog = wx.Dialog(self, title=tr("menu_about"), size=(420, 220))
+        panel = wx.Panel(dialog)
+
+        title = wx.StaticText(panel, label=tr("app_title"), style=wx.ALIGN_CENTRE)
+        title.SetFont(wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+
+        version = wx.StaticText(panel, label="Version 1.0")
+        description = wx.StaticText(panel, label="Document Explorer")
+        copyright = wx.StaticText(panel, label="(c) PdfExplorer")
+
+        close_btn = wx.Button(panel, wx.ID_OK, tr("exit_button"))
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(title, 0, wx.ALIGN_CENTRE | wx.TOP | wx.BOTTOM, 12)
+        sizer.Add(version, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
+        sizer.Add(description, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
+        sizer.Add(copyright, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 16)
+        sizer.Add(close_btn, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 12)
+        panel.SetSizer(sizer)
+        dialog.CenterOnParent()
+        dialog.ShowModal()
+        dialog.Destroy()
+
     def build_ui(self):
+        self._build_main_menu_bar()
+
         panel = wx.Panel(self)
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -274,6 +456,44 @@ class FileExplorer(wx.Frame):
             self.filter_label.SetLabel(tr("filter_label"))
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
         self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
+        if hasattr(self, "menu_bar") and self.menu_bar is not None:
+            self.file_menu.SetTitle(tr("menu_file"))
+            self.navigation_menu.SetTitle(tr("menu_navigation"))
+            self.document_menu.SetTitle(tr("menu_document"))
+            self.help_menu.SetTitle(tr("menu_help"))
+            self.file_scan_item.SetItemLabel(tr("scan"))
+            self.file_open_item.SetItemLabel(tr("context_open"))
+            self.file_rename_item.SetItemLabel(tr("context_rename"))
+            self.file_new_folder_item.SetItemLabel(tr("context_new_folder"))
+            self.file_refresh_item.SetItemLabel(tr("context_refresh"))
+            self.file_copy_item.SetItemLabel(tr("context_copy"))
+            self.file_cut_item.SetItemLabel(tr("context_cut"))
+            self.file_paste_item.SetItemLabel(tr("context_paste"))
+            self.file_delete_item.SetItemLabel(tr("context_delete"))
+            self.nav_back_item.SetItemLabel(tr("back_button"))
+            self.nav_forward_item.SetItemLabel(tr("forward_button"))
+            self.nav_search_item.SetItemLabel(tr("search_in_files_button"))
+            self.nav_exit_item.SetItemLabel(tr("exit_button"))
+            self.help_about_item.SetItemLabel(tr("menu_about"))
+            self.doc_import_item.SetItemLabel(tr("preview_import_from_file_button"))
+            self.doc_import_scanner_item.SetItemLabel(tr("preview_import_from_scanner_button"))
+            self.doc_export_item.SetItemLabel(tr("preview_export_pages_button"))
+            self.doc_save_item.SetItemLabel(tr("preview_save_button"))
+            self.doc_cancel_item.SetItemLabel(tr("preview_cancel_button"))
+            self.doc_zoom_in_item.SetItemLabel(tr("preview_zoom_in_button"))
+            self.doc_zoom_out_item.SetItemLabel(tr("preview_zoom_out_button"))
+            self.doc_1_page_wide_item.SetItemLabel(tr("preview_show_1_page_wide"))
+            self.doc_2_pages_wide_item.SetItemLabel(tr("preview_show_2_pages_wide"))
+            self.doc_1_page_tall_item.SetItemLabel(tr("preview_show_1_page_tall"))
+            self.doc_manual_scale_item.SetItemLabel(tr("preview_show_manual_scale"))
+            self.doc_rotate_all_left_item.SetItemLabel(tr("preview_rotate_all_left_button"))
+            self.doc_rotate_left_item.SetItemLabel(tr("preview_rotate_left_button"))
+            self.doc_rotate_right_item.SetItemLabel(tr("preview_rotate_right_button"))
+            self.doc_rotate_all_right_item.SetItemLabel(tr("preview_rotate_all_right_button"))
+            self.doc_move_page_item.SetItemLabel(tr("preview_move_page_button"))
+            self.doc_remove_page_item.SetItemLabel(tr("preview_remove_page_button"))
+            self.doc_adjust_page_width_item.SetItemLabel(tr("preview_adjust_page_width_button"))
+            self.doc_optimize_item.SetItemLabel(tr("preview_optimize_button"))
         for index, key in enumerate(("name_column", "type_column", "size_column", "modified_column")):
             column = self.list.GetColumn(index)
             column.SetMask(wx.LIST_MASK_TEXT)
@@ -507,7 +727,9 @@ class FileExplorer(wx.Frame):
         return tree_utils.on_tree_expand(self, event)
 
     def on_tree_select(self, event):
-        return tree_utils.on_tree_select(self, event)
+        result = tree_utils.on_tree_select(self, event)
+        self._update_main_menu_state()
+        return result
 
     def on_tree_activated(self, event):
         return tree_utils.on_tree_activated(self, event)
@@ -517,9 +739,11 @@ class FileExplorer(wx.Frame):
 
     def on_list_select(self, event):
         filelist.on_list_select(self, event)
+        self._update_main_menu_state()
 
     def on_list_deselect(self, event):
         filelist.on_list_deselect(self, event)
+        self._update_main_menu_state()
 
     def on_right_click(self, event):
         filelist.on_right_click(self, event)

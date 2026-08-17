@@ -2,6 +2,11 @@
 
 TRANSLATIONS = {
     "app_title": "Document Explorer",
+    "menu_file": "Файл",
+    "menu_navigation": "Навігація",
+    "menu_document": "Документ",
+    "menu_help": "Допомога",
+    "menu_about": "Про програму",
     "back_button": "Назад",
     "forward_button": "Вперед",
     "exit_button": "Вихід",
