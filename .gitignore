@@ -7,3 +7,4 @@ dist/
 pdf/
 .pdf_explorer_settings.json
 .todo.txt
+*.zip

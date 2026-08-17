@@ -290,65 +290,71 @@ def _read_office_com_text(path):
     _, ext = os.path.splitext(path)
     ext = ext.lower()
     try:
-        pythoncom.CoInitialize()
-    except Exception:
-        pass
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
 
-    try:
-        if ext in {".doc", ".docx", ".docm"}:
-            app = win32_client.Dispatch("Word.Application")
-            app.Visible = False
-            document = app.Documents.Open(path, ReadOnly=True)
-            try:
-                return document.Content.Text or ""
-            finally:
-                document.Close(False)
-                app.Quit()
+        try:
+            if ext in {".doc", ".docx", ".docm"}:
+                app = win32_client.Dispatch("Word.Application")
+                app.Visible = False
+                document = app.Documents.Open(path, ReadOnly=True)
+                try:
+                    return document.Content.Text or ""
+                finally:
+                    document.Close(False)
+                    app.Quit()
 
-        if ext in {".xls", ".xlsx", ".xlsm"}:
-            app = win32_client.Dispatch("Excel.Application")
-            app.Visible = False
-            workbook = app.Workbooks.Open(path, ReadOnly=True)
-            try:
-                data = []
-                for sheet in workbook.Sheets:
-                    used_range = sheet.UsedRange
-                    if used_range is not None:
-                        values = used_range.Value
-                        if isinstance(values, list):
-                            for row in values:
-                                if row is None:
-                                    continue
-                                flattened = []
-                                for value in row:
-                                    if value is None:
-                                        flattened.append("")
-                                    else:
-                                        flattened.append(str(value))
-                                data.append(" ".join(flattened))
-                return "\n".join(data)
-            finally:
-                workbook.Close(False)
-                app.Quit()
+            if ext in {".xls", ".xlsx", ".xlsm"}:
+                app = win32_client.Dispatch("Excel.Application")
+                app.Visible = False
+                workbook = app.Workbooks.Open(path, ReadOnly=True)
+                try:
+                    data = []
+                    for sheet in workbook.Sheets:
+                        used_range = sheet.UsedRange
+                        if used_range is not None:
+                            values = used_range.Value
+                            if isinstance(values, list):
+                                for row in values:
+                                    if row is None:
+                                        continue
+                                    flattened = []
+                                    for value in row:
+                                        if value is None:
+                                            flattened.append("")
+                                        else:
+                                            flattened.append(str(value))
+                                    data.append(" ".join(flattened))
+                    return "\n".join(data)
+                finally:
+                    workbook.Close(False)
+                    app.Quit()
 
-        if ext in {".ppt", ".pptx", ".pptm"}:
-            app = win32_client.Dispatch("PowerPoint.Application")
-            presentation = app.Presentations.Open(path, WithWindow=False)
-            try:
-                parts = []
-                for slide in presentation.Slides:
-                    for shape in slide.Shapes:
-                        try:
-                            if hasattr(shape, "TextFrame") and shape.TextFrame is not None:
-                                parts.append(shape.TextFrame.TextRange.Text)
-                        except Exception:
-                            continue
-                return "\n".join(part for part in parts if part)
-            finally:
-                presentation.Close()
-                app.Quit()
-    except Exception:
-        return ""
+            if ext in {".ppt", ".pptx", ".pptm"}:
+                app = win32_client.Dispatch("PowerPoint.Application")
+                presentation = app.Presentations.Open(path, WithWindow=False)
+                try:
+                    parts = []
+                    for slide in presentation.Slides:
+                        for shape in slide.Shapes:
+                            try:
+                                if hasattr(shape, "TextFrame") and shape.TextFrame is not None:
+                                    parts.append(shape.TextFrame.TextRange.Text)
+                            except Exception:
+                                continue
+                    return "\n".join(part for part in parts if part)
+                finally:
+                    presentation.Close()
+                    app.Quit()
+        except Exception:
+            return ""
+    finally:
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
     return ""
 
 
@@ -1002,7 +1008,7 @@ def show_search_form(owner):
             finally:
                 wx.CallAfter(reset_search_ui)
 
-        thread = threading.Thread(target=worker, daemon=True)
+        thread = threading.Thread(target=worker, daemon=False)
         search_state["thread"] = thread
         thread.start()
 
@@ -1048,7 +1054,7 @@ def show_search_form(owner):
             stop_event.set()
         thread = search_state.get("thread")
         if thread is not None and thread.is_alive():
-            thread.join(timeout=0.25)
+            thread.join()
         save_geometry()
         dialog.Destroy()
         setattr(owner, "_search_form_dialog", None)

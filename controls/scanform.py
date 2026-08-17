@@ -236,31 +236,33 @@ def _acquire_scanned_image_files(scan_config):
     if pythoncom is None or win32_client is None:
         raise RuntimeError("Windows WIA support is not available in this environment.")
 
-    try:
-        pythoncom.CoInitialize()
-    except Exception:
-        pass
-
     common_dialog = win32_client.Dispatch("WIA.CommonDialog")
     image_files = []
     page_index = 0
 
     while True:
         try:
-            show_ui = _should_show_scan_ui(scan_config, page_index)
-            result = common_dialog.ShowAcquireImage(
-                0,
-                0,
-                0,
-                "{00000000-0000-0000-0000-000000000000}",
-                show_ui,
-                True,
-                False,
-            )
-        except Exception as exc:
-            if "cancel" in str(exc).lower() or "user canceled" in str(exc).lower():
-                break
-            raise RuntimeError(f"Unable to acquire image from scanner: {exc}") from exc
+            try:
+                pythoncom.CoInitialize()
+                show_ui = _should_show_scan_ui(scan_config, page_index)
+                result = common_dialog.ShowAcquireImage(
+                    0,
+                    0,
+                    0,
+                    "{00000000-0000-0000-0000-000000000000}",
+                    show_ui,
+                    True,
+                    False,
+                )
+            except Exception as exc:
+                if "cancel" in str(exc).lower() or "user canceled" in str(exc).lower():
+                    break
+                raise RuntimeError(f"Unable to acquire image from scanner: {exc}") from exc
+        finally:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
 
         if result is None:
             break
