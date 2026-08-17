@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import tempfile
 import types
 import unittest
 from unittest import mock
@@ -467,6 +468,40 @@ class OfficePreviewLimitTests(unittest.TestCase):
 
         self.assertEqual(result, "preview.pdf")
         mocked_limit.assert_called_once_with("preview.pdf", __import__("file_operations.pdf_utils", fromlist=["DEFAULT_SHOW_PAGES_LIMIT"]).DEFAULT_SHOW_PAGES_LIMIT)
+
+    def test_powerpoint_export_opens_document_read_only(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["_export_powerpoint_to_pdf"])
+
+        fake_app = mock.Mock()
+        fake_presentation = mock.Mock()
+        fake_app.Presentations.Open.return_value = fake_presentation
+
+        with mock.patch.object(office_preview, "win32_client", mock.Mock()), \
+             mock.patch.object(office_preview, "pythoncom", mock.Mock()):
+            office_preview.win32_client.DispatchEx.return_value = fake_app
+            office_preview._export_powerpoint_to_pdf("report.pptx", "preview.pdf")
+
+        fake_app.Presentations.Open.assert_called_once_with("report.pptx", ReadOnly=True, WithWindow=False)
+        fake_presentation.Close.assert_called_once_with()
+        fake_app.Quit.assert_called_once()
+
+    def test_office_ps_scripts_open_files_read_only(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["_build_office_ps_script"])
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as word_file, \
+             tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as excel_file, \
+             tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as ppt_file:
+            word_script = office_preview._build_office_ps_script(word_file.name, output_pdf="preview.pdf")
+            excel_script = office_preview._build_office_ps_script(excel_file.name, output_pdf="preview.pdf")
+            ppt_script = office_preview._build_office_ps_script(ppt_file.name, output_pdf="preview.pdf")
+
+        self.assertIn("Documents.Open($src, $false, $true)", word_script)
+        self.assertIn("Workbooks.Open($src, $false, $true)", excel_script)
+        self.assertIn("Presentations.Open($src, $true, $false, $false)", ppt_script)
+
+        for path in (word_file.name, excel_file.name, ppt_file.name):
+            if os.path.exists(path):
+                os.remove(path)
 
     def test_export_word_to_pdf_releases_com_objects_on_exit(self):
         office_preview = __import__("file_operations.office_preview", fromlist=["_export_word_to_pdf"])

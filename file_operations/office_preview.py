@@ -147,7 +147,7 @@ try {{
     $word = New-Object -ComObject Word.Application
     $word.Visible = $false
     $word.DisplayAlerts = 0
-    $doc = $word.Documents.Open($src, $false)
+    $doc = $word.Documents.Open($src, $false, $true)
     $count = $doc.ComputeStatistics(2)
     if ($dst -and $dst.Length -gt 0) {{
         $doc.ExportAsFixedFormat($dst, 17, $false, 0, 3, 1, {limit})
@@ -169,7 +169,7 @@ try {{
     $excel = New-Object -ComObject Excel.Application
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
-    $book = $excel.Workbooks.Open($src)
+    $book = $excel.Workbooks.Open($src, $false, $true)
     $count = $book.Worksheets.Count
     if ($dst -and $dst.Length -gt 0) {{
         $book.ExportAsFixedFormat(0, $dst, 0, $false, $false, 1, {limit}, $false)
@@ -188,7 +188,7 @@ $ppt = $null
 $presentation = $null
 try {
     $ppt = New-Object -ComObject PowerPoint.Application
-    $presentation = $ppt.Presentations.Open($src)
+    $presentation = $ppt.Presentations.Open($src, $true, $false, $false)
     $count = $presentation.Slides.Count
     if ($dst -and $dst.Length -gt 0) {
         $presentation.SaveAs($dst, 32)
@@ -334,7 +334,7 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
         app.Visible = 1
         presentation = None
         try:
-            presentation = app.Presentations.Open(source_path, WithWindow=False)
+            presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)
             presentation.SaveAs(output_pdf, 32)
         finally:
             if presentation is not None:

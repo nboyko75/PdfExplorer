@@ -1005,6 +1005,10 @@ def show_file_preview(owner, path):
         return
 
     previous_path = getattr(owner, "current_preview_path", None)
+    normalized_previous = os.path.normcase(os.path.normpath(previous_path)) if isinstance(previous_path, str) and previous_path else None
+    normalized_path = os.path.normcase(os.path.normpath(path)) if isinstance(path, str) and path else None
+    is_same_office_file = bool(normalized_path and normalized_previous and normalized_path == normalized_previous and office_preview.can_preview_office(path))
+
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     owner.selected_pdf_page_panel = None
@@ -1023,6 +1027,9 @@ def show_file_preview(owner, path):
     if not path:
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
         owner.filePreview.Layout()
+        return
+
+    if is_same_office_file:
         return
 
     if os.path.isdir(path):
