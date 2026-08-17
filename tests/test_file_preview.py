@@ -191,6 +191,26 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.show_file_preview.assert_not_called()
         owner.open_path.assert_not_called()
 
+    def test_shared_open_path_or_file_opens_folders_and_files(self):
+        filelist = __import__("controls.filelist", fromlist=["open_path_or_file"])
+        folder_owner = types.SimpleNamespace(open_path=mock.MagicMock())
+        file_owner = types.SimpleNamespace()
+
+        with mock.patch("controls.filelist.os.path.isdir", return_value=True), \
+             mock.patch("controls.filelist.os.path.isfile", return_value=False):
+            result = filelist.open_path_or_file(folder_owner, "folder")
+
+        self.assertTrue(result)
+        folder_owner.open_path.assert_called_once_with("folder")
+
+        with mock.patch("controls.filelist.os.path.isdir", return_value=False), \
+             mock.patch("controls.filelist.os.path.isfile", return_value=True), \
+             mock.patch("controls.filelist.os.startfile") as mocked_startfile:
+            result = filelist.open_path_or_file(file_owner, "file.pdf")
+
+        self.assertTrue(result)
+        mocked_startfile.assert_called_once_with("file.pdf")
+
     def test_preview_checkbox_toggle_does_not_restore_last_preview_when_reenabled(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
@@ -447,6 +467,23 @@ class OfficePreviewLimitTests(unittest.TestCase):
 
         self.assertEqual(result, "preview.pdf")
         mocked_limit.assert_called_once_with("preview.pdf", __import__("file_operations.pdf_utils", fromlist=["DEFAULT_SHOW_PAGES_LIMIT"]).DEFAULT_SHOW_PAGES_LIMIT)
+
+    def test_export_word_to_pdf_releases_com_objects_on_exit(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["_export_word_to_pdf"])
+
+        fake_app = mock.Mock()
+        fake_doc = mock.Mock()
+        fake_app.Documents.Open.return_value = fake_doc
+
+        with mock.patch.object(office_preview, "win32_client", mock.Mock()), \
+             mock.patch.object(office_preview, "pythoncom", mock.Mock()), \
+             mock.patch.object(office_preview, "_get_show_pages_limit_for_path", return_value=3):
+            office_preview.win32_client.DispatchEx.return_value = fake_app
+            office_preview._export_word_to_pdf("report.docx", "preview.pdf")
+
+            fake_doc.Close.assert_called_once_with(False)
+            fake_app.Quit.assert_called_once()
+            office_preview.pythoncom.CoUninitialize.assert_called_once()
 
 
 if __name__ == "__main__":

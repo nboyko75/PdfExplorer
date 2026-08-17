@@ -296,18 +296,7 @@ def on_tree_select(owner, event):
 def on_tree_activated(owner, event):
     item = event.GetItem()
     path = normalize_tree_path(owner.tree.GetItemData(item))
-    if not path:
-        return
-
-    if os.path.isdir(path):
-        owner.open_path(path)
-        return
-
-    if os.path.isfile(path):
-        try:
-            os.startfile(path)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+    filelist.open_path_or_file(owner, path)
 
 
 def on_tree_right_click(owner, event):

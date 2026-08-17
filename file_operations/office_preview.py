@@ -255,17 +255,32 @@ def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
         _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=page_limit)
         return
 
-    app = win32_client.DispatchEx("Word.Application")
-    app.Visible = False
-    app.DisplayAlerts = 0
-    doc = None
+    if pythoncom is not None:
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
+    app = None
     try:
-        doc = app.Documents.Open(source_path, ReadOnly=True)
-        doc.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
+        app = win32_client.DispatchEx("Word.Application")
+        app.Visible = False
+        app.DisplayAlerts = 0
+        doc = None
+        try:
+            doc = app.Documents.Open(source_path, ReadOnly=True)
+            doc.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
+        finally:
+            if doc is not None:
+                doc.Close(False)
+            if app is not None:
+                app.Quit()
     finally:
-        if doc is not None:
-            doc.Close(False)
-        app.Quit()
+        if pythoncom is not None:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
 
 
 def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
@@ -274,17 +289,32 @@ def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
         _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=page_limit)
         return
 
-    app = win32_client.DispatchEx("Excel.Application")
-    app.Visible = False
-    app.DisplayAlerts = False
-    workbook = None
+    if pythoncom is not None:
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
+    app = None
     try:
-        workbook = app.Workbooks.Open(source_path, ReadOnly=True)
-        workbook.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
+        app = win32_client.DispatchEx("Excel.Application")
+        app.Visible = False
+        app.DisplayAlerts = False
+        workbook = None
+        try:
+            workbook = app.Workbooks.Open(source_path, ReadOnly=True)
+            workbook.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
+        finally:
+            if workbook is not None:
+                workbook.Close(False)
+            if app is not None:
+                app.Quit()
     finally:
-        if workbook is not None:
-            workbook.Close(False)
-        app.Quit()
+        if pythoncom is not None:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
 
 
 def _export_powerpoint_to_pdf(source_path, output_pdf):
@@ -292,16 +322,31 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
         _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=None)
         return
 
-    app = win32_client.DispatchEx("PowerPoint.Application")
-    app.Visible = 1
-    presentation = None
+    if pythoncom is not None:
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
+    app = None
     try:
-        presentation = app.Presentations.Open(source_path, WithWindow=False)
-        presentation.SaveAs(output_pdf, 32)
+        app = win32_client.DispatchEx("PowerPoint.Application")
+        app.Visible = 1
+        presentation = None
+        try:
+            presentation = app.Presentations.Open(source_path, WithWindow=False)
+            presentation.SaveAs(output_pdf, 32)
+        finally:
+            if presentation is not None:
+                presentation.Close()
+            if app is not None:
+                app.Quit()
     finally:
-        if presentation is not None:
-            presentation.Close()
-        app.Quit()
+        if pythoncom is not None:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
 
 
 def convert_office_to_preview_pdf(path, max_pages=None):

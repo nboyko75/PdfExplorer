@@ -606,22 +606,32 @@ def on_list_scan(owner, _):
         owner.on_scan_form()
 
 
-def on_list_open(owner, _, path=None):
-    if path is None:
-        selected_paths = get_selected_list_paths(owner)
-        path = selected_paths[0] if len(selected_paths) == 1 else None
+def open_path_or_file(owner, path):
     if not path:
-        return
+        return False
 
     if os.path.isdir(path):
-        owner.open_path(path)
-        return
+        if hasattr(owner, "open_path"):
+            owner.open_path(path)
+        return True
 
     if os.path.isfile(path):
         try:
             os.startfile(path)
+            return True
         except Exception as exc:
             wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+            return False
+
+    return False
+
+
+def on_list_open(owner, _, path=None):
+    if path is None:
+        selected_paths = get_selected_list_paths(owner)
+        path = selected_paths[0] if len(selected_paths) == 1 else None
+
+    open_path_or_file(owner, path)
 
 
 def on_list_rename(owner, _):
