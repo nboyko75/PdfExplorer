@@ -753,9 +753,12 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
                 elif target_height is None:
                     common_scale = float(target_width) / float(avg_width_value or 1.0)
                 else:
-                    scale_x = float(target_width) / float(avg_width_value or float(target_width))
-                    scale_y = float(target_height) / float(avg_height_value or float(target_height))
-                    common_scale = min(scale_x, scale_y)
+                    if avg_width_value is not None:
+                        common_scale = float(target_width) / float(avg_width_value or float(target_width))
+                    elif avg_height_value is not None:
+                        common_scale = float(target_height) / float(avg_height_value or float(target_height))
+                    else:
+                        common_scale = 1.0
             else:
                 common_scale = 1.0
 
