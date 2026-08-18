@@ -6,6 +6,7 @@ import wx
 from file_operations.pdf_utils import discard_pdf_changes, get_unsaved_pdf_paths, is_pdf_file, move_pdf_page, save_pdf
 from localization import tr, load_locale, available_locales
 from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
+from controls.options_form import show_options_form
 import controls.tree_utils as tree_utils
 import file_operations.image_utils as image_utils
 import file_operations.pdf_dragdrop as pdf_dragdrop
@@ -126,6 +127,9 @@ class FileExplorer(wx.Frame):
         self.file_cut_item = self.file_menu.Append(wx.ID_ANY, tr("context_cut"))
         self.file_paste_item = self.file_menu.Append(wx.ID_ANY, tr("context_paste"))
         self.file_delete_item = self.file_menu.Append(wx.ID_ANY, tr("context_delete"))
+        self.file_menu.AppendSeparator()
+        self.file_options_item = self.file_menu.Append(wx.ID_ANY, tr("menu_file_options"))
+        self.file_quit_item = self.file_menu.Append(wx.ID_ANY, tr("exit_button"))
         self.menu_bar.Append(self.file_menu, tr("menu_file"))
 
         self.navigation_menu = wx.Menu()
@@ -182,6 +186,8 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_list_cut, self.file_cut_item)
         self.Bind(wx.EVT_MENU, self.on_list_paste, self.file_paste_item)
         self.Bind(wx.EVT_MENU, self.on_list_delete, self.file_delete_item)
+        self.Bind(wx.EVT_MENU, self.on_file_options, self.file_options_item)
+        self.Bind(wx.EVT_MENU, self.on_exit, self.file_quit_item)
 
         self.Bind(wx.EVT_MENU, self.go_back, self.nav_back_item)
         self.Bind(wx.EVT_MENU, self.go_forward, self.nav_forward_item)
@@ -470,6 +476,8 @@ class FileExplorer(wx.Frame):
             self.file_cut_item.SetItemLabel(tr("context_cut"))
             self.file_paste_item.SetItemLabel(tr("context_paste"))
             self.file_delete_item.SetItemLabel(tr("context_delete"))
+            self.file_options_item.SetItemLabel(tr("menu_file_options"))
+            self.file_quit_item.SetItemLabel(tr("exit_button"))
             self.nav_back_item.SetItemLabel(tr("back_button"))
             self.nav_forward_item.SetItemLabel(tr("forward_button"))
             self.nav_search_item.SetItemLabel(tr("search_in_files_button"))
@@ -512,7 +520,7 @@ class FileExplorer(wx.Frame):
         ## self.preview_auto_rotate_btn.SetToolTip(tr("preview_auto_rotate_button"))
         file_preview.sync_pdf_page_view_mode_controls(self)
         self.preview_optimize_btn.SetToolTip(tr("preview_optimize_button"))
-        self.preview_ajust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))
+        self.preview_adjust_page_width_btn.SetToolTip(tr("preview_adjust_page_width_button"))
         self.preview_import_from_file_btn.SetToolTip(tr("preview_import_button"))
         self.preview_export_pages_btn.SetToolTip(tr("preview_export_pages_button"))
         self.preview_remove_page_btn.SetToolTip(tr("preview_remove_page_button"))
@@ -807,6 +815,9 @@ class FileExplorer(wx.Frame):
                 self.select_tree_item_by_path(path)
             finally:
                 self._syncing_tree_from_path = False
+
+    def on_file_options(self, _):
+        show_options_form(self)
 
     def on_exit(self, _):
         self.Close()

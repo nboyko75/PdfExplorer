@@ -24,6 +24,40 @@ class WindowToolsSettingsPathTests(unittest.TestCase):
         self.assertEqual(os.path.dirname(settings_path), os.path.dirname(fake_executable))
         self.assertTrue(settings_path.endswith(".pdf_explorer_settings.json"))
 
+    def test_get_configurable_settings_excludes_window_geometry(self):
+        settings = {
+            "ui_locale": "uk",
+            "window_position": [1, 2],
+            "window_size": [800, 600],
+            "options_form_position": [10, 20],
+            "options_form_size": [920, 620],
+            "show_hidden": False,
+            "preview_enabled": True,
+            "search_history": ["needle"],
+            "list_sort_direction": 1,
+        }
+
+        rows = window_tools.get_configurable_settings_rows(settings)
+        keys = [row["key"] for row in rows]
+
+        self.assertIn("ui_locale", keys)
+        self.assertIn("show_hidden", keys)
+        self.assertIn("preview_enabled", keys)
+        self.assertIn("search_history", keys)
+        self.assertNotIn("window_position", keys)
+        self.assertNotIn("window_size", keys)
+        self.assertNotIn("options_form_position", keys)
+        self.assertNotIn("options_form_size", keys)
+        self.assertNotIn("list_sort_direction", keys)
+
+    def test_optimize_pdf_color_quality_uses_defined_thresholds(self):
+        self.assertEqual(window_tools._quality_label_to_value("low"), 20)
+        self.assertEqual(window_tools._quality_label_to_value("medium"), 35)
+        self.assertEqual(window_tools._quality_label_to_value("high"), 55)
+        self.assertEqual(window_tools._quality_value_to_label(20), "low")
+        self.assertEqual(window_tools._quality_value_to_label(35), "medium")
+        self.assertEqual(window_tools._quality_value_to_label(55), "high")
+
 
 if __name__ == "__main__":
     unittest.main()
