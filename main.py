@@ -317,8 +317,6 @@ class FileExplorer(wx.Frame):
 
         self.hidden_chk = wx.CheckBox(panel, label=tr("show_hidden_checkbox"))
         self.hidden_chk.SetValue(self.show_hidden)
-        self.language_combo = wx.ComboBox(panel, choices=[label for label, _ in LANGUAGE_CHOICES_SORTED], style=wx.CB_READONLY)
-        self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
 
         toolbar.Add(self.back_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         toolbar.Add(self.forward_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
@@ -326,7 +324,6 @@ class FileExplorer(wx.Frame):
         toolbar.Add(self.search_in_files_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.path_box, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.hidden_chk, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
-        toolbar.Add(self.language_combo, 0, wx.ALIGN_CENTER_VERTICAL)
 
         # ===== Split view =====
         self.main_splitter = wx.SplitterWindow(panel)
@@ -461,7 +458,6 @@ class FileExplorer(wx.Frame):
         if hasattr(self, "filter_label"):
             self.filter_label.SetLabel(tr("filter_label"))
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
-        self.language_combo.SetValue(LANGUAGE_LABEL_BY_CODE.get(self.current_locale, "UA"))
         if hasattr(self, "menu_bar") and self.menu_bar is not None:
             self.file_menu.SetTitle(tr("menu_file"))
             self.navigation_menu.SetTitle(tr("menu_navigation"))
@@ -588,13 +584,6 @@ class FileExplorer(wx.Frame):
 
     def get_selected_pdf_page_index(self):
         return file_preview.get_selected_pdf_page_index(self)
-
-    def on_language_change(self, event):
-        value = self.language_combo.GetValue()
-        self.current_locale = LANGUAGE_CODE_BY_LABEL.get(value, "en")
-        update_settings({"ui_locale": self.current_locale})
-        load_locale(self.current_locale)
-        self.refresh_locale()
 
     def on_key(self, event):
         # Handle Ctrl+Z for undo
@@ -723,7 +712,6 @@ class FileExplorer(wx.Frame):
         self.path_box.Bind(wx.EVT_TEXT_ENTER, self.on_path_enter)
         self.search_box.Bind(wx.EVT_TEXT_ENTER, lambda e: self.refresh())
         self.hidden_chk.Bind(wx.EVT_CHECKBOX, self.on_toggle_hidden)
-        self.language_combo.Bind(wx.EVT_COMBOBOX, self.on_language_change)
 
         tree_utils.bind_tree_events(self)
         filelist.bind_list_events(self)
