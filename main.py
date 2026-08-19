@@ -49,6 +49,7 @@ class FileExplorer(wx.Frame):
         self.history_index = -1
         self.show_hidden = bool(settings.get("show_hidden", False))
         self.preview_enabled = bool(settings.get("preview_enabled", True))
+        self.office_preview_enabled = bool(settings.get("office_preview_enabled", False))
         self.current_pdf_path = None
         self.selected_pdf_page_panel = None
         self.drag_overlay = None
@@ -244,7 +245,7 @@ class FileExplorer(wx.Frame):
         current_preview = getattr(self, "current_preview_path", None)
         is_pdf_preview = bool(current_preview and is_pdf_file(current_preview))
         is_image_preview = bool(current_preview and image_utils.can_preview_image(current_preview))
-        is_office_preview = bool(current_preview and file_preview.office_preview.can_preview_office(current_preview))
+        is_office_preview = bool(current_preview and file_preview.is_office_preview_allowed(self, current_preview))
         is_html_preview = bool(current_preview and file_preview.can_preview_html(current_preview))
         is_previewable = bool(current_preview) and (is_pdf_preview or is_image_preview or is_office_preview or is_html_preview)
 

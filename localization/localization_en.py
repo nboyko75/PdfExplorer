@@ -60,6 +60,7 @@ TRANSLATIONS = {
     "modified_column": "Modified",
     "preview_select_file": "Select a file to preview.",
     "preview_checkbox_label": "Preview",
+    "preview_ms_office_checkbox_label": "MS Office",
     "folder_selected": "Folder selected:\n{path}",
     "no_preview_available": "No preview available for this item.",
     "unable_preview_pdf": "Unable to preview PDF.\n{exc}",

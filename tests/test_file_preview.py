@@ -231,6 +231,28 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertTrue(owner.preview_enabled)
         mocked_show_file_preview.assert_called_once_with(owner, None)
 
+    def test_preview_checkbox_toggle_disables_office_preview_when_global_preview_is_off(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=True,
+            preview_checkbox=types.SimpleNamespace(GetValue=lambda: False),
+            office_preview_checkbox=types.SimpleNamespace(Enable=mock.MagicMock(), SetValue=mock.MagicMock(), GetValue=lambda: True),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "show_file_preview") as mocked_show_file_preview:
+            event = types.SimpleNamespace(GetEventObject=lambda: owner.preview_checkbox)
+            with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner):
+                file_preview.on_preview_checkbox_toggle(event)
+
+        self.assertFalse(owner.preview_enabled)
+        owner.office_preview_checkbox.Enable.assert_called_once_with(False)
+        mocked_show_file_preview.assert_called_once_with(owner, None)
+
     def test_preview_toggle_checkbox_defaults_to_checked(self):
         file_preview = _import_file_preview_with_mocked_wx()
 

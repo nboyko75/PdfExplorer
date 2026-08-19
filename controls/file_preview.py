@@ -29,10 +29,17 @@ def build_file_preview_pane(owner, file_splitter):
     owner.filePreview = wx.Panel(file_splitter, style=wx.BORDER_SUNKEN)
     owner.preview_toolbar = wx.BoxSizer(wx.HORIZONTAL)
     owner.preview_enabled = getattr(owner, "preview_enabled", True)
+    owner.office_preview_enabled = getattr(owner, "office_preview_enabled", False)
 
     owner.preview_checkbox = wx.CheckBox(owner.filePreview, label=tr("preview_checkbox_label"))
     owner.preview_checkbox.SetValue(owner.preview_enabled)
     owner.preview_toolbar.Add(owner.preview_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 5)
+
+    owner.office_preview_checkbox = wx.CheckBox(owner.filePreview, label=tr("preview_ms_office_checkbox_label"))
+    owner.office_preview_checkbox.SetValue(owner.office_preview_enabled)
+    if hasattr(owner.office_preview_checkbox, "Enable"):
+        owner.office_preview_checkbox.Enable(owner.preview_enabled)
+    owner.preview_toolbar.Add(owner.office_preview_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
 
     preview_icon_size = (16, 16)
     preview_button_size = (24, 24)
@@ -118,6 +125,7 @@ def build_file_preview_pane(owner, file_splitter):
 def bind_preview_events(owner):
     """Bind preview pane event handlers."""
     owner.preview_checkbox.Bind(wx.EVT_CHECKBOX, on_preview_checkbox_toggle)
+    owner.office_preview_checkbox.Bind(wx.EVT_CHECKBOX, on_office_preview_checkbox_toggle)
     owner.preview_import_from_file_btn.Bind(wx.EVT_BUTTON, on_preview_import_menu)
     owner.preview_export_pages_btn.Bind(wx.EVT_BUTTON, on_preview_export_pages)
     owner.preview_save_btn.Bind(wx.EVT_BUTTON, on_preview_save_menu)
@@ -218,7 +226,7 @@ def can_preview_html(path):
     return ext.lower() in {".html", ".htm"}
 
 
-def _is_preview_page_limit_active(path):
+def _is_preview_page_limit_active(path, owner=None):
     if not path:
         return False
 
@@ -227,7 +235,11 @@ def _is_preview_page_limit_active(path):
             page_count = get_pdf_page_count(path)
             return page_count > pdf_utils._get_show_pages_limit_for_path(path)
 
-        if office_preview.can_preview_office(path):
+        if owner is not None:
+            office_allowed = is_office_preview_allowed(owner, path)
+        else:
+            office_allowed = office_preview.can_preview_office(path)
+        if office_allowed:
             page_count = office_preview.get_office_document_page_count(path)
             return page_count > pdf_utils._get_show_pages_limit_for_path(path)
     except Exception:
@@ -258,10 +270,10 @@ def update_page_buttons_state(owner):
 def update_load_all_btn_state(owner):
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
     is_previewable_non_pdf = bool(owner.current_preview_path) and (
-        office_preview.can_preview_office(owner.current_preview_path)
+        is_office_preview_allowed(owner, owner.current_preview_path)
         or can_preview_html(owner.current_preview_path)
     )
-    page_limit_active = _is_preview_page_limit_active(owner.current_preview_path)
+    page_limit_active = _is_preview_page_limit_active(owner.current_preview_path, owner=owner)
     load_all_btn = getattr(owner, "preview_load_all_btn", None)
     if load_all_btn is not None:
         load_all_btn_enable = page_limit_active and (is_pdf_preview or is_previewable_non_pdf)
@@ -283,7 +295,7 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
         and (
             is_pdf_file(current_path)
             or image_utils.can_preview_image(current_path)
-            or office_preview.can_preview_office(current_path)
+            or is_office_preview_allowed(owner, current_path)
             or can_preview_html(current_path)
         )
     )
@@ -335,7 +347,7 @@ def refresh_preview_for_page_view_mode(owner, path=None):
             image_utils.show_image_preview(owner, current_path, tr)
         return
 
-    if office_preview.can_preview_office(current_path):
+    if is_office_preview_allowed(owner, current_path):
         try:
             preview_pdf_path = _resolve_preview_pdf_path(current_path)
             if preview_pdf_path is None:
@@ -424,7 +436,7 @@ def build_page_view_mode_menu(owner, menu):
     can_preview_layout = (
         is_pdf_preview
         or image_utils.can_preview_image(owner.current_preview_path)
-        or office_preview.can_preview_office(owner.current_preview_path)
+        or is_office_preview_allowed(owner, owner.current_preview_path)
         or can_preview_html(owner.current_preview_path)
     )
     show_1_page_wide_item.Enable(can_preview_layout)
@@ -799,14 +811,18 @@ def show_html_preview(owner, path):
     owner.filePreview.Layout()
 
 
-def _resolve_preview_pdf_path(path, max_pages=None):
+def _resolve_preview_pdf_path(path, max_pages=None, owner=None):
     if not path:
         return None
 
     if is_pdf_file(path):
         return path
 
-    if office_preview.can_preview_office(path):
+    if owner is not None:
+        office_allowed = is_office_preview_allowed(owner, path)
+    else:
+        office_allowed = office_preview.can_preview_office(path)
+    if office_allowed:
         try:
             if max_pages is None:
                 return office_preview.convert_office_to_preview_pdf(path)
@@ -833,14 +849,14 @@ def on_preview_load_all_pages(event):
     cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
     with cursor_context:
         try:
-            if not office_preview.can_preview_office(path) and not is_pdf_file(path):
+            if not is_office_preview_allowed(owner, path) and not is_pdf_file(path):
                 return
 
-            if office_preview.can_preview_office(path):
+            if is_office_preview_allowed(owner, path):
                 page_count = office_preview.get_office_document_page_count(path)
-                preview_path = _resolve_preview_pdf_path(path, max_pages=page_count)
+                preview_path = _resolve_preview_pdf_path(path, max_pages=page_count, owner=owner)
             else:
-                preview_path = _resolve_preview_pdf_path(path)
+                preview_path = _resolve_preview_pdf_path(path, owner=owner)
 
             if not preview_path or not os.path.isfile(preview_path):
                 return
@@ -984,6 +1000,18 @@ def _reset_pdf_view_mode_for_new_file(owner, previous_path, next_path):
     owner.pdf_page_view_mode = selected_mode
 
 
+def is_office_preview_allowed(owner, path):
+    if not office_preview.can_preview_office(path):
+        return False
+    if not bool(getattr(owner, "preview_enabled", True)):
+        return False
+
+    office_preview_value = getattr(owner, "office_preview_enabled", None)
+    if office_preview_value is None:
+        return True
+    return bool(office_preview_value)
+
+
 def on_preview_checkbox_toggle(event):
     owner = _get_preview_owner_from_event(event)
     if owner is None:
@@ -991,8 +1019,22 @@ def on_preview_checkbox_toggle(event):
 
     checkbox = event.GetEventObject()
     owner.preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
+    if hasattr(owner, "office_preview_checkbox"):
+        owner.office_preview_checkbox.Enable(owner.preview_enabled)
     update_settings({"preview_enabled": owner.preview_enabled})
     show_file_preview(owner, None)
+
+
+def on_office_preview_checkbox_toggle(event):
+    owner = _get_preview_owner_from_event(event)
+    if owner is None:
+        return
+
+    checkbox = event.GetEventObject()
+    owner.office_preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
+    update_settings({"office_preview_enabled": owner.office_preview_enabled})
+    if getattr(owner, "preview_enabled", True) and getattr(owner, "current_preview_path", None):
+        show_file_preview(owner, owner.current_preview_path)
 
 
 def show_file_preview(owner, path):
@@ -1001,13 +1043,15 @@ def show_file_preview(owner, path):
         owner.preview_text.Show(False)
         owner.pdf_pages_panel.Hide()
         owner.pdf_preview_container.Hide()
+        if hasattr(owner, "office_preview_checkbox"):
+            owner.office_preview_checkbox.Enable(False)
         owner.filePreview.Layout()
         return
 
     previous_path = getattr(owner, "current_preview_path", None)
     normalized_previous = os.path.normcase(os.path.normpath(previous_path)) if isinstance(previous_path, str) and previous_path else None
     normalized_path = os.path.normcase(os.path.normpath(path)) if isinstance(path, str) and path else None
-    is_same_office_file = bool(normalized_path and normalized_previous and normalized_path == normalized_previous and office_preview.can_preview_office(path))
+    is_same_office_file = bool(normalized_path and normalized_previous and normalized_path == normalized_previous and is_office_preview_allowed(owner, path))
 
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
@@ -1019,7 +1063,7 @@ def show_file_preview(owner, path):
     owner.pdf_pages_panel.Hide()
     owner.pdf_preview_container.Hide()
 
-    can_preview_office = office_preview.can_preview_office(path)
+    can_preview_office = is_office_preview_allowed(owner, path)
     if not can_preview_office:
         update_page_buttons_state(owner)
         update_pdf_save_button_state(owner)
@@ -1615,13 +1659,20 @@ def on_preview_import_from_file(event):
     if dialog_result is None:
         return
 
+    source_paths = dialog_result.get("source_paths")
+    if source_paths is None:
+        source_path = dialog_result.get("source_path")
+        if source_path is None:
+            return
+        source_paths = [source_path]
+
+    initial_insert_index = dialog_result.get("insert_at_index", 0)
     try:
         with owner.busy_cursor():
-            import_pdf_pages(
-                owner.current_preview_path,
-                dialog_result["source_path"],
-                dialog_result["insert_at_index"],
-            )
+            current_insert_index = initial_insert_index
+            for source_path in source_paths:
+                import_pdf_pages(owner.current_preview_path, source_path, current_insert_index)
+                current_insert_index += get_pdf_page_count(source_path)
             show_pdf_feed(owner, owner.current_preview_path)
             update_pdf_save_button_state(owner)
     except Exception as exc:
@@ -1711,7 +1762,7 @@ def on_preview_zoom_in(event):
                 show_pdf_feed(owner, owner.current_preview_path)
             return
 
-        if office_preview.can_preview_office(owner.current_preview_path):
+        if is_office_preview_allowed(owner, owner.current_preview_path):
             with owner.busy_cursor():
                 owner.pdf_preview_zoom = min(getattr(owner, "pdf_preview_zoom", 1.0) * 1.25, 3.0)
                 owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
@@ -1747,7 +1798,7 @@ def on_preview_zoom_out(event):
                 show_pdf_feed(owner, owner.current_preview_path)
             return
 
-        if office_preview.can_preview_office(owner.current_preview_path):
+        if is_office_preview_allowed(owner, owner.current_preview_path):
             with owner.busy_cursor():
                 owner.pdf_preview_zoom = max(getattr(owner, "pdf_preview_zoom", 1.0) / 1.25, 0.4)
                 owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL

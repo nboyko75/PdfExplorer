@@ -112,6 +112,7 @@ TRANSLATIONS = {
     "modified_column": "Змінено",
     "preview_select_file": "Виберіть файл для попереднього перегляду.",
     "preview_checkbox_label": "Попередній перегляд",
+    "preview_ms_office_checkbox_label": "MS Office",
     "folder_selected": "Вибрано папку:\n{path}",
     "no_preview_available": "Попередній перегляд цього елемента недоступний.",
     "unable_preview_pdf": "Не вдалося переглянути PDF.\n{exc}",
