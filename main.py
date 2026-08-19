@@ -14,6 +14,7 @@ import controls.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
 import controls.scanform as scanform
+import controls.about_form as about_form
 
 
 LANGUAGE_CHOICES = [
@@ -275,28 +276,7 @@ class FileExplorer(wx.Frame):
             self.refresh_tree_placeholders()
 
     def on_about(self, _):
-        dialog = wx.Dialog(self, title=tr("menu_about"), size=(420, 220))
-        panel = wx.Panel(dialog)
-
-        title = wx.StaticText(panel, label=tr("app_title"), style=wx.ALIGN_CENTRE)
-        title.SetFont(wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-
-        version = wx.StaticText(panel, label="Version 1.0")
-        description = wx.StaticText(panel, label="Document Explorer")
-        copyright = wx.StaticText(panel, label="(c) PdfExplorer")
-
-        close_btn = wx.Button(panel, wx.ID_OK, tr("exit_button"))
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(title, 0, wx.ALIGN_CENTRE | wx.TOP | wx.BOTTOM, 12)
-        sizer.Add(version, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
-        sizer.Add(description, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
-        sizer.Add(copyright, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 16)
-        sizer.Add(close_btn, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 12)
-        panel.SetSizer(sizer)
-        dialog.CenterOnParent()
-        dialog.ShowModal()
-        dialog.Destroy()
+        about_form.show_about_form(self)
 
     def build_ui(self):
         self._build_main_menu_bar()
@@ -320,8 +300,8 @@ class FileExplorer(wx.Frame):
 
         toolbar.Add(self.back_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         toolbar.Add(self.forward_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
-        toolbar.Add(self.exit_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.search_in_files_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
+        toolbar.Add(self.exit_btn, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.path_box, 1, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
         toolbar.Add(self.hidden_chk, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 10)
 

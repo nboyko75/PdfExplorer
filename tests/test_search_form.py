@@ -24,7 +24,7 @@ from localization import load_locale, tr
 class SearchFilesTests(unittest.TestCase):
     def setUp(self):
         load_locale("en")
-        self.temp_dir = tempfile.mkdtemp(prefix="pdfexplorer-search-")
+        self.temp_dir = tempfile.mkdtemp(prefix="docexplorer-search-")
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
