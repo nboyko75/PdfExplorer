@@ -7,7 +7,46 @@ from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 import file_operations.image_utils as image_utils
 import controls.file_preview as file_preview
+import controls.drag_and_drop as drag_and_drop
 from controls.window_tools import load_settings, update_settings
+
+
+class FileListDropTarget(drag_and_drop.FileListDropTarget):
+    def OnDropFiles(self, x, y, filenames):
+        if not filenames:
+            return False
+
+        if not hasattr(self.owner, "path_box"):
+            return False
+
+        target_dir = self.owner.path_box.GetValue()
+        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
+            return False
+
+        errors = []
+        for source_path in filenames:
+            if not isinstance(source_path, str) or not source_path:
+                continue
+
+            source_name = os.path.basename(source_path.rstrip("\\/"))
+            destination_path = os.path.join(target_dir, source_name)
+            if os.path.exists(destination_path):
+                destination_path = _build_non_conflicting_path(destination_path)
+
+            try:
+                if os.path.isdir(source_path):
+                    shutil.copytree(source_path, destination_path)
+                else:
+                    shutil.copy2(source_path, destination_path)
+            except Exception as exc:
+                errors.append(f"{source_path}: {exc}")
+
+        if errors:
+            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+        else:
+            _refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
+
+        return True
 
 
 CLIPBOARD_MODE_COPY = "copy"
@@ -147,6 +186,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
 
     owner.list = wx.ListCtrl(owner.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+    owner.list.SetDropTarget(FileListDropTarget(owner))
     owner.list.InsertColumn(0, tr("name_column"), width=450)
     owner.list.InsertColumn(1, tr("type_column"), width=120)
     owner.list.InsertColumn(2, tr("size_column"), width=120)
@@ -167,6 +207,7 @@ def bind_list_events(owner):
     owner.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, owner.on_open_item)
     owner.list.Bind(wx.EVT_RIGHT_DOWN, owner.on_right_click)
     owner.list.Bind(wx.EVT_LIST_COL_CLICK, owner.on_list_column_click)
+    owner.list.Bind(wx.EVT_LIST_BEGIN_DRAG, owner.on_list_begin_drag)
 
     owner.list_scan_btn.Bind(wx.EVT_BUTTON, owner.on_list_scan)
     owner.list_open_btn.Bind(wx.EVT_BUTTON, owner.on_list_open)
@@ -407,6 +448,21 @@ def get_selected_list_path(owner):
         return None
 
     return selected_paths[0]
+
+
+def on_list_begin_drag(owner, event):
+    selected_paths = get_selected_list_paths(owner)
+    file_paths = [path for path in selected_paths if path and os.path.exists(path)]
+    if not file_paths:
+        return
+
+    file_data = wx.FileDataObject()
+    for path in file_paths:
+        file_data.AddFile(path)
+
+    drag_source = wx.DropSource(owner.list)
+    drag_source.SetData(file_data)
+    drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
 def get_selected_list_paths(owner):

@@ -8,8 +8,8 @@ from localization import tr, load_locale, available_locales
 from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
 from controls.options_form import show_options_form
 import controls.tree_utils as tree_utils
+import controls.drag_and_drop as drag_and_drop
 import file_operations.image_utils as image_utils
-import file_operations.pdf_dragdrop as pdf_dragdrop
 import controls.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
@@ -534,22 +534,22 @@ class FileExplorer(wx.Frame):
                 file_preview.refresh_preview_for_page_view_mode(self, self.current_preview_path)
 
     def create_drag_overlay(self):
-        return pdf_dragdrop.create_drag_overlay(self)
+        return drag_and_drop.create_drag_overlay(self)
 
     def show_drag_overlay(self, page_index, page_panel, x, y):
-        pdf_dragdrop.show_drag_overlay(self, page_index, page_panel, x, y)
+        drag_and_drop.show_drag_overlay(self, page_index, page_panel, x, y)
 
     def hide_drag_overlay(self):
-        pdf_dragdrop.hide_drag_overlay(self)
+        drag_and_drop.hide_drag_overlay(self)
 
     def create_drop_frame(self):
-        return pdf_dragdrop.create_drop_frame(self)
+        return drag_and_drop.create_drop_frame(self)
 
     def show_drop_frame(self, page_index, page_panel, x, y):
-        pdf_dragdrop.show_drop_frame(self, page_index, page_panel, x, y)
+        drag_and_drop.show_drop_frame(self, page_index, page_panel, x, y)
 
     def hide_drop_frame(self):
-        pdf_dragdrop.hide_drop_frame(self)
+        drag_and_drop.hide_drop_frame(self)
 
     def show_file_preview(self, path):
         file_preview.show_file_preview(self, path)
@@ -717,6 +717,9 @@ class FileExplorer(wx.Frame):
     def on_list_select(self, event):
         filelist.on_list_select(self, event)
         self._update_main_menu_state()
+
+    def on_list_begin_drag(self, event):
+        filelist.on_list_begin_drag(self, event)
 
     def on_list_deselect(self, event):
         filelist.on_list_deselect(self, event)

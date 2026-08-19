@@ -312,6 +312,44 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         self.assertTrue(owner.preview_checkbox.GetValue())
 
+    def test_file_list_drag_out_adds_selected_files_to_drag_data(self):
+        filelist = __import__("controls.filelist", fromlist=["on_list_begin_drag", "get_selected_list_paths"])
+        owner = types.SimpleNamespace(list=object())
+        selected_paths = ["C:/first.txt", "C:/second.txt"]
+
+        with mock.patch.object(filelist, "get_selected_list_paths", return_value=selected_paths), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in selected_paths), \
+             mock.patch.object(filelist.wx, "FileDataObject") as mocked_file_data, \
+             mock.patch.object(filelist.wx, "DropSource") as mocked_drop_source:
+            data = mock.MagicMock()
+            mocked_file_data.return_value = data
+            src = mock.MagicMock()
+            mocked_drop_source.return_value = src
+
+            filelist.on_list_begin_drag(owner, None)
+
+        data.AddFile.assert_has_calls([mock.call("C:/first.txt"), mock.call("C:/second.txt")])
+        mocked_drop_source.assert_called_once_with(owner.list)
+        src.SetData.assert_called_once_with(data)
+        src.DoDragDrop.assert_called_once_with(filelist.wx.Drag_AllowMove)
+
+    def test_list_pane_accepts_files_dropped_from_explorer(self):
+        filelist = __import__("controls.filelist", fromlist=["FileListDropTarget"])
+        owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), list=mock.MagicMock())
+
+        with mock.patch.object(filelist, "_build_non_conflicting_path", side_effect=lambda path: path), \
+             mock.patch.object(filelist.shutil, "copy2") as mocked_copy, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: path == "C:/current"), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in {"C:/current", "C:/drop.txt"}):
+            drop_target = filelist.FileListDropTarget(owner)
+            result = drop_target.OnDropFiles(0, 0, ["C:/drop.txt"])
+
+        expected_destination = os.path.join("C:/current", "drop.txt")
+        self.assertTrue(result)
+        mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
+
     def test_handle_file_ops_shortcut_supports_delete_key(self):
         filelist = __import__("controls.filelist", fromlist=["handle_file_ops_shortcut", "on_list_delete", "on_tree_delete"])
         owner = types.SimpleNamespace(

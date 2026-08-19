@@ -1,7 +1,121 @@
+import os
+import shutil
+
 import wx
 
 from localization import tr
 from file_operations.pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_page
+
+
+class FileListDropTarget(wx.FileDropTarget):
+    def __init__(self, owner):
+        super().__init__()
+        self.owner = owner
+
+    def OnDropFiles(self, x, y, filenames):
+        if not filenames:
+            return False
+
+        if not hasattr(self.owner, "path_box"):
+            return False
+
+        target_dir = self.owner.path_box.GetValue()
+        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
+            return False
+
+        errors = []
+        for source_path in filenames:
+            if not isinstance(source_path, str) or not source_path:
+                continue
+
+            source_name = os.path.basename(source_path.rstrip("\\/"))
+            destination_path = os.path.join(target_dir, source_name)
+            if os.path.exists(destination_path):
+                destination_path = _build_non_conflicting_path(destination_path)
+
+            try:
+                if os.path.isdir(source_path):
+                    shutil.copytree(source_path, destination_path)
+                else:
+                    shutil.copy2(source_path, destination_path)
+            except Exception as exc:
+                errors.append(f"{source_path}: {exc}")
+
+        if errors:
+            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+        else:
+            _refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
+
+        return True
+
+
+def _build_non_conflicting_path(target_path):
+    if not os.path.exists(target_path):
+        return target_path
+
+    directory = os.path.dirname(target_path)
+    base_name = os.path.basename(target_path)
+    name, ext = os.path.splitext(base_name)
+
+    for suffix in [" - Copy"] + [f" - Copy ({index})" for index in range(2, 1000)]:
+        candidate = os.path.join(directory, f"{name}{suffix}{ext}")
+        if not os.path.exists(candidate):
+            return candidate
+
+    raise FileExistsError(base_name)
+
+
+def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
+    if hasattr(owner, "path_box"):
+        current_folder = owner.path_box.GetValue() if hasattr(owner.path_box, "GetValue") else ""
+        if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder):
+            if hasattr(owner, "load_folder"):
+                owner.load_folder(current_folder)
+
+    if preferred_preview_path and os.path.isfile(preferred_preview_path):
+        if hasattr(owner, "current_preview_path"):
+            owner.current_preview_path = preferred_preview_path
+        if hasattr(owner, "show_file_preview"):
+            owner.show_file_preview(preferred_preview_path)
+
+    if affected_dirs is not None:
+        for folder in affected_dirs:
+            if isinstance(folder, str) and folder and hasattr(owner, "load_folder"):
+                try:
+                    owner.load_folder(folder)
+                except Exception:
+                    pass
+
+
+def on_list_begin_drag(owner, event):
+    list_ctrl = getattr(owner, "list", None)
+    if list_ctrl is None:
+        return
+
+    current_folder = ""
+    path_box = getattr(owner, "path_box", None)
+    if path_box is not None and hasattr(path_box, "GetValue"):
+        current_folder = path_box.GetValue() or ""
+
+    selected_paths = []
+    index = list_ctrl.GetFirstSelected()
+    while index != wx.NOT_FOUND:
+        name = list_ctrl.GetItemText(index)
+        if isinstance(name, str):
+            selected_paths.append(os.path.join(current_folder, name))
+        index = list_ctrl.GetNextSelected(index)
+
+    file_paths = [path for path in selected_paths if path and os.path.exists(path)]
+    if not file_paths:
+        return
+
+    file_data = wx.FileDataObject()
+    for path in file_paths:
+        file_data.AddFile(path)
+
+    drag_source = wx.DropSource(list_ctrl)
+    drag_source.SetData(file_data)
+    drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
 class PdfPageDropTarget(wx.DropTarget):
@@ -66,8 +180,7 @@ class PdfPageDropTarget(wx.DropTarget):
                     owner_drop_handler(self.page_index, self.data.GetText(), insert_before=insert_before)
                 else:
                     handle_pdf_page_drop(self.owner, self.page_index, self.data.GetText(), insert_before=insert_before)
-        except Exception as exc:
-            ## wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+        except Exception:
             pass
         return wx.DragCopy
 
@@ -219,27 +332,21 @@ def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
             except Exception:
                 page_count = None
 
-            if insert_before:
-                to_index = target_index
-            else:
-                to_index = target_index + 1
+            if page_count is None:
+                return
 
-            if page_count is not None:
-                to_index = max(0, min(to_index, page_count - 1))
+            if source_index == target_index:
+                return
 
-            move_pdf_page(owner.current_pdf_path, source_index, to_index)
-            
-            if source_index < to_index:
-                result_index = to_index - 1
-            else:
-                result_index = to_index
+            if source_index < target_index and insert_before:
+                target_index -= 1
 
-            refresh_feed = getattr(owner, "show_pdf_feed", None)
-            if callable(refresh_feed):
-                wx.CallAfter(refresh_feed, owner.current_pdf_path)
-    except Exception as exc:
-        wx.MessageBox(
-            tr("unable_move_pdf_page", exc=exc),
-            tr("page_move_error_title"),
-            style=wx.OK | wx.ICON_ERROR,
-        )
+            if source_index < target_index and not insert_before:
+                target_index -= 1
+
+            try:
+                move_pdf_page(owner.current_pdf_path, source_index, target_index)
+            except Exception:
+                pass
+    except Exception:
+        pass

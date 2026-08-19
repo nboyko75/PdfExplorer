@@ -8,11 +8,12 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     wx_html2 = None
 
 from localization import tr
+import controls.drag_and_drop as drag_and_drop
+from controls.drag_and_drop import PdfPageDropTarget
 from controls.window_tools import load_settings, update_settings
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview
-import file_operations.pdf_dragdrop as pdf_dragdrop
 import file_operations.pdf_utils as pdf_utils
 
 
@@ -263,6 +264,7 @@ def update_page_buttons_state(owner):
     owner.preview_remove_page_btn.Enable(can_select_pdf_page)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
+    ## don't remove these lines, they prevent superfluous office doc calls at update_load_all_btn_state
     ## update_load_all_btn_state is called on file select only to avoid duplicate calls
     ## update_load_all_btn_state(owner)
 
@@ -749,15 +751,15 @@ def on_pdf_page_select(owner, event):
 def on_pdf_page_drag_motion(owner, event):
     if not is_pdf_file(getattr(owner, "current_preview_path", None)):
         return
-    pdf_dragdrop.on_pdf_page_drag_motion(owner, event)
+    drag_and_drop.on_pdf_page_drag_motion(owner, event)
 
 
 def _start_pdf_page_drag(owner, page_panel):
-    pdf_dragdrop.start_pdf_page_drag(owner, page_panel)
+    drag_and_drop.start_pdf_page_drag(owner, page_panel)
 
 
 def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
-    pdf_dragdrop.handle_pdf_page_drop(owner, target_index, payload, insert_before=insert_before)
+    drag_and_drop.handle_pdf_page_drop(owner, target_index, payload, insert_before=insert_before)
 
 
 def clear_pdf_feed(owner):
@@ -907,13 +909,13 @@ def show_pdf_feed(owner, path, force_all_pages=False):
             leading_gap.SetMinSize((gap_width, page_height))
             leading_gap.page_index = 0
             leading_gap.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
-            leading_gap.SetDropTarget(pdf_dragdrop.PdfPageDropTarget(owner, 0, leading_gap, insert_before=True))
+            leading_gap.SetDropTarget(PdfPageDropTarget(owner, 0, leading_gap, insert_before=True))
             owner.pdf_pages_sizer.Add(leading_gap, 0, wx.ALL, 0)
 
             for index, (page_no, bitmap) in enumerate(previews):
                 page_panel = wx.Panel(owner.pdf_pages_panel, style=wx.BORDER_SIMPLE)
                 page_panel.page_index = index
-                page_panel.SetDropTarget(pdf_dragdrop.PdfPageDropTarget(owner, index, page_panel))
+                page_panel.SetDropTarget(PdfPageDropTarget(owner, index, page_panel))
 
                 def make_select_handler(owner_ref):
                     return lambda evt: on_pdf_page_select_wrapper(owner_ref, evt)
@@ -946,14 +948,14 @@ def show_pdf_feed(owner, path, force_all_pages=False):
                 gap_panel.SetMinSize((gap_width, page_height))
                 gap_panel.page_index = index + 1
                 gap_panel.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
-                gap_panel.SetDropTarget(pdf_dragdrop.PdfPageDropTarget(owner, index + 1, gap_panel, insert_before=True))
+                gap_panel.SetDropTarget(PdfPageDropTarget(owner, index + 1, gap_panel, insert_before=True))
                 owner.pdf_pages_sizer.Add(gap_panel, 0, wx.ALL, 0)
 
             trailing_gap = wx.Panel(owner.pdf_pages_panel, size=(gap_width, page_height), style=wx.BORDER_NONE)
             trailing_gap.SetMinSize((gap_width, page_height))
             trailing_gap.page_index = page_count
             trailing_gap.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
-            trailing_gap.SetDropTarget(pdf_dragdrop.PdfPageDropTarget(owner, page_count, trailing_gap, insert_before=False))
+            trailing_gap.SetDropTarget(PdfPageDropTarget(owner, page_count, trailing_gap, insert_before=False))
             owner.pdf_pages_sizer.Add(trailing_gap, 0, wx.ALL, 0)
 
             if page_count > shown_pages:
