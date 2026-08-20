@@ -625,9 +625,32 @@ def _remove_tree_item_for_path(owner, path):
 
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+    normalized_current_folder = os.path.normpath(current_folder) if isinstance(current_folder, str) and current_folder else None
+
+    selected_tree_path = None
+    if hasattr(owner, "tree") and owner.tree is not None:
+        try:
+            selected_item = owner.tree.GetSelection()
+        except Exception:
+            selected_item = None
+        if selected_item and selected_item.IsOk():
+            item_path = owner.tree.GetItemData(selected_item)
+            if isinstance(item_path, str) and item_path:
+                selected_tree_path = os.path.normpath(item_path)
+
     if current_folder and os.path.isdir(current_folder):
         owner.load_folder(current_folder)
         _refresh_tree_node(owner, current_folder)
+
+    if selected_tree_path and os.path.isdir(selected_tree_path):
+        if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(selected_tree_path):
+            _refresh_tree_node(owner, selected_tree_path)
+
+    if affected_dirs is not None:
+        for folder in affected_dirs:
+            if isinstance(folder, str) and folder and os.path.isdir(folder):
+                if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(os.path.normpath(folder)):
+                    _refresh_tree_node(owner, folder)
 
     if preferred_preview_path and os.path.isfile(preferred_preview_path):
         file_preview.show_file_preview(owner, preferred_preview_path)
@@ -708,7 +731,7 @@ def on_list_rename(owner, _):
     new_path = os.path.join(os.path.dirname(path), new_name)
     try:
         os.rename(path, new_path)
-        owner.load_folder(owner.path_box.GetValue())
+        _refresh_after_fs_change(owner, affected_dirs=[os.path.dirname(path)])
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 

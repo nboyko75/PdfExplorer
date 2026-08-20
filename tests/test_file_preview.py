@@ -368,6 +368,34 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_list_delete.assert_called_once_with(owner, None)
         mocked_tree_delete.assert_not_called()
 
+    def test_list_rename_refreshes_selected_tree_folder(self):
+        filelist = __import__("controls.filelist", fromlist=["on_list_rename", "_refresh_after_fs_change"])
+        owner = types.SimpleNamespace(
+            list=mock.MagicMock(),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"),
+            load_folder=mock.MagicMock(),
+            tree=mock.MagicMock(),
+            current_preview_path=None,
+        )
+        owner.list.GetFirstSelected.return_value = 0
+        owner.list.GetItemText.return_value = "old.txt"
+        owner.list.GetNextSelected.return_value = filelist.wx.NOT_FOUND
+        owner.tree.GetSelection.return_value = None
+
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = filelist.wx.ID_OK
+        dialog.GetValue.return_value = "new.txt"
+
+        with mock.patch.object(filelist.os, "rename") as mocked_rename, \
+             mock.patch.object(filelist.wx, "TextEntryDialog", return_value=dialog), \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh:
+            filelist.on_list_rename(owner, None)
+
+        expected_old = os.path.join("C:/current", "old.txt")
+        expected_new = os.path.join("C:/current", "new.txt")
+        mocked_rename.assert_called_once_with(expected_old, expected_new)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
+
     def test_list_panel_allows_multiple_selection_style(self):
         filelist = __import__("controls.filelist", fromlist=["build_list_panel"])
 
