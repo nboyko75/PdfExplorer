@@ -3,8 +3,14 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 
 from file_operations.pdf_utils import DEFAULT_SHOW_PAGES_LIMIT, _get_show_pages_limit_for_path
+
+try:
+    import win32com.client as win32_client
+except ImportError:  # pragma: no cover - optional runtime dependency
+    win32_client = None
 
 try:
     import pythoncom
@@ -25,6 +31,7 @@ _OFFICE_EXTENSIONS = {
     ".pptx",
     ".pptm",
 }
+_OFFICE_OPEN_CHECK_TIMEOUT = 0.5
 
 
 def _run_powershell_office_export(script_body, source_path, output_pdf):
@@ -62,6 +69,88 @@ def can_preview_office(path):
         return False
     _, ext = os.path.splitext(path)
     return ext.lower() in _OFFICE_EXTENSIONS
+
+
+def _is_office_file_open_sync(path):
+    if not isinstance(path, str) or not os.path.isfile(path):
+        return False
+
+    if sys.platform != "win32" or win32_client is None:
+        return False
+
+    normalized_target = os.path.normcase(os.path.normpath(os.path.abspath(path)))
+    ext = os.path.splitext(path)[1].lower()
+    app_names = []
+    if ext in {".doc", ".docx", ".docm"}:
+        app_names = ["Word.Application"]
+    elif ext in {".xls", ".xlsx", ".xlsm"}:
+        app_names = ["Excel.Application"]
+    elif ext in {".ppt", ".pptx", ".pptm"}:
+        app_names = ["PowerPoint.Application"]
+    else:
+        return False
+
+    for app_name in app_names:
+        try:
+            app = win32_client.GetActiveObject(app_name)
+        except Exception:
+            continue
+
+        try:
+            if app_name.startswith("Word"):
+                documents = getattr(app, "Documents", None)
+                if documents is not None:
+                    for document in documents:
+                        try:
+                            if os.path.normcase(os.path.normpath(os.path.abspath(document.FullName))) == normalized_target:
+                                return True
+                        except Exception:
+                            continue
+            elif app_name.startswith("Excel"):
+                workbooks = getattr(app, "Workbooks", None)
+                if workbooks is not None:
+                    for workbook in workbooks:
+                        try:
+                            if os.path.normcase(os.path.normpath(os.path.abspath(workbook.FullName))) == normalized_target:
+                                return True
+                        except Exception:
+                            continue
+            elif app_name.startswith("PowerPoint"):
+                presentations = getattr(app, "Presentations", None)
+                if presentations is not None:
+                    for presentation in presentations:
+                        try:
+                            if os.path.normcase(os.path.normpath(os.path.abspath(presentation.FullName))) == normalized_target:
+                                return True
+                        except Exception:
+                            continue
+        except Exception:
+            pass
+
+    return False
+
+
+def is_office_file_open(path):
+    if not isinstance(path, str) or not os.path.isfile(path):
+        return False
+
+    if sys.platform != "win32" or win32_client is None:
+        return False
+
+    result = {"value": False}
+
+    def worker():
+        try:
+            result["value"] = _is_office_file_open_sync(path)
+        except Exception:
+            result["value"] = False
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    thread.join(timeout=_OFFICE_OPEN_CHECK_TIMEOUT)
+    if thread.is_alive():
+        return False
+    return bool(result["value"])
 
 
 def _build_cached_preview_pdf_path(path):

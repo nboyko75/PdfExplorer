@@ -5,6 +5,8 @@ import wx
 
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
+from file_operations.office_preview import is_office_file_open
+import file_operations.copy_and_paste as copy_and_paste
 import file_operations.image_utils as image_utils
 import controls.file_preview as file_preview
 import controls.drag_and_drop as drag_and_drop
@@ -49,8 +51,44 @@ class FileListDropTarget(drag_and_drop.FileListDropTarget):
         return True
 
 
-CLIPBOARD_MODE_COPY = "copy"
-CLIPBOARD_MODE_CUT = "cut"
+CLIPBOARD_MODE_COPY = copy_and_paste.CLIPBOARD_MODE_COPY
+CLIPBOARD_MODE_CUT = copy_and_paste.CLIPBOARD_MODE_CUT
+
+
+def _set_clipboard(owner, paths, mode):
+    return copy_and_paste._set_clipboard(owner, paths, mode, update_list_toolbar_buttons)
+
+
+def _get_clipboard_paths(owner):
+    return copy_and_paste._get_clipboard_paths(owner)
+
+
+def _get_clipboard_mode(owner):
+    return copy_and_paste._get_clipboard_mode(owner)
+
+
+def _can_paste_into_directory(owner, target_dir):
+    return copy_and_paste._can_paste_into_directory(owner, target_dir)
+
+
+def _unique_preserving_order(paths):
+    return copy_and_paste._unique_preserving_order(paths)
+
+
+def _confirm_overwrite_existing_path(owner, target_path):
+    return copy_and_paste._confirm_overwrite_existing_path(owner, target_path)
+
+
+def _build_non_conflicting_path(target_path):
+    return copy_and_paste._build_non_conflicting_path(target_path)
+
+
+def _resolve_tree_selection_path(owner):
+    return copy_and_paste._resolve_tree_selection_path(owner)
+
+
+def _resolve_paste_target_directory(path):
+    return copy_and_paste._resolve_paste_target_directory(path)
 
 
 def save_list_view_state(owner):
@@ -480,89 +518,6 @@ def get_selected_list_paths(owner):
     return selected_paths
 
 
-def _set_clipboard(owner, paths, mode):
-    if mode not in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT):
-        return
-
-    owner.file_clipboard_paths = [os.path.normpath(path) for path in paths]
-    owner.file_clipboard_mode = mode
-    update_list_toolbar_buttons(owner)
-
-
-def _get_clipboard_paths(owner):
-    paths = getattr(owner, "file_clipboard_paths", None)
-    if not isinstance(paths, list):
-        return []
-    return [path for path in paths if isinstance(path, str) and path]
-
-
-def _get_clipboard_mode(owner):
-    mode = getattr(owner, "file_clipboard_mode", None)
-    if mode in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT):
-        return mode
-    return None
-
-
-def _can_paste_into_directory(owner, target_dir):
-    return bool(os.path.isdir(target_dir) and _get_clipboard_mode(owner) and _get_clipboard_paths(owner))
-
-
-def _unique_preserving_order(paths):
-    unique_paths = []
-    seen = set()
-    for path in paths:
-        normalized = os.path.normcase(os.path.normpath(path))
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        unique_paths.append(path)
-    return unique_paths
-
-
-def _build_non_conflicting_path(target_path):
-    if not os.path.exists(target_path):
-        return target_path
-
-    directory = os.path.dirname(target_path)
-    base_name = os.path.basename(target_path)
-    name, ext = os.path.splitext(base_name)
-
-    for suffix in [" - Copy"] + [f" - Copy ({index})" for index in range(2, 1000)]:
-        candidate = os.path.join(directory, f"{name}{suffix}{ext}")
-        if not os.path.exists(candidate):
-            return candidate
-
-    raise FileExistsError(base_name)
-
-
-def _resolve_tree_selection_path(owner):
-    if not hasattr(owner, "tree") or owner.tree is None:
-        return None
-
-    selected_item = owner.tree.GetSelection()
-    if selected_item and selected_item.IsOk():
-        item_path = owner.tree.GetItemData(selected_item)
-        if isinstance(item_path, str) and item_path:
-            return os.path.normpath(item_path)
-
-    if hasattr(owner, "path_box"):
-        value = owner.path_box.GetValue()
-        if isinstance(value, str) and value:
-            return os.path.normpath(value)
-    return None
-
-
-def _resolve_paste_target_directory(path):
-    if not isinstance(path, str) or not path:
-        return None
-    normalized = os.path.normpath(path)
-    if os.path.isdir(normalized):
-        return normalized
-    if os.path.isfile(normalized):
-        return os.path.dirname(normalized)
-    return None
-
-
 def _refresh_tree_node(owner, folder_path):
     if not isinstance(folder_path, str) or not folder_path:
         return
@@ -663,21 +618,15 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
 
 
 def on_list_copy(owner, _):
-    paths = get_selected_list_paths(owner)
-    if not paths:
-        return
-    _set_clipboard(owner, _unique_preserving_order(paths), CLIPBOARD_MODE_COPY)
+    return copy_and_paste.on_list_copy(owner, _)
 
 
 def on_list_cut(owner, _):
-    paths = get_selected_list_paths(owner)
-    if not paths:
-        return
-    _set_clipboard(owner, _unique_preserving_order(paths), CLIPBOARD_MODE_CUT)
+    return copy_and_paste.on_list_cut(owner, _)
 
 
 def on_list_paste(owner, _):
-    paste_into_path(owner, owner.path_box.GetValue())
+    return paste_into_path(owner, owner.path_box.GetValue())
 
 
 def on_list_scan(owner, _):
@@ -695,6 +644,8 @@ def open_path_or_file(owner, path):
         return True
 
     if os.path.isfile(path):
+        if is_office_file_open(path):
+            return True
         try:
             os.startfile(path)
             return True
@@ -847,54 +798,19 @@ def delete_paths(owner, paths):
 
 
 def paste_into_path(owner, target_path):
-    target_dir = _resolve_paste_target_directory(target_path)
-    if not _can_paste_into_directory(owner, target_dir):
-        return
-
-    clipboard_mode = _get_clipboard_mode(owner)
-    source_paths = _unique_preserving_order(_get_clipboard_paths(owner))
-    errors = []
-    affected_dirs = [target_dir]
-    moved_preview_target = None
-    pending_cut_paths = []
-
-    for source_path in source_paths:
-        normalized_source = os.path.normpath(source_path)
-        if not os.path.exists(normalized_source):
-            continue
-
-        source_name = os.path.basename(normalized_source.rstrip("\\/"))
-        destination_path = os.path.join(target_dir, source_name)
-        if os.path.normcase(os.path.normpath(destination_path)) == os.path.normcase(normalized_source) or os.path.exists(destination_path):
-            destination_path = _build_non_conflicting_path(destination_path)
-
-        try:
-            if clipboard_mode == CLIPBOARD_MODE_COPY:
-                if os.path.isdir(normalized_source):
-                    shutil.copytree(normalized_source, destination_path)
-                else:
-                    shutil.copy2(normalized_source, destination_path)
-            else:
-                shutil.move(normalized_source, destination_path)
-
-            current_preview_path = getattr(owner, "current_preview_path", None)
-            if clipboard_mode == CLIPBOARD_MODE_CUT and current_preview_path:
-                if os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(normalized_source):
-                    moved_preview_target = destination_path
-        except Exception as exc:
-            errors.append(f"{normalized_source}: {exc}")
-            if clipboard_mode == CLIPBOARD_MODE_CUT:
-                pending_cut_paths.append(normalized_source)
-
-    if clipboard_mode == CLIPBOARD_MODE_CUT:
-        owner.file_clipboard_paths = pending_cut_paths
-        owner.file_clipboard_mode = CLIPBOARD_MODE_CUT if pending_cut_paths else None
-
-    _refresh_after_fs_change(owner, affected_dirs=affected_dirs, preferred_preview_path=moved_preview_target)
-    update_list_toolbar_buttons(owner)
-
-    if errors:
-        wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+    return copy_and_paste.paste_into_path(
+        owner,
+        target_path,
+        refresh_callback=_refresh_after_fs_change,
+        update_toolbar_callback=update_list_toolbar_buttons,
+        confirm_overwrite_callback=_confirm_overwrite_existing_path,
+        can_paste_into_directory_callback=_can_paste_into_directory,
+        resolve_target_directory_callback=_resolve_paste_target_directory,
+        get_clipboard_mode_callback=_get_clipboard_mode,
+        get_clipboard_paths_callback=_get_clipboard_paths,
+        unique_preserving_order_callback=_unique_preserving_order,
+        build_non_conflicting_path_callback=_build_non_conflicting_path,
+    )
 
 
 def on_tree_copy(owner, path=None):

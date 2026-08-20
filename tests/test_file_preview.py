@@ -212,6 +212,19 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertTrue(result)
         mocked_startfile.assert_called_once_with("file.pdf")
 
+    def test_shared_open_path_or_file_does_nothing_for_already_open_office_file(self):
+        filelist = __import__("controls.filelist", fromlist=["open_path_or_file"])
+        file_owner = types.SimpleNamespace()
+
+        with mock.patch("controls.filelist.os.path.isdir", return_value=False), \
+             mock.patch("controls.filelist.os.path.isfile", return_value=True), \
+             mock.patch("controls.filelist.is_office_file_open", return_value=True), \
+             mock.patch("controls.filelist.os.startfile") as mocked_startfile:
+            result = filelist.open_path_or_file(file_owner, "file.docx")
+
+        self.assertTrue(result)
+        mocked_startfile.assert_not_called()
+
     def test_preview_checkbox_toggle_does_not_restore_last_preview_when_reenabled(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
@@ -367,6 +380,57 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertTrue(result)
         mocked_list_delete.assert_called_once_with(owner, None)
         mocked_tree_delete.assert_not_called()
+
+    def test_paste_prompts_before_overwriting_existing_file(self):
+        filelist = __import__("controls.filelist", fromlist=["paste_into_path", "_confirm_overwrite_existing_path"])
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"),
+            file_clipboard_paths=["C:/source.txt"],
+            file_clipboard_mode=filelist.CLIPBOARD_MODE_COPY,
+            current_preview_path=None,
+        )
+
+        expected_destination = os.path.normpath(os.path.join("C:/current", "source.txt"))
+        with mock.patch.object(filelist, "_can_paste_into_directory", return_value=True), \
+             mock.patch.object(filelist, "_get_clipboard_mode", return_value=filelist.CLIPBOARD_MODE_COPY), \
+             mock.patch.object(filelist, "_get_clipboard_paths", return_value=["C:/source.txt"]), \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: os.path.normpath(path) == os.path.normpath("C:/current")), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: os.path.normpath(path) in {os.path.normpath("C:/source.txt"), expected_destination}), \
+             mock.patch.object(filelist, "_confirm_overwrite_existing_path", return_value=True) as mocked_confirm, \
+             mock.patch.object(filelist.os, "remove") as mocked_remove, \
+             mock.patch.object(filelist.shutil, "copy2") as mocked_copy, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist, "update_list_toolbar_buttons"), \
+             mock.patch.object(filelist.wx, "MessageBox"):
+            filelist.paste_into_path(owner, "C:/current")
+
+        mocked_confirm.assert_called_once_with(owner, expected_destination)
+        mocked_remove.assert_called_once_with(expected_destination)
+        mocked_copy.assert_called_once_with(os.path.normpath("C:/source.txt"), expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.normpath("C:/current")], preferred_preview_path=None)
+
+    def test_paste_cut_refreshes_source_folder_tree(self):
+        filelist = __import__("controls.filelist", fromlist=["paste_into_path", "CLIPBOARD_MODE_CUT"])
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"),
+            file_clipboard_paths=["C:/source/old.txt"],
+            file_clipboard_mode=filelist.CLIPBOARD_MODE_CUT,
+            current_preview_path=None,
+        )
+
+        with mock.patch.object(filelist, "_can_paste_into_directory", return_value=True), \
+             mock.patch.object(filelist, "_get_clipboard_mode", return_value=filelist.CLIPBOARD_MODE_CUT), \
+             mock.patch.object(filelist, "_get_clipboard_paths", return_value=["C:/source/old.txt"]), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: os.path.normpath(path) in {os.path.normpath("C:/source/old.txt")}), \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: os.path.normpath(path) in {os.path.normpath("C:/current"), os.path.normpath("C:/source")}), \
+             mock.patch.object(filelist.shutil, "move") as mocked_move, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist, "update_list_toolbar_buttons"), \
+             mock.patch.object(filelist.wx, "MessageBox"):
+            filelist.paste_into_path(owner, "C:/current")
+
+        mocked_move.assert_called_once_with(os.path.normpath("C:/source/old.txt"), os.path.normpath(os.path.join("C:/current", "old.txt")))
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.normpath("C:/current"), os.path.normpath("C:/source")], preferred_preview_path=None)
 
     def test_list_rename_refreshes_selected_tree_folder(self):
         filelist = __import__("controls.filelist", fromlist=["on_list_rename", "_refresh_after_fs_change"])
@@ -543,6 +607,22 @@ class FilePreviewManualZoomTests(unittest.TestCase):
             self.assertEqual(office_preview.get_office_document_page_count("sample.docx"), 12)
 
         mocked_run.assert_called_once()
+
+    def test_is_office_file_open_uses_timeout_guard_for_hung_office_check(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["is_office_file_open"])
+
+        with mock.patch.object(office_preview.sys, "platform", "win32"), \
+             mock.patch.object(office_preview, "win32_client", mock.Mock()), \
+             mock.patch.object(office_preview.threading, "Thread") as mocked_thread:
+            worker = mock.Mock()
+            worker.is_alive.return_value = True
+            mocked_thread.return_value = worker
+            with mock.patch("controls.file_preview.os.path.isfile", return_value=True):
+                self.assertFalse(office_preview.is_office_file_open("sample.docx"))
+
+        mocked_thread.assert_called_once()
+        worker.start.assert_called_once()
+        worker.join.assert_called_once_with(timeout=office_preview._OFFICE_OPEN_CHECK_TIMEOUT)
 
 
 class OfficePreviewLimitTests(unittest.TestCase):
