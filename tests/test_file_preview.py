@@ -176,6 +176,118 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.current_html_zoom, 1.25)
         mocked_show_html_preview.assert_called_once_with(owner, "sample.html")
 
+    def test_show_file_preview_for_plain_text_file(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path=None,
+            preview_enabled=True,
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as temp_file:
+            temp_file.write("hello from text preview")
+            temp_path = temp_file.name
+
+        try:
+            with mock.patch("controls.file_preview.os.path.isdir", return_value=False), \
+                 mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
+                 mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+                 mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+                 mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+                 mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+                 mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+                 mock.patch.object(file_preview, "update_page_buttons_state"), \
+                 mock.patch.object(file_preview, "update_pdf_save_button_state"):
+                file_preview.show_file_preview(owner, temp_path)
+
+            owner.preview_text.SetValue.assert_called_once_with("hello from text preview")
+            owner.preview_text.Show.assert_any_call(True)
+        finally:
+            os.unlink(temp_path)
+
+    def test_update_page_buttons_disables_zoom_when_preview_not_supported(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="unsupported.txt",
+            selected_pdf_page_panel=None,
+            preview_rotate_menu_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_import_from_file_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_export_pages_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_move_page_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_remove_page_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_adjust_page_width_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_optimize_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_zoom_in_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_zoom_out_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False):
+            file_preview.update_page_buttons_state(owner)
+
+        owner.preview_zoom_in_btn.Enable.assert_called_once_with(False)
+        owner.preview_zoom_out_btn.Enable.assert_called_once_with(False)
+
+    def test_unavailable_zoom_action_does_not_show_message_box(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="unsupported.txt",
+            preview_zoom_in_btn=types.SimpleNamespace(),
+            preview_zoom_out_btn=types.SimpleNamespace(),
+        )
+
+        with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False), \
+             mock.patch.object(file_preview.wx, "MessageBox") as mocked_message_box:
+            file_preview.on_preview_zoom_in(types.SimpleNamespace())
+
+        mocked_message_box.assert_not_called()
+
+    def test_show_html_preview_uses_integer_zoom_percent_for_webview(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_html_zoom=1.25,
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(
+                Show=mock.MagicMock(),
+                Hide=mock.MagicMock(),
+                Layout=mock.MagicMock(),
+                GetClientSize=lambda: (800, 600),
+                GetSizer=lambda: None,
+                SetSizer=mock.MagicMock(),
+            ),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+        html_preview = types.SimpleNamespace(
+            SetZoom=mock.MagicMock(),
+            LoadURL=mock.MagicMock(),
+            SetPage=mock.MagicMock(),
+            SetMinSize=mock.MagicMock(),
+            SetSize=mock.MagicMock(),
+        )
+
+        with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as temp_file:
+            temp_file.write("<html><body>test</body></html>")
+            temp_path = temp_file.name
+
+        try:
+            with mock.patch.object(file_preview, "_ensure_html_preview_widget", return_value=html_preview):
+                file_preview.show_html_preview(owner, temp_path)
+        finally:
+            os.unlink(temp_path)
+
+        html_preview.SetZoom.assert_called_once_with(125)
+
     def test_tree_file_selection_does_not_preview_file(self):
         tree_utils = __import__("controls.tree_utils", fromlist=["on_tree_select"])
         owner = types.SimpleNamespace(
@@ -380,6 +492,24 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertTrue(result)
         mocked_list_delete.assert_called_once_with(owner, None)
         mocked_tree_delete.assert_not_called()
+
+    def test_remove_tree_item_for_path_selects_immediate_parent_folder(self):
+        filelist = __import__("controls.filelist", fromlist=["_remove_tree_item_for_path"])
+        owner = types.SimpleNamespace(tree=mock.MagicMock())
+        root = mock.MagicMock()
+        root.IsOk.return_value = True
+        parent = mock.MagicMock()
+        parent.IsOk.return_value = True
+        deleted_item = mock.MagicMock()
+        deleted_item.IsOk.return_value = True
+        owner.tree.GetRootItem.return_value = root
+        owner.tree.GetItemParent.return_value = parent
+        owner.tree.GetChildrenCount.return_value = 1
+
+        with mock.patch.object(filelist, "_find_tree_item_without_expanding", return_value=deleted_item):
+            filelist._remove_tree_item_for_path(owner, "C:/folder/file.txt")
+
+        owner.tree.SelectItem.assert_called_once_with(parent)
 
     def test_paste_prompts_before_overwriting_existing_file(self):
         filelist = __import__("controls.filelist", fromlist=["paste_into_path", "_confirm_overwrite_existing_path"])

@@ -573,7 +573,9 @@ def _remove_tree_item_for_path(owner, path):
 
     if getattr(owner, "tree", None) is not None:
         try:
-            owner.tree.SelectItem(owner.tree.GetRootItem())
+            target_item = parent if parent.IsOk() else owner.tree.GetRootItem()
+            if target_item is not None and target_item.IsOk():
+                owner.tree.SelectItem(target_item)
         except Exception:
             pass
 
