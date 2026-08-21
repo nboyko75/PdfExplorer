@@ -69,7 +69,8 @@ def load_folder(owner, path):
             is_dir = True
             image_index = image_utils.get_list_icon_index(owner, full_path, is_dir=True)
         else:
-            typ = tr("file_type_file")
+            extension = os.path.splitext(name)[1].lower().lstrip(".")
+            typ = extension if extension else tr("file_type_file")
             try:
                 size_kb = os.path.getsize(full_path) // 1024
                 size = f"{size_kb} {tr('file_size_unit_kb')}"

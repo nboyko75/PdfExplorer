@@ -28,8 +28,6 @@ _resolve_tree_selection_path = copy_and_paste._resolve_tree_selection_path
 _resolve_paste_target_directory = copy_and_paste._resolve_paste_target_directory
 _build_non_conflicting_path = copy_and_paste._build_non_conflicting_path
 
-_refresh_after_fs_change = drag_and_drop._refresh_after_fs_change
-
 
 _is_archive_file = archive_helper._is_archive_file
 _build_archive_destination_path = archive_helper._build_archive_destination_path

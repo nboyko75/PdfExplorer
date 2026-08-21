@@ -78,6 +78,11 @@ def _build_non_conflicting_path(target_path):
 
 
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
+    compat_module = sys.modules.get("controls.filelist")
+    compat_helper = getattr(compat_module, "_refresh_after_fs_change", None)
+    if compat_helper is not None and compat_helper is not _refresh_after_fs_change:
+        return compat_helper(owner, affected_dirs=affected_dirs, preferred_preview_path=preferred_preview_path)
+
     if hasattr(owner, "path_box"):
         current_folder = owner.path_box.GetValue() if hasattr(owner.path_box, "GetValue") else ""
         if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder):

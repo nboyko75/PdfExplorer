@@ -151,18 +151,25 @@ def _refresh_after_archive_change(owner, archive_path):
         return
 
     archive_path = os.path.normpath(archive_path)
+    archive_folder = os.path.dirname(archive_path)
 
-    current_folder = None
-    path_box = getattr(owner, "path_box", None)
-    if path_box is not None and hasattr(path_box, "GetValue"):
-        current_folder = path_box.GetValue()
-    if isinstance(current_folder, str) and current_folder:
-        current_folder = os.path.normpath(current_folder)
-        try:
+    try:
+        if hasattr(owner, "open_path"):
+            owner.open_path(archive_folder)
+        else:
+            path_box = getattr(owner, "path_box", None)
+            if path_box is not None and hasattr(path_box, "GetValue"):
+                current_folder = path_box.GetValue()
+                if isinstance(current_folder, str) and current_folder:
+                    current_folder = os.path.normpath(current_folder)
+                    if os.path.normcase(current_folder) != os.path.normcase(archive_folder) and hasattr(owner, "load_folder"):
+                        owner.load_folder(archive_folder)
+                        if hasattr(path_box, "ChangeValue"):
+                            path_box.ChangeValue(archive_folder)
             if hasattr(owner, "load_folder"):
-                owner.load_folder(current_folder)
-        except Exception:
-            pass
+                owner.load_folder(archive_folder)
+    except Exception:
+        pass
 
     try:
         import controls.tree_utils as tree_utils

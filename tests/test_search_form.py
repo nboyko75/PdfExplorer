@@ -540,7 +540,7 @@ class SearchFilesTests(unittest.TestCase):
         self.assertEqual(captured["paths"], [file_a, file_b])
         self.assertEqual(captured["destination_path"], os.path.join(temp_dir, "bundle.zip"))
 
-    def test_archive_selected_paths_refreshes_current_folder_and_selects_new_archive(self):
+    def test_archive_selected_paths_restores_parent_folder_and_selects_new_archive(self):
         import file_operations.archive_helper as archive_helper
 
         temp_dir = tempfile.mkdtemp(prefix="docexplorer-archive-refresh-")
@@ -549,12 +549,22 @@ class SearchFilesTests(unittest.TestCase):
             handle.write("first")
 
         class FakeOwner:
-            path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: os.path.join(temp_dir, "other_folder"), ChangeValue=lambda value: setattr(self, "current_path", value))
+                self.current_path = os.path.join(temp_dir, "other_folder")
+                self.opened_path = None
+                self.loaded_folder = None
+                self.list_selected = None
+                self.tree_selected = None
 
             def busy_cursor(self):
                 from contextlib import nullcontext
 
                 return nullcontext()
+
+            def open_path(self, folder):
+                self.opened_path = folder
+                self.current_path = folder
 
             def load_folder(self, folder):
                 self.loaded_folder = folder
@@ -598,7 +608,7 @@ class SearchFilesTests(unittest.TestCase):
             archive_helper.wx.MessageBox = original_messagebox
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-        self.assertEqual(owner.loaded_folder, temp_dir)
+        self.assertEqual(owner.opened_path, temp_dir)
         self.assertEqual(owner.list_selected, os.path.join(temp_dir, "bundle.zip"))
         self.assertEqual(owner.tree_selected, os.path.join(temp_dir, "bundle.zip"))
 
