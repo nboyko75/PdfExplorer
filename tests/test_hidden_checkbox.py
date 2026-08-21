@@ -85,6 +85,21 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertEqual(called["dirs"], ["D:/Temp"])
         self.assertEqual(called["preview"], "D:/Temp/file.txt")
 
+    def test_non_conflicting_path_helper_is_single_shared_implementation(self):
+        import file_operations.copy_and_paste as copy_and_paste_module
+        import controls.drag_and_drop as drag_and_drop_module
+
+        self.assertIs(drag_and_drop_module._build_non_conflicting_path, copy_and_paste_module._build_non_conflicting_path)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target_path = os.path.join(temp_dir, "report.txt")
+            with open(target_path, "w", encoding="utf-8") as handle:
+                handle.write("first")
+
+            candidate = copy_and_paste_module._build_non_conflicting_path(target_path)
+            self.assertTrue(candidate.startswith(os.path.join(temp_dir, "report - Copy")))
+            self.assertNotEqual(candidate, target_path)
+
 
 if __name__ == "__main__":
     unittest.main()

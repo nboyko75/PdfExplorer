@@ -61,20 +61,7 @@ class FileListDropTarget(wx.FileDropTarget):
         return True
 
 
-def _build_non_conflicting_path(target_path):
-    if not os.path.exists(target_path):
-        return target_path
-
-    directory = os.path.dirname(target_path)
-    base_name = os.path.basename(target_path)
-    name, ext = os.path.splitext(base_name)
-
-    for suffix in [" - Copy"] + [f" - Copy ({index})" for index in range(2, 1000)]:
-        candidate = os.path.join(directory, f"{name}{suffix}{ext}")
-        if not os.path.exists(candidate):
-            return candidate
-
-    raise FileExistsError(base_name)
+_build_non_conflicting_path = __import__("file_operations.copy_and_paste", fromlist=["_build_non_conflicting_path"])._build_non_conflicting_path
 
 
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
