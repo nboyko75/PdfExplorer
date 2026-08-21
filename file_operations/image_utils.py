@@ -429,6 +429,36 @@ def get_shell_bitmap(fake_path, file_attr):
     return None
 
 
+def Hidden_Image(image):
+    if image is None or not image.IsOk():
+        return image
+
+    dimmed = image.Copy()
+    if not dimmed.HasAlpha():
+        dimmed.InitAlpha()
+
+    width = dimmed.GetWidth()
+    height = dimmed.GetHeight()
+
+    for y in range(height):
+        for x in range(width):
+            red = dimmed.GetRed(x, y)
+            green = dimmed.GetGreen(x, y)
+            blue = dimmed.GetBlue(x, y)
+            alpha = dimmed.GetAlpha(x, y)
+            dimmed.SetRGB(
+                x,
+                y,
+                max(0, red * 3 // 4),
+                max(0, green * 3 // 4),
+                max(0, blue * 3 // 4),
+            )
+            if dimmed.HasAlpha():
+                dimmed.SetAlpha(x, y, alpha)
+
+    return dimmed
+
+
 def get_extension_color(ext):
     value = 0
     for index, ch in enumerate(ext):
@@ -524,18 +554,47 @@ def init_list_images(owner):
     owner.list.SetImageList(owner.list_images, wx.IMAGE_LIST_SMALL)
 
 
-def get_list_icon_index(owner, path, is_dir):
+def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
     if is_dir:
-        return owner.list_icon_cache["__folder__"]
+        cache_key = "__folder__|hidden" if is_hidden_item else "__folder__"
+        cached = owner.list_icon_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        folder_bmp = get_shell_bitmap("folder", 0x00000010)
+        if not folder_bmp:
+            folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
+        if not folder_bmp.IsOk():
+            folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_TOOLBAR, (16, 16))
+        if is_hidden_item:
+            folder_bmp = Hidden_Image(folder_bmp.ConvertToImage()).ConvertToBitmap()
+        owner.list_icon_cache[cache_key] = owner.list_images.Add(folder_bmp)
+        return owner.list_icon_cache[cache_key]
 
     ext = os.path.splitext(path)[1].lower()
     if not ext:
-        return owner.list_icon_cache["__file__"]
+        cache_key = "__file__|hidden" if is_hidden_item else "__file__"
+        cached = owner.list_icon_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
-    cached = owner.list_icon_cache.get(ext)
+        file_bmp = get_shell_bitmap("file", 0x00000080)
+        if not file_bmp:
+            file_bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
+        if not file_bmp.IsOk():
+            file_bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_TOOLBAR, (16, 16))
+        if is_hidden_item:
+            file_bmp = Hidden_Image(file_bmp.ConvertToImage()).ConvertToBitmap()
+        owner.list_icon_cache[cache_key] = owner.list_images.Add(file_bmp)
+        return owner.list_icon_cache[cache_key]
+
+    cache_key = f"{ext}|hidden" if is_hidden_item else ext
+    cached = owner.list_icon_cache.get(cache_key)
     if cached is not None:
         return cached
 
     bmp = create_extension_icon_bitmap(ext)
-    owner.list_icon_cache[ext] = owner.list_images.Add(bmp)
-    return owner.list_icon_cache[ext]
+    if is_hidden_item:
+        bmp = Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap()
+    owner.list_icon_cache[cache_key] = owner.list_images.Add(bmp)
+    return owner.list_icon_cache[cache_key]

@@ -49,21 +49,34 @@ def init_tree_images(owner):
     owner.tree.AssignImageList(owner.tree_images)
 
 
-def get_tree_icon_index(owner, path, is_dir):
+def get_tree_icon_index(owner, path, is_dir, is_hidden_item=False):
     if is_dir:
+        bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
+        if not bmp.IsOk():
+            bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_TOOLBAR, (16, 16))
+        if is_hidden_item and bmp.IsOk():
+            return owner.tree_images.Add(image_utils.Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap())
         return owner.tree_icon_cache["__folder__"]
 
     ext = os.path.splitext(path)[1].lower()
     if not ext:
+        bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
+        if not bmp.IsOk():
+            bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_TOOLBAR, (16, 16))
+        if is_hidden_item and bmp.IsOk():
+            return owner.tree_images.Add(image_utils.Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap())
         return owner.tree_icon_cache["__file__"]
 
-    cached = owner.tree_icon_cache.get(ext)
+    cache_key = f"{ext}|hidden" if is_hidden_item else ext
+    cached = owner.tree_icon_cache.get(cache_key)
     if cached is not None:
         return cached
 
     bmp = image_utils.create_extension_icon_bitmap(ext)
-    owner.tree_icon_cache[ext] = owner.tree_images.Add(bmp)
-    return owner.tree_icon_cache[ext]
+    if is_hidden_item:
+        bmp = image_utils.Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap()
+    owner.tree_icon_cache[cache_key] = owner.tree_images.Add(bmp)
+    return owner.tree_icon_cache[cache_key]
 
 
 def refresh_tree_placeholders(owner):
@@ -161,11 +174,12 @@ def populate_tree_node(owner, item, path):
         child = owner.tree.AppendItem(item, name)
         owner.tree.SetItemData(child, full_path)
 
+        is_item_hidden = bool(is_hidden(full_path))
         if os.path.isdir(full_path):
-            owner.tree.SetItemImage(child, owner.tree_icon_folder)
+            owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=True, is_hidden_item=is_item_hidden))
             owner.tree.AppendItem(child, tr("tree_expand_placeholder"))
         else:
-            owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=False))
+            owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=False, is_hidden_item=is_item_hidden))
 
 
 def refresh_tree_subtree(owner, item, path):

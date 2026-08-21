@@ -8,6 +8,8 @@ from unittest import mock
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+import wx
+
 import main
 
 
@@ -99,6 +101,32 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             candidate = copy_and_paste_module._build_non_conflicting_path(target_path)
             self.assertTrue(candidate.startswith(os.path.join(temp_dir, "report - Copy")))
             self.assertNotEqual(candidate, target_path)
+
+    def test_hidden_image_makes_bitmap_dimmer(self):
+        import file_operations.image_utils as image_utils
+
+        original = wx.Image(2, 2)
+        original.SetRGB(0, 0, 255, 0, 0)
+        original.SetRGB(0, 1, 0, 255, 0)
+        original.SetRGB(1, 0, 0, 0, 255)
+        original.SetRGB(1, 1, 200, 200, 200)
+
+        dimmed = image_utils.Hidden_Image(original)
+        self.assertTrue(dimmed.IsOk())
+        self.assertLess(dimmed.GetRed(0, 0), original.GetRed(0, 0))
+        self.assertLess(dimmed.GetGreen(0, 1), original.GetGreen(0, 1))
+
+    def test_hidden_image_works_for_images_without_alpha(self):
+        import file_operations.image_utils as image_utils
+
+        image = wx.Image(2, 2)
+        image.SetRGB(0, 0, 100, 80, 60)
+        image.SetRGB(1, 1, 10, 20, 30)
+
+        dimmed = image_utils.Hidden_Image(image)
+        self.assertTrue(dimmed.IsOk())
+        self.assertTrue(dimmed.HasAlpha())
+        self.assertLess(dimmed.GetRed(0, 0), image.GetRed(0, 0))
 
 
 if __name__ == "__main__":
