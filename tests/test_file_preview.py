@@ -590,6 +590,73 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_rename.assert_called_once_with(expected_old, expected_new)
         mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
 
+    def test_tree_rename_uses_selected_tree_path(self):
+        filelist = __import__("controls.filelist", fromlist=["on_tree_rename", "_refresh_after_fs_change"])
+        owner = types.SimpleNamespace(tree=mock.MagicMock())
+        tree_path = os.path.join("C:/current", "old.txt")
+
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = filelist.wx.ID_OK
+        dialog.GetValue.return_value = "new.txt"
+
+        with mock.patch.object(filelist.os, "rename") as mocked_rename, \
+             mock.patch.object(filelist.wx, "TextEntryDialog", return_value=dialog), \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist, "_resolve_tree_selection_path", return_value=tree_path):
+            filelist.on_tree_rename(owner, None)
+
+        expected_old = tree_path
+        expected_new = os.path.join("C:/current", "new.txt")
+        mocked_rename.assert_called_once_with(expected_old, expected_new)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
+
+    def test_delete_tree_item_keeps_parent_selected_instead_of_root(self):
+        filelist = __import__("controls.filelist", fromlist=["_remove_tree_item_for_path"])
+
+        class FakeItem:
+            def __init__(self, ok=True):
+                self._ok = ok
+                self.parent = None
+
+            def IsOk(self):
+                return self._ok
+
+        class FakeTree:
+            def __init__(self):
+                self.selected = None
+                self.deleted = None
+                self.root = FakeItem()
+                self.parent = FakeItem()
+                self.item = FakeItem()
+                self.item.parent = self.parent
+
+            def GetRootItem(self):
+                return self.root
+
+            def GetItemParent(self, item):
+                return item.parent if item.parent is not None else FakeItem(ok=False)
+
+            def GetChildrenCount(self, item):
+                return 0
+
+            def AppendItem(self, parent, label):
+                return FakeItem()
+
+            def Delete(self, item):
+                self.deleted = item
+
+            def SelectItem(self, item):
+                self.selected = item
+
+        tree = FakeTree()
+        owner = types.SimpleNamespace(tree=tree)
+
+        with mock.patch.object(filelist, "_find_tree_item_without_expanding", return_value=tree.item):
+            filelist._remove_tree_item_for_path(owner, "C:/current/old.txt")
+
+        self.assertIs(tree.selected, tree.parent)
+        self.assertIs(tree.deleted, tree.item)
+
     def test_list_panel_allows_multiple_selection_style(self):
         filelist = __import__("controls.filelist", fromlist=["build_list_panel"])
 

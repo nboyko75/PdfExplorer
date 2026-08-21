@@ -40,8 +40,18 @@ def _build_archive_destination_path(path):
 
 
 def _run_command(command, cwd=None):
+    run_kwargs = {
+        "cwd": cwd,
+        "capture_output": True,
+        "text": True,
+        "check": True,
+    }
+
+    if hasattr(subprocess, "CREATE_NO_WINDOW"):
+        run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
     try:
-        return subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=True)
+        return subprocess.run(command, **run_kwargs)
     except FileNotFoundError as exc:
         raise RuntimeError(f"Required command not found: {command[0]}") from exc
     except subprocess.CalledProcessError as exc:
@@ -156,26 +166,11 @@ def _refresh_after_archive_change(owner, archive_path):
     try:
         if hasattr(owner, "open_path"):
             owner.open_path(archive_folder)
-        else:
-            path_box = getattr(owner, "path_box", None)
-            if path_box is not None and hasattr(path_box, "GetValue"):
-                current_folder = path_box.GetValue()
-                if isinstance(current_folder, str) and current_folder:
-                    current_folder = os.path.normpath(current_folder)
-                    if os.path.normcase(current_folder) != os.path.normcase(archive_folder) and hasattr(owner, "load_folder"):
-                        owner.load_folder(archive_folder)
-                        if hasattr(path_box, "ChangeValue"):
-                            path_box.ChangeValue(archive_folder)
-            if hasattr(owner, "load_folder"):
-                owner.load_folder(archive_folder)
-    except Exception:
-        pass
-
-    try:
-        import controls.tree_utils as tree_utils
-
-        if hasattr(owner, "tree") and owner.tree is not None:
-            tree_utils.refresh_tree_selection_and_filelist(owner)
+        if hasattr(owner, "load_folder"):
+            owner.load_folder(archive_folder)
+        path_box = getattr(owner, "path_box", None)
+        if path_box is not None and hasattr(path_box, "ChangeValue"):
+            path_box.ChangeValue(archive_folder)
     except Exception:
         pass
 

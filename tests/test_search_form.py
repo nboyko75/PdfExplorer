@@ -2,10 +2,12 @@ import locale
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import threading
 import types
 import unittest
+from unittest import mock
 
 import fitz
 import wx
@@ -609,8 +611,59 @@ class SearchFilesTests(unittest.TestCase):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
         self.assertEqual(owner.opened_path, temp_dir)
+        self.assertEqual(owner.loaded_folder, temp_dir)
         self.assertEqual(owner.list_selected, os.path.join(temp_dir, "bundle.zip"))
         self.assertEqual(owner.tree_selected, os.path.join(temp_dir, "bundle.zip"))
+
+    def test_archive_run_command_hides_console_window(self):
+        import file_operations.archive_helper as archive_helper
+
+        captured = {}
+
+        def fake_run(command, **kwargs):
+            captured["command"] = command
+            captured["kwargs"] = kwargs
+            return types.SimpleNamespace(stdout="", stderr="", returncode=0)
+
+        with mock.patch.object(archive_helper.subprocess, "run", side_effect=fake_run):
+            archive_helper._run_command(["powershell", "-NoProfile", "-Command", "Write-Output test"])
+
+        self.assertIn("creationflags", captured["kwargs"])
+        self.assertEqual(captured["kwargs"]["creationflags"], getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    def test_archive_refresh_only_reloads_archive_parent_folder(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-archive-parent-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+
+        class FakeOwner:
+            def __init__(self):
+                self.opened_path = None
+                self.loaded_folder = None
+                self.selected_tree_path = None
+                self.selected_list_path = None
+
+            def open_path(self, folder):
+                self.opened_path = folder
+
+            def select_tree_item_by_path(self, path):
+                self.selected_tree_path = path
+
+            def select_list_item_by_path(self, path):
+                self.selected_list_path = path
+
+        owner = FakeOwner()
+
+        with mock.patch("controls.tree_utils.refresh_tree_selection_and_filelist") as mocked_full_refresh:
+            archive_helper._refresh_after_archive_change(owner, archive_path)
+
+        self.assertEqual(owner.opened_path, temp_dir)
+        self.assertEqual(owner.selected_tree_path, archive_path)
+        self.assertEqual(owner.selected_list_path, archive_path)
+        mocked_full_refresh.assert_not_called()
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

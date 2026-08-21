@@ -339,6 +339,7 @@ def on_tree_right_click(owner, event):
     icon_manager = getattr(owner, "icon_manager", None)
 
     menu = wx.Menu()
+    open_item = menu.Append(-1, tr("context_open"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     menu.AppendSeparator()
@@ -346,17 +347,20 @@ def on_tree_right_click(owner, event):
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
+    rename_item = menu.Append(-1, tr("context_rename"))
     delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
     extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive"))
 
+    open_item.Enable(can_act_on_selection)
     new_folder_item.Enable(can_create_new_folder)
     refresh_item.Enable(True)
     copy_item.Enable(can_act_on_selection)
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
+    rename_item.Enable(can_act_on_selection)
     delete_item.Enable(can_act_on_selection)
     add_to_archive_item.Enable(bool(path and os.path.exists(path) and not archive_helper._is_archive_file(path)))
     extract_from_archive_item.Enable(bool(path and archive_helper._is_archive_file(path)))
@@ -370,6 +374,7 @@ def on_tree_right_click(owner, event):
         refresh_item.SetBitmap(refresh_bmp)
 
     if icon_manager:
+        icon_manager.set_menu_icon2(open_item, "open")
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
@@ -381,6 +386,10 @@ def on_tree_right_click(owner, event):
     paste_bmp = wx.ArtProvider.GetBitmap(wx.ART_PASTE, wx.ART_MENU, (16, 16))
     if paste_bmp.IsOk():
         paste_item.SetBitmap(paste_bmp)
+
+    rename_bmp = wx.ArtProvider.GetBitmap(wx.ART_EDIT, wx.ART_MENU, (16, 16))
+    if rename_bmp.IsOk():
+        rename_item.SetBitmap(rename_bmp)
 
     delete_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_MENU, (16, 16))
     if delete_bmp.IsOk():
@@ -406,6 +415,9 @@ def on_tree_right_click(owner, event):
     def handle_adjust_all(_):
         adjust_page_width_all_pdf_in_path(owner, path)
 
+    def handle_open(_):
+        filelist.open_path_or_file(owner, path)
+
     def handle_new_folder(_):
         filelist.create_new_folder(owner, create_target)
 
@@ -421,6 +433,9 @@ def on_tree_right_click(owner, event):
     def handle_paste(_):
         filelist.on_tree_paste(owner, path)
 
+    def handle_rename(_):
+        filelist.on_tree_rename(owner, path)
+
     def handle_delete(_):
         filelist.on_tree_delete(owner, path)
 
@@ -432,11 +447,13 @@ def on_tree_right_click(owner, event):
 
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
     owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
+    owner.Bind(wx.EVT_MENU, handle_open, open_item)
     owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
     owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
     owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
     owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
     owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
+    owner.Bind(wx.EVT_MENU, handle_rename, rename_item)
     owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
     owner.Bind(wx.EVT_MENU, handle_add_to_archive, add_to_archive_item)
     owner.Bind(wx.EVT_MENU, handle_extract_from_archive, extract_from_archive_item)

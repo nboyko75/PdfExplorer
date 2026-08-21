@@ -109,13 +109,6 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
-    owner.list_rename_btn = image_utils.create_bitmap_button(
-        owner.list_host_panel,
-        wx.ART_EDIT,
-        tr("context_rename"),
-        icon_size=list_btn_icon_size,
-        button_size=list_btn_size,
-    )
     owner.list_new_folder_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
         wx.ART_FOLDER,
@@ -145,6 +138,13 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.list_rename_btn = image_utils.create_bitmap_button(
+        owner.list_host_panel,
+        wx.ART_EDIT,
+        tr("context_rename"),
+        icon_size=list_btn_icon_size,
+        button_size=list_btn_size,
+    )
     owner.list_delete_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
         wx.ART_DELETE,
@@ -158,11 +158,11 @@ def build_list_panel(owner, parent_splitter):
 
     owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
-    owner.list_toolbar.Add(owner.list_rename_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_new_folder_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_copy_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_cut_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_paste_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_rename_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_delete_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.filter_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -388,13 +388,13 @@ def on_right_click(owner, event):
 
     scan_item = menu.Append(-1, tr("scan"))
     open_item = menu.Append(-1, tr("context_open"))
-    rename_item = menu.Append(-1, tr("context_rename"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     menu.AppendSeparator()
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
+    rename_item = menu.Append(-1, tr("context_rename"))
     delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
     menu.AppendSeparator()
 
@@ -548,11 +548,9 @@ def _remove_tree_item_for_path(owner, path):
 
     owner.tree.Delete(item)
 
-    if getattr(owner, "tree", None) is not None:
+    if parent.IsOk():
         try:
-            target_item = parent if parent.IsOk() else owner.tree.GetRootItem()
-            if target_item is not None and target_item.IsOk():
-                owner.tree.SelectItem(target_item)
+            owner.tree.SelectItem(parent)
         except Exception:
             pass
 
@@ -809,6 +807,28 @@ def on_tree_cut(owner, path=None):
 def on_tree_paste(owner, path=None):
     target_path = path or _resolve_tree_selection_path(owner)
     paste_into_path(owner, target_path)
+
+
+def on_tree_rename(owner, path=None):
+    tree_path = path or _resolve_tree_selection_path(owner)
+    if not tree_path or not os.path.exists(tree_path):
+        return
+
+    current_name = os.path.basename(tree_path)
+    dialog = wx.TextEntryDialog(owner, tr("context_rename"), tr("context_rename"), value=current_name)
+    result = dialog.ShowModal()
+    new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
+    dialog.Destroy()
+
+    if result != wx.ID_OK or not new_name or new_name == current_name:
+        return
+
+    new_path = os.path.join(os.path.dirname(tree_path), new_name)
+    try:
+        os.rename(tree_path, new_path)
+        _refresh_after_fs_change(owner, affected_dirs=[os.path.dirname(tree_path)])
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 
 
 def on_tree_delete(owner, path=None):
