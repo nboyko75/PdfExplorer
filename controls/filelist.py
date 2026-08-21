@@ -8,87 +8,33 @@ from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 from file_operations.office_preview import is_office_file_open
 import file_operations.copy_and_paste as copy_and_paste
 import file_operations.image_utils as image_utils
+import file_operations.archive_helper as archive_helper
 import controls.file_preview as file_preview
 import controls.drag_and_drop as drag_and_drop
 from controls.window_tools import load_settings, update_settings
 
-
-class FileListDropTarget(drag_and_drop.FileListDropTarget):
-    def OnDropFiles(self, x, y, filenames):
-        if not filenames:
-            return False
-
-        if not hasattr(self.owner, "path_box"):
-            return False
-
-        target_dir = self.owner.path_box.GetValue()
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return False
-
-        errors = []
-        for source_path in filenames:
-            if not isinstance(source_path, str) or not source_path:
-                continue
-
-            source_name = os.path.basename(source_path.rstrip("\\/"))
-            destination_path = os.path.join(target_dir, source_name)
-            if os.path.exists(destination_path):
-                destination_path = _build_non_conflicting_path(destination_path)
-
-            try:
-                if os.path.isdir(source_path):
-                    shutil.copytree(source_path, destination_path)
-                else:
-                    shutil.copy2(source_path, destination_path)
-            except Exception as exc:
-                errors.append(f"{source_path}: {exc}")
-
-        if errors:
-            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
-        else:
-            _refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
-
-        return True
-
-
 CLIPBOARD_MODE_COPY = copy_and_paste.CLIPBOARD_MODE_COPY
 CLIPBOARD_MODE_CUT = copy_and_paste.CLIPBOARD_MODE_CUT
 
+FileListDropTarget = drag_and_drop.FileListDropTarget
 
-def _set_clipboard(owner, paths, mode):
-    return copy_and_paste._set_clipboard(owner, paths, mode, update_list_toolbar_buttons)
+_set_clipboard = copy_and_paste._set_clipboard
+_get_clipboard_paths = copy_and_paste._get_clipboard_paths
+_get_clipboard_mode = copy_and_paste._get_clipboard_mode
+_can_paste_into_directory = copy_and_paste._can_paste_into_directory
+_unique_preserving_order = copy_and_paste._unique_preserving_order
+_confirm_overwrite_existing_path = copy_and_paste._confirm_overwrite_existing_path
+_resolve_tree_selection_path = copy_and_paste._resolve_tree_selection_path
+_resolve_paste_target_directory = copy_and_paste._resolve_paste_target_directory
+_build_non_conflicting_path = copy_and_paste._build_non_conflicting_path
 
-
-def _get_clipboard_paths(owner):
-    return copy_and_paste._get_clipboard_paths(owner)
-
-
-def _get_clipboard_mode(owner):
-    return copy_and_paste._get_clipboard_mode(owner)
-
-
-def _can_paste_into_directory(owner, target_dir):
-    return copy_and_paste._can_paste_into_directory(owner, target_dir)
+_refresh_after_fs_change = drag_and_drop._refresh_after_fs_change
 
 
-def _unique_preserving_order(paths):
-    return copy_and_paste._unique_preserving_order(paths)
-
-
-def _confirm_overwrite_existing_path(owner, target_path):
-    return copy_and_paste._confirm_overwrite_existing_path(owner, target_path)
-
-
-def _build_non_conflicting_path(target_path):
-    return copy_and_paste._build_non_conflicting_path(target_path)
-
-
-def _resolve_tree_selection_path(owner):
-    return copy_and_paste._resolve_tree_selection_path(owner)
-
-
-def _resolve_paste_target_directory(path):
-    return copy_and_paste._resolve_paste_target_directory(path)
+_is_archive_file = archive_helper._is_archive_file
+_build_archive_destination_path = archive_helper._build_archive_destination_path
+_archive_selected_path = archive_helper._archive_selected_path
+_extract_selected_archive = archive_helper._extract_selected_archive
 
 
 def save_list_view_state(owner):
@@ -224,7 +170,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
 
     owner.list = wx.ListCtrl(owner.list_host_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
-    owner.list.SetDropTarget(FileListDropTarget(owner))
+    owner.list.SetDropTarget(drag_and_drop.FileListDropTarget(owner))
     owner.list.InsertColumn(0, tr("name_column"), width=450)
     owner.list.InsertColumn(1, tr("type_column"), width=120)
     owner.list.InsertColumn(2, tr("size_column"), width=120)
@@ -429,52 +375,85 @@ def on_right_click(owner, event):
             finally:
                 owner._restoring_list_selection = False
 
+    def handle_refresh(_):
+        current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+        if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
+            owner.load_folder(current_folder)
+        try:
+            import controls.tree_utils as tree_utils
+            if hasattr(owner, "tree") and owner.tree is not None:
+                tree_utils.refresh_tree_selection_and_filelist(owner)
+        except Exception:
+            pass
+
     menu = wx.Menu()
 
     scan_item = menu.Append(-1, tr("scan"))
     open_item = menu.Append(-1, tr("context_open"))
     rename_item = menu.Append(-1, tr("context_rename"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
+    refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     menu.AppendSeparator()
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
     delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
+    menu.AppendSeparator()
+
+    add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
+    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive"))
 
     icon_manager = getattr(owner, "icon_manager", None)
+    refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
+    if refresh_bmp.IsOk():
+        refresh_item.SetBitmap(refresh_bmp)
+
     if icon_manager:
         icon_manager.set_menu_icon2(scan_item, "scan")
         icon_manager.set_menu_icon2(open_item, "file_view")
         icon_manager.set_menu_icon(rename_item, art_id=wx.ART_EDIT)
         icon_manager.set_menu_icon(new_folder_item, art_id=wx.ART_FOLDER)
+        icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon(cut_item, art_id=wx.ART_CUT)
         icon_manager.set_menu_icon(paste_item, art_id=wx.ART_PASTE)
         icon_manager.set_menu_icon(delete_item, art_id=wx.ART_DELETE)
+        icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
+        icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
 
     selected_paths = get_selected_list_paths(owner)
-    can_act_on_selection = bool(selected_paths)
-    can_act_on_single_selection = len(selected_paths) == 1 and os.path.exists(selected_paths[0])
+    selected_path = selected_paths[0] if len(selected_paths) == 1 else None
+    valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and os.path.exists(path)]
+    can_act_on_selection = bool(valid_selected_paths)
+    can_act_on_single_selection = len(valid_selected_paths) == 1
     can_create_in_current_folder = os.path.isdir(owner.path_box.GetValue())
     can_paste = _can_paste_into_directory(owner, owner.path_box.GetValue())
+    can_add_to_archive = bool(valid_selected_paths and all(not _is_archive_file(path) for path in valid_selected_paths))
+    can_extract_from_archive = bool(len(valid_selected_paths) == 1 and _is_archive_file(valid_selected_paths[0]))
 
     scan_item.Enable(True)
     open_item.Enable(can_act_on_single_selection)
     rename_item.Enable(can_act_on_single_selection)
     new_folder_item.Enable(can_create_in_current_folder)
+    refresh_item.Enable(True)
     copy_item.Enable(can_act_on_selection)
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
     delete_item.Enable(can_act_on_selection)
+    add_to_archive_item.Enable(can_add_to_archive)
+    extract_from_archive_item.Enable(can_extract_from_archive)
 
     owner.Bind(wx.EVT_MENU, owner.on_list_scan, scan_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_open, open_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_rename, rename_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_new_folder, new_folder_item)
+    owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_copy, copy_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_cut, cut_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_paste, paste_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_delete, delete_item)
+    owner.Bind(wx.EVT_MENU, lambda _event: _archive_selected_path(owner, valid_selected_paths), add_to_archive_item)
+    owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
 
     owner.list.PopupMenu(menu)
     menu.Destroy()
@@ -819,14 +798,14 @@ def on_tree_copy(owner, path=None):
     tree_path = path or _resolve_tree_selection_path(owner)
     if not tree_path or not os.path.exists(tree_path):
         return
-    _set_clipboard(owner, [tree_path], CLIPBOARD_MODE_COPY)
+    _set_clipboard(owner, [tree_path], copy_and_paste.CLIPBOARD_MODE_COPY)
 
 
 def on_tree_cut(owner, path=None):
     tree_path = path or _resolve_tree_selection_path(owner)
     if not tree_path or not os.path.exists(tree_path):
         return
-    _set_clipboard(owner, [tree_path], CLIPBOARD_MODE_CUT)
+    _set_clipboard(owner, [tree_path], copy_and_paste.CLIPBOARD_MODE_CUT)
 
 
 def on_tree_paste(owner, path=None):

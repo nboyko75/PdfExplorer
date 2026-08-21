@@ -127,6 +127,8 @@ TRANSLATIONS = {
     "context_cut": "Вирізати",
     "context_paste": "Вставити",
     "context_delete": "Видалити",
+    "context_add_to_archive": "Додати до архіву",
+    "context_extract_from_archive": "Вилучити з архіву",
     "this_pc_root": "Цей комп'ютер",
     "tree_expand_placeholder": "...",
     "page_label": "Сторінка {page_no}/{page_count}",

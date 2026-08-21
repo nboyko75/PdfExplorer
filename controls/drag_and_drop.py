@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 
 import wx
 
@@ -12,6 +13,16 @@ class FileListDropTarget(wx.FileDropTarget):
         super().__init__()
         self.owner = owner
 
+    def _resolve_drop_helpers(self):
+        compat_module = sys.modules.get("controls.filelist")
+        build_helper = getattr(compat_module, "_build_non_conflicting_path", None)
+        refresh_helper = getattr(compat_module, "_refresh_after_fs_change", None)
+        if build_helper is None:
+            build_helper = _build_non_conflicting_path
+        if refresh_helper is None:
+            refresh_helper = _refresh_after_fs_change
+        return build_helper, refresh_helper
+
     def OnDropFiles(self, x, y, filenames):
         if not filenames:
             return False
@@ -23,6 +34,7 @@ class FileListDropTarget(wx.FileDropTarget):
         if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
             return False
 
+        build_non_conflicting_path, refresh_after_fs_change = self._resolve_drop_helpers()
         errors = []
         for source_path in filenames:
             if not isinstance(source_path, str) or not source_path:
@@ -31,7 +43,7 @@ class FileListDropTarget(wx.FileDropTarget):
             source_name = os.path.basename(source_path.rstrip("\\/"))
             destination_path = os.path.join(target_dir, source_name)
             if os.path.exists(destination_path):
-                destination_path = _build_non_conflicting_path(destination_path)
+                destination_path = build_non_conflicting_path(destination_path)
 
             try:
                 if os.path.isdir(source_path):
@@ -44,7 +56,7 @@ class FileListDropTarget(wx.FileDropTarget):
         if errors:
             wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
         else:
-            _refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
+            refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
 
         return True
 

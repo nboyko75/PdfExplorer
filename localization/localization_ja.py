@@ -102,6 +102,8 @@ TRANSLATIONS = {
     "context_cut": "切り取り",
     "context_paste": "貼り付け",
     "context_delete": "削除",
+    "context_add_to_archive": "アーカイブに追加",
+    "context_extract_from_archive": "アーカイブから抽出",
     "scan": "スキャン",
     "scan_dialog_title": "ドキュメントをスキャン",
     "scan_scanner_label": "スキャナー",

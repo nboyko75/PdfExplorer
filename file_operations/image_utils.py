@@ -18,6 +18,8 @@ class IconManager:
         "copy": "copy.bmp",
         "file_view": "file_view.bmp",
         "load_all": "load_all.bmp",
+        "add_to_archive": "add_to_archive.bmp",
+        "extract_from_archive": "extract_from_archive.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):

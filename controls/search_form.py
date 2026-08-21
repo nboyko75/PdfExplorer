@@ -52,19 +52,6 @@ def _date_to_wx_datetime(value):
     return _COMMON_DATE_TO_WX_DATETIME(value)
 
 
-def _format_system_date(value):
-    parsed = _parse_date_value(value)
-    if parsed is None:
-        return ""
-    date_value = _date_to_wx_datetime(parsed)
-    if date_value is None:
-        return common_date_utils._fallback_system_date_format(parsed)
-    try:
-        return date_value.FormatDate()
-    except Exception:
-        return common_date_utils._fallback_system_date_format(parsed)
-
-
 try:
     import fitz
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -566,15 +553,37 @@ def _sync_query_history(query_field, current_text=None):
     if getattr(query_field, "_query_history_syncing", False):
         return
 
-    text_value = (current_text if current_text is not None else query_field.GetValue()).strip()
+    text_value = (current_text if current_text is not None else query_field.GetValue())
+    if text_value is None:
+        text_value = ""
+    text_value = str(text_value).strip()
+
     history = _load_search_history()
     filtered = [item for item in history if not text_value or text_value.lower() in item.lower()]
+
+    current_value = ""
+    try:
+        current_value = query_field.GetValue()
+    except Exception:
+        current_value = ""
+    current_value = "" if current_value is None else str(current_value)
 
     query_field._query_history_syncing = True
     try:
         query_field.SetItems(filtered[:30])
     finally:
         query_field._query_history_syncing = False
+
+    if text_value:
+        try:
+            query_field.SetValue(text_value)
+        except Exception:
+            pass
+    elif current_value:
+        try:
+            query_field.SetValue(current_value)
+        except Exception:
+            pass
 
     # Do not manually reopen the ComboBox dropdown here. The dropdown is already
     # owned by the user action that triggered this refresh, and re-entering Popup()

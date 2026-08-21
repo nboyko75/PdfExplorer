@@ -102,6 +102,8 @@ TRANSLATIONS = {
     "context_cut": "剪切",
     "context_paste": "粘贴",
     "context_delete": "删除",
+    "context_add_to_archive": "添加到存档",
+    "context_extract_from_archive": "从存档中提取",
     "scan": "扫描",
     "scan_dialog_title": "扫描文档",
     "scan_scanner_label": "扫描仪",

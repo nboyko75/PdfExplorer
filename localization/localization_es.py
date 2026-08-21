@@ -126,6 +126,8 @@ TRANSLATIONS = {
     "context_cut": "Cortar",
     "context_paste": "Pegar",
     "context_delete": "Eliminar",
+    "context_add_to_archive": "Agregar al archivo",
+    "context_extract_from_archive": "Extraer del archivo",
     "scan": "Escanear",
     "scan_dialog_title": "Escanear documentos",
     "scan_scanner_label": "Escáner",

@@ -102,6 +102,8 @@ TRANSLATIONS = {
     "context_cut": "잘라내기",
     "context_paste": "붙여넣기",
     "context_delete": "삭제",
+    "context_add_to_archive": "아카이브에 추가",
+    "context_extract_from_archive": "아카이브에서 추출",
     "scan": "스캔",
     "scan_dialog_title": "문서 스캔",
     "scan_scanner_label": "스캐너",

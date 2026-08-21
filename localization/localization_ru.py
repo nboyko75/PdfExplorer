@@ -126,6 +126,8 @@ TRANSLATIONS = {
     "context_cut": "Вырезать",
     "context_paste": "Вставить",
     "context_delete": "Удалить",
+    "context_add_to_archive": "Добавить в архив",
+    "context_extract_from_archive": "Извлечь из архива",
     "scan": "Сканировать",
     "scan_dialog_title": "Сканирование документов",
     "scan_scanner_label": "Сканер",

@@ -5,6 +5,7 @@ from common.system import is_hidden
 from common.system import is_hidden
 from localization import tr
 from file_operations.pdf_utils import adjust_page_width, optimize_pdf, save_pdf
+import file_operations.archive_helper as archive_helper
 import file_operations.image_utils as image_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
@@ -332,6 +333,10 @@ def on_tree_right_click(owner, event):
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
     delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
+    menu.AppendSeparator()
+
+    add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
+    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive"))
 
     new_folder_item.Enable(can_create_new_folder)
     refresh_item.Enable(True)
@@ -339,6 +344,8 @@ def on_tree_right_click(owner, event):
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
     delete_item.Enable(can_act_on_selection)
+    add_to_archive_item.Enable(bool(path and os.path.exists(path) and not archive_helper._is_archive_file(path)))
+    extract_from_archive_item.Enable(bool(path and archive_helper._is_archive_file(path)))
 
     new_folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_MENU, (16, 16))
     if new_folder_bmp.IsOk():
@@ -350,6 +357,8 @@ def on_tree_right_click(owner, event):
 
     if icon_manager:
         icon_manager.set_menu_icon2(copy_item, "copy")
+        icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
+        icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
 
     cut_bmp = wx.ArtProvider.GetBitmap(wx.ART_CUT, wx.ART_MENU, (16, 16))
     if cut_bmp.IsOk():
@@ -401,6 +410,12 @@ def on_tree_right_click(owner, event):
     def handle_delete(_):
         filelist.on_tree_delete(owner, path)
 
+    def handle_add_to_archive(_):
+        archive_helper._archive_selected_path(owner, path)
+
+    def handle_extract_from_archive(_):
+        archive_helper._extract_selected_archive(owner, path)
+
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
     owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
     owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
@@ -409,6 +424,8 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
     owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
     owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
+    owner.Bind(wx.EVT_MENU, handle_add_to_archive, add_to_archive_item)
+    owner.Bind(wx.EVT_MENU, handle_extract_from_archive, extract_from_archive_item)
 
     popup_window = owner.tree
     if event is not None:

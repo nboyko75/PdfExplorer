@@ -75,6 +75,8 @@ TRANSLATIONS = {
     "context_cut": "Cut",
     "context_paste": "Paste",
     "context_delete": "Delete",
+    "context_add_to_archive": "Add to archive",
+    "context_extract_from_archive": "Extract from archive",
     "scan": "Scan",
     "scan_dialog_title": "Scan documents",
     "scan_scanner_label": "Scanner",

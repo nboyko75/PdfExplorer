@@ -4,10 +4,14 @@ import re
 import shutil
 import tempfile
 import threading
+import types
 import unittest
 
 import fitz
+import wx
 
+from common import date_utils as common_date_utils
+import controls.filelist as filelist_module
 import controls.search_form as search_form_module
 from controls.search_form import (
     _collect_search_matches,
@@ -69,6 +73,14 @@ class SearchFilesTests(unittest.TestCase):
         self.assertEqual(tr("search_query_label"), "Текст или регулярное выражение")
         self.assertEqual(tr("search_stop_button"), "Стоп")
         self.assertEqual(tr("search_paused_status"), "Поиск остановлен")
+
+    def test_archive_menu_labels_exist_for_supported_locales(self):
+        for locale_name in ("en", "de", "es", "fr", "it", "ja", "ko", "pt_br", "ru", "uk", "zh_cn"):
+            load_locale(locale_name)
+            self.assertIsInstance(tr("context_add_to_archive"), str)
+            self.assertIsInstance(tr("context_extract_from_archive"), str)
+            self.assertTrue(tr("context_add_to_archive"))
+            self.assertTrue(tr("context_extract_from_archive"))
 
     def test_status_bar_uses_current_file_folder_on_left(self):
         left, right = _format_search_status("C:/root/search", "C:/root/search/subdir/report.txt")
@@ -329,14 +341,12 @@ class SearchFilesTests(unittest.TestCase):
         original_picker = search_form_module.DatePickerCtrl
         original_event = search_form_module.DatePickerEvent
         original_date_to_wx_datetime = search_form_module._date_to_wx_datetime
-        original_format_system_date = search_form_module._format_system_date
 
         try:
             search_form_module.wx = FakeWx
             search_form_module.DatePickerCtrl = FakePicker
             search_form_module.DatePickerEvent = "EVT_DATE_CHANGED"
             search_form_module._date_to_wx_datetime = lambda value: FakeDateTime("2024-02-10")
-            search_form_module._format_system_date = lambda value: value
 
             search_form_module._show_date_picker_popup(None, field, button, "from")
             self.assertEqual(field.GetValue(), "2024-02-10")
@@ -346,7 +356,6 @@ class SearchFilesTests(unittest.TestCase):
             search_form_module.DatePickerCtrl = original_picker
             search_form_module.DatePickerEvent = original_event
             search_form_module._date_to_wx_datetime = original_date_to_wx_datetime
-            search_form_module._format_system_date = original_format_system_date
 
     def test_date_picker_month_change_keeps_popup_open(self):
         field = type("Field", (), {"value": "2024-02-10", "GetValue": lambda self: self.value, "SetValue": lambda self, value: setattr(self, "value", value)})()
@@ -362,15 +371,15 @@ class SearchFilesTests(unittest.TestCase):
         if previous is not None and selected.GetDay() == previous:
             self.assertTrue(True)
 
-    def test_system_date_format_uses_localized_date_text(self):
-        expected = search_form_module._date_to_wx_datetime("2024-02-10").FormatDate()
-        self.assertEqual(search_form_module._format_system_date("2024-02-10"), expected)
+    def test_system_date_format_uses_shared_locale_helper(self):
+        expected = common_date_utils._format_system_date("2024-02-10")
+        self.assertEqual(search_form_module.common_date_utils._format_system_date("2024-02-10"), expected)
 
     def test_system_date_format_falls_back_to_locale_pattern(self):
         original_helper = search_form_module._date_to_wx_datetime
         search_form_module._date_to_wx_datetime = lambda value: None
         try:
-            self.assertEqual(search_form_module._format_system_date("2024-02-10"), "10.02.2024")
+            self.assertEqual(search_form_module.common_date_utils._format_system_date("2024-02-10"), "10.02.2024")
         finally:
             search_form_module._date_to_wx_datetime = original_helper
 
@@ -450,6 +459,148 @@ class SearchFilesTests(unittest.TestCase):
 
         self.assertEqual(combo.items, ["alpha", "beta"])
         self.assertEqual(combo.popup_count, 0)
+
+    def test_sync_query_history_keeps_current_query_value_after_history_refresh(self):
+        class DummyCombo:
+            def __init__(self):
+                self.items = []
+                self.value = "needle"
+                self._query_history_syncing = False
+
+            def GetValue(self):
+                return self.value
+
+            def SetItems(self, items):
+                self.items = list(items)
+                self.value = ""
+
+            def SetValue(self, value):
+                self.value = value
+
+        original_history = search_form_module._load_search_history
+        try:
+            search_form_module._load_search_history = lambda: ["needle", "needle in haystack"]
+            combo = DummyCombo()
+            search_form_module._sync_query_history(combo, "needle")
+            self.assertEqual(combo.GetValue(), "needle")
+        finally:
+            search_form_module._load_search_history = original_history
+
+    def test_archive_helpers_recognize_zip_files(self):
+        self.assertTrue(filelist_module._is_archive_file("report.zip"))
+        self.assertTrue(filelist_module._is_archive_file("archive.tar.gz"))
+        self.assertFalse(filelist_module._is_archive_file("report.txt"))
+        self.assertEqual(filelist_module._build_archive_destination_path("C:/work/folder/sample.txt"), os.path.normpath("C:/work/folder/sample.txt.zip"))
+
+    def test_archive_selected_paths_prompts_for_single_archive_name_and_groups_selection(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-archive-")
+        file_a = os.path.join(temp_dir, "first.txt")
+        file_b = os.path.join(temp_dir, "second.txt")
+        with open(file_a, "w", encoding="utf-8") as handle:
+            handle.write("first")
+        with open(file_b, "w", encoding="utf-8") as handle:
+            handle.write("second")
+
+        captured = {}
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                self.value = kwargs.get("value", "")
+
+            def ShowModal(self):
+                return wx.ID_OK
+
+            def GetValue(self):
+                return "bundle.zip"
+
+            def Destroy(self):
+                return None
+
+        def fake_create_zip(paths, destination_path):
+            captured["paths"] = list(paths)
+            captured["destination_path"] = destination_path
+            return destination_path
+
+        original_dialog = archive_helper.wx.TextEntryDialog
+        original_create_zip = archive_helper._create_zip_archive
+        original_messagebox = archive_helper.wx.MessageBox
+        try:
+            archive_helper.wx.TextEntryDialog = FakeDialog
+            archive_helper._create_zip_archive = fake_create_zip
+            archive_helper.wx.MessageBox = lambda *args, **kwargs: None
+            self.assertTrue(archive_helper._archive_selected_paths(None, [file_a, file_b]))
+        finally:
+            archive_helper.wx.TextEntryDialog = original_dialog
+            archive_helper._create_zip_archive = original_create_zip
+            archive_helper.wx.MessageBox = original_messagebox
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        self.assertEqual(captured["paths"], [file_a, file_b])
+        self.assertEqual(captured["destination_path"], os.path.join(temp_dir, "bundle.zip"))
+
+    def test_archive_selected_paths_refreshes_current_folder_and_selects_new_archive(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-archive-refresh-")
+        file_path = os.path.join(temp_dir, "first.txt")
+        with open(file_path, "w", encoding="utf-8") as handle:
+            handle.write("first")
+
+        class FakeOwner:
+            path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+
+            def busy_cursor(self):
+                from contextlib import nullcontext
+
+                return nullcontext()
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+            def select_list_item_by_path(self, path):
+                self.list_selected = path
+
+            def select_tree_item_by_path(self, path):
+                self.tree_selected = path
+
+        owner = FakeOwner()
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                self.value = kwargs.get("value", "")
+
+            def ShowModal(self):
+                return wx.ID_OK
+
+            def GetValue(self):
+                return "bundle.zip"
+
+            def Destroy(self):
+                return None
+
+        def fake_create_zip(paths, destination_path):
+            self.assertEqual(list(paths), [file_path])
+            return destination_path
+
+        original_dialog = archive_helper.wx.TextEntryDialog
+        original_create_zip = archive_helper._create_zip_archive
+        original_messagebox = archive_helper.wx.MessageBox
+        try:
+            archive_helper.wx.TextEntryDialog = FakeDialog
+            archive_helper._create_zip_archive = fake_create_zip
+            archive_helper.wx.MessageBox = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("message box should not appear"))
+            self.assertTrue(archive_helper._archive_selected_paths(owner, [file_path]))
+        finally:
+            archive_helper.wx.TextEntryDialog = original_dialog
+            archive_helper._create_zip_archive = original_create_zip
+            archive_helper.wx.MessageBox = original_messagebox
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        self.assertEqual(owner.loaded_folder, temp_dir)
+        self.assertEqual(owner.list_selected, os.path.join(temp_dir, "bundle.zip"))
+        self.assertEqual(owner.tree_selected, os.path.join(temp_dir, "bundle.zip"))
 
 
 if __name__ == "__main__":
