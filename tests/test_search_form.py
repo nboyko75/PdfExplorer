@@ -665,6 +665,284 @@ class SearchFilesTests(unittest.TestCase):
 
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_archive_refresh_loads_parent_folder_once_without_open_path(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-archive-tree-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(ChangeValue=lambda value: setattr(self, "path_box_value", value))
+                self.path_box_value = None
+                self.opened_path = None
+                self.loaded_folder = None
+                self.selected_tree_path = None
+                self.selected_list_path = None
+
+            def open_path(self, folder):
+                self.opened_path = folder
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+            def select_tree_item_by_path(self, path):
+                self.selected_tree_path = path
+
+            def select_list_item_by_path(self, path):
+                self.selected_list_path = path
+
+        owner = FakeOwner()
+
+        archive_helper._refresh_after_archive_change(owner, archive_path)
+
+        self.assertEqual(owner.path_box_value, temp_dir)
+        self.assertIsNone(owner.opened_path)
+        self.assertEqual(owner.loaded_folder, temp_dir)
+        self.assertEqual(owner.selected_tree_path, archive_path)
+        self.assertEqual(owner.selected_list_path, archive_path)
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_extract_selected_archive_refreshes_active_folder_and_tree(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-extract-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+
+        class FakeTreeItem:
+            def __init__(self):
+                self._ok = True
+
+            def IsOk(self):
+                return self._ok
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+                self.loaded_folder = None
+                self.tree = object()
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+        owner = FakeOwner()
+        parent_item = FakeTreeItem()
+
+        with mock.patch.object(archive_helper, "_extract_archive_file", return_value=temp_dir) as mocked_extract, \
+             mock.patch("controls.tree_utils.find_tree_item_by_path", return_value=parent_item) as find_item, \
+             mock.patch("controls.tree_utils.refresh_tree_subtree") as refresh_subtree:
+            self.assertTrue(archive_helper._extract_selected_archive(owner, archive_path))
+
+        mocked_extract.assert_called_once_with(archive_path, os.path.join(temp_dir, "bundle"))
+        self.assertEqual(owner.loaded_folder, temp_dir)
+        self.assertTrue(find_item.called)
+        refresh_subtree.assert_called_once_with(owner, parent_item, temp_dir)
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_delete_paths_refreshes_parent_folder_after_tree_delete(self):
+        import controls.filelist as filelist
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-delete-parent-")
+        file_path = os.path.join(temp_dir, "child.txt")
+        with open(file_path, "w", encoding="utf-8") as handle:
+            handle.write("x")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: file_path)
+                self.current_preview_path = None
+                self.tree = object()
+                self._syncing_tree_from_path = False
+
+        owner = FakeOwner()
+
+        with mock.patch.object(filelist, "_remove_tree_item_for_path"), \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist, "_unique_preserving_order", return_value=[file_path]), \
+             mock.patch.object(filelist, "wx") as mock_wx:
+            mock_wx.MessageDialog.return_value.ShowModal.return_value = wx.ID_YES
+            mock_wx.MessageDialog.return_value.Destroy.return_value = None
+            filelist.delete_paths(owner, [file_path])
+
+        self.assertEqual(mocked_refresh.call_args.kwargs["affected_dirs"], [temp_dir])
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_remove_tree_item_for_path_does_not_trigger_selection_open_path(self):
+        import controls.filelist as filelist
+
+        class FakeTreeItem:
+            def __init__(self, value=None):
+                self.value = value
+
+            def IsOk(self):
+                return True
+
+        class FakeTree:
+            def __init__(self, owner):
+                self.owner = owner
+                self.root = FakeTreeItem("root")
+                self.parent = FakeTreeItem("D:\\parent")
+                self.child = FakeTreeItem("D:\\parent\\child")
+                self.selection = self.parent
+
+            def GetRootItem(self):
+                return self.root
+
+            def GetFirstChild(self, item):
+                if item is self.root:
+                    return self.parent, None
+                return self.child, None
+
+            def GetNextChild(self, item, cookie):
+                return FakeTreeItem(False), None
+
+            def GetItemParent(self, item):
+                return self.parent if item is self.child else self.root
+
+            def GetChildrenCount(self, item):
+                return 1 if item is self.parent else 0
+
+            def GetItemData(self, item):
+                if item is self.root:
+                    return None
+                if item is self.parent:
+                    return "D:\\parent"
+                if item is self.child:
+                    return "D:\\parent\\child"
+                return None
+
+            def AppendItem(self, item, text):
+                return FakeTreeItem(text)
+
+            def Delete(self, item):
+                pass
+
+            def SelectItem(self, item):
+                self.selection = item
+                if not getattr(self.owner, "_syncing_tree_from_path", False):
+                    self.owner.on_tree_select(types.SimpleNamespace(GetItem=lambda: item))
+
+        class FakeOwner:
+            def __init__(self):
+                self.tree = FakeTree(self)
+                self.path_box = types.SimpleNamespace(GetValue=lambda: "D:\\parent")
+                self.load_folder_calls = []
+                self.open_path_calls = []
+                self._syncing_tree_from_path = False
+
+            def load_folder(self, path):
+                self.load_folder_calls.append(path)
+
+            def open_path(self, path):
+                self.open_path_calls.append(path)
+                self.load_folder(path)
+
+            def on_tree_select(self, event):
+                item = event.GetItem()
+                path = item.value
+                if os.path.isdir(path):
+                    self.open_path(path)
+
+        owner = FakeOwner()
+
+        filelist._remove_tree_item_for_path(owner, "D:\\parent\\child")
+
+        self.assertEqual(owner.open_path_calls, [])
+        self.assertEqual(owner.load_folder_calls, [])
+
+    def test_select_tree_item_by_path_does_not_set_file_path_in_path_box(self):
+        import controls.tree_utils as tree_utils
+
+        file_path = os.path.join("D:\\", "Projects", "PdfExplorer", "notes.txt")
+        folder_path = os.path.join("D:\\", "Projects", "PdfExplorer")
+
+        class FakePathBox:
+            def __init__(self):
+                self.value = folder_path
+
+            def SetValue(self, value):
+                self.value = value
+
+        class FakeTreeItem:
+            def __init__(self, value):
+                self.value = value
+
+            def IsOk(self):
+                return True
+
+        class FakeTree:
+            def __init__(self):
+                self.root = FakeTreeItem("root")
+                self.file_item = FakeTreeItem(file_path)
+                self.selection = None
+
+            def GetRootItem(self):
+                return self.root
+
+            def GetFirstChild(self, item):
+                if item is self.root:
+                    return self.file_item, None
+                return FakeTreeItem(False), None
+
+            def GetNextChild(self, item, cookie):
+                return FakeTreeItem(False), None
+
+            def GetItemData(self, item):
+                return item.value
+
+            def SelectItem(self, item):
+                self.selection = item
+
+            def Expand(self, item):
+                pass
+
+            def EnsureVisible(self, item):
+                pass
+
+        owner = types.SimpleNamespace(
+            tree=FakeTree(),
+            path_box=FakePathBox(),
+            show_hidden=False,
+            _syncing_tree_from_path=False,
+        )
+
+        with mock.patch("os.path.isdir", side_effect=lambda path: os.path.normpath(path) == os.path.normpath(folder_path)):
+            tree_utils.select_tree_item_by_path(owner, file_path)
+
+        self.assertEqual(owner.path_box.value, folder_path)
+
+    def test_should_populate_tree_node_for_drive_root_with_placeholder_child(self):
+        import controls.tree_utils as tree_utils
+
+        class FakeTreeItem:
+            def __init__(self, value=None):
+                self._value = value
+
+            def IsOk(self):
+                return True
+
+        class FakeTree:
+            def __init__(self):
+                self.root = FakeTreeItem()
+                self.placeholder = FakeTreeItem(None)
+
+            def GetFirstChild(self, item):
+                if item is self.root:
+                    return self.placeholder, None
+                return FakeTreeItem(False), None
+
+            def GetItemData(self, item):
+                if item is self.placeholder:
+                    return None
+                return "D:\\"
+
+        owner = types.SimpleNamespace(tree=FakeTree(), show_hidden=False)
+
+        with mock.patch("os.path.isdir", return_value=True):
+            self.assertTrue(tree_utils._should_populate_tree_node(owner, owner.tree.root, "D:\\"))
+
 
 if __name__ == "__main__":
     unittest.main()

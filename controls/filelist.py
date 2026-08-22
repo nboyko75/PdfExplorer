@@ -549,10 +549,14 @@ def _remove_tree_item_for_path(owner, path):
     owner.tree.Delete(item)
 
     if parent.IsOk():
+        previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
+        owner._syncing_tree_from_path = True
         try:
             owner.tree.SelectItem(parent)
         except Exception:
             pass
+        finally:
+            owner._syncing_tree_from_path = previous_syncing
 
 
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):

@@ -163,14 +163,25 @@ def _refresh_after_archive_change(owner, archive_path):
     archive_path = os.path.normpath(archive_path)
     archive_folder = os.path.dirname(archive_path)
 
+    path_box = getattr(owner, "path_box", None)
+    if path_box is not None and hasattr(path_box, "ChangeValue"):
+        try:
+            path_box.ChangeValue(archive_folder)
+        except Exception:
+            pass
+
     try:
-        if hasattr(owner, "open_path"):
-            owner.open_path(archive_folder)
         if hasattr(owner, "load_folder"):
             owner.load_folder(archive_folder)
-        path_box = getattr(owner, "path_box", None)
-        if path_box is not None and hasattr(path_box, "ChangeValue"):
-            path_box.ChangeValue(archive_folder)
+    except Exception:
+        pass
+
+    try:
+        if hasattr(owner, "tree"):
+            import controls.tree_utils as tree_utils
+            parent_item = tree_utils.find_tree_item_by_path(owner, archive_folder)
+            if parent_item is not None and hasattr(parent_item, "IsOk") and parent_item.IsOk():
+                tree_utils.refresh_tree_subtree(owner, parent_item, archive_folder)
     except Exception:
         pass
 
@@ -254,17 +265,25 @@ def _extract_selected_archive(owner, path):
     if not _is_archive_file(path):
         return False
 
-    destination_dir = os.path.join(os.path.dirname(path), os.path.splitext(os.path.basename(path))[0])
-    if os.path.exists(destination_dir):
-        candidate = destination_dir
-        index = 1
-        while os.path.exists(candidate):
-            candidate = f"{destination_dir} ({index})"
-            index += 1
-        destination_dir = candidate
-
     try:
-        _extract_archive_file(path, destination_dir)
+        current_folder = getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")()
+        if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder):
+            _extract_archive_file(path, current_folder)
+            try:
+                if hasattr(owner, "load_folder"):
+                    owner.load_folder(current_folder)
+            except Exception:
+                pass
+
+            try:
+                if hasattr(owner, "tree"):
+                    import controls.tree_utils as tree_utils
+                    item = tree_utils.find_tree_item_by_path(owner, current_folder)
+                    if item is not None and hasattr(item, "IsOk") and item.IsOk():
+                        tree_utils.refresh_tree_subtree(owner, item, current_folder)
+            except Exception:
+                pass
+
         return True
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)

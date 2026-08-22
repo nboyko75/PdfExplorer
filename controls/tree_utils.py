@@ -97,6 +97,26 @@ def refresh_tree_placeholders(owner):
     visit(root)
 
 
+def _should_populate_tree_node(owner, item, item_path):
+    if not item or not item.IsOk():
+        return False
+    if not isinstance(item_path, str):
+        return False
+
+    normalized_path = normalize_tree_path(item_path)
+    if not normalized_path or not os.path.isdir(normalized_path):
+        return False
+
+    child, _ = owner.tree.GetFirstChild(item)
+    if not child.IsOk():
+        return True
+
+    if owner.tree.GetItemData(child) is None:
+        return True
+
+    return False
+
+
 def find_tree_item_by_path(owner, path):
     normalized = os.path.normpath(path)
     root = owner.tree.GetRootItem()
@@ -111,7 +131,8 @@ def find_tree_item_by_path(owner, path):
             if item_normalized == normalized:
                 return child
             if normalized.startswith(item_normalized):
-                populate_tree_node(owner, child, item_path)
+                if _should_populate_tree_node(owner, child, item_path):
+                    populate_tree_node(owner, child, item_path)
                 owner.tree.Expand(child)
                 found = find_tree_child_path(owner, child, normalized)
                 if found:
@@ -122,7 +143,9 @@ def find_tree_item_by_path(owner, path):
 
 
 def find_tree_child_path(owner, parent, normalized_path):
-    populate_tree_node(owner, parent, owner.tree.GetItemData(parent))
+    parent_item_path = owner.tree.GetItemData(parent)
+    if _should_populate_tree_node(owner, parent, parent_item_path):
+        populate_tree_node(owner, parent, parent_item_path)
     owner.tree.Expand(parent)
     child, cookie = owner.tree.GetFirstChild(parent)
     while child.IsOk():
@@ -132,7 +155,8 @@ def find_tree_child_path(owner, parent, normalized_path):
             if item_normalized == normalized_path:
                 return child
             if normalized_path.startswith(item_normalized):
-                populate_tree_node(owner, child, item_path)
+                if _should_populate_tree_node(owner, child, item_path):
+                    populate_tree_node(owner, child, item_path)
                 owner.tree.Expand(child)
                 found = find_tree_child_path(owner, child, normalized_path)
                 if found:
@@ -143,12 +167,28 @@ def find_tree_child_path(owner, parent, normalized_path):
 
 
 def select_tree_item_by_path(owner, path):
-    item = find_tree_item_by_path(owner, path)
+    normalized_path = normalize_tree_path(path)
+    item = find_tree_item_by_path(owner, normalized_path)
     if item is None:
         return
-    owner.tree.SelectItem(item)
-    owner.tree.Expand(item)
-    owner.tree.EnsureVisible(item)
+
+    item_path = normalize_tree_path(owner.tree.GetItemData(item))
+    path_box = getattr(owner, "path_box", None)
+    if path_box is not None and hasattr(path_box, "SetValue"):
+        if item_path and os.path.isdir(item_path):
+            path_box.SetValue(item_path)
+        elif item_path and os.path.isfile(item_path):
+            path_box.SetValue(os.path.dirname(item_path))
+
+    previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
+    owner._syncing_tree_from_path = True
+    try:
+        owner.tree.SelectItem(item)
+        owner.tree.Expand(item)
+        owner.tree.EnsureVisible(item)
+    finally:
+        if not previous_syncing:
+            owner._syncing_tree_from_path = False
 
 
 def populate_tree_node(owner, item, path):
@@ -279,7 +319,11 @@ def get_drives():
 
 def on_tree_expand(owner, event):
     item = event.GetItem()
-    path = normalize_tree_path(owner.tree.GetItemData(item))
+    item_path = owner.tree.GetItemData(item)
+    if not _should_populate_tree_node(owner, item, item_path):
+        return
+
+    path = normalize_tree_path(item_path)
     populate_tree_node(owner, item, path)
 
 
@@ -298,6 +342,9 @@ def on_tree_select(owner, event):
         return
 
     if os.path.isfile(path):
+        path_box = getattr(owner, "path_box", None)
+        if path_box is not None and hasattr(path_box, "SetValue"):
+            path_box.SetValue(os.path.dirname(path))
         if hasattr(owner, "show_file_preview"):
             owner.show_file_preview(path)
         else:
@@ -374,7 +421,7 @@ def on_tree_right_click(owner, event):
         refresh_item.SetBitmap(refresh_bmp)
 
     if icon_manager:
-        icon_manager.set_menu_icon2(open_item, "open")
+        icon_manager.set_menu_icon2(open_item, "file_view")
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
