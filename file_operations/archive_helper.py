@@ -171,12 +171,6 @@ def _refresh_after_archive_change(owner, archive_path):
             pass
 
     try:
-        if hasattr(owner, "load_folder"):
-            owner.load_folder(archive_folder)
-    except Exception:
-        pass
-
-    try:
         if hasattr(owner, "tree"):
             import controls.tree_utils as tree_utils
             parent_item = tree_utils.find_tree_item_by_path(owner, archive_folder)
