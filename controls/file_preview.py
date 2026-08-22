@@ -1118,8 +1118,14 @@ def on_office_preview_checkbox_toggle(event):
     checkbox = event.GetEventObject()
     owner.office_preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
     update_settings({"office_preview_enabled": owner.office_preview_enabled})
-    if getattr(owner, "preview_enabled", True) and getattr(owner, "current_preview_path", None):
-        show_file_preview(owner, owner.current_preview_path)
+
+    current_preview_path = getattr(owner, "current_preview_path", None)
+    if not getattr(owner, "preview_enabled", True) or not current_preview_path:
+        return
+
+    if owner.office_preview_enabled:
+        show_file_preview(owner, None)
+    show_file_preview(owner, current_preview_path)
 
 
 def show_file_preview(owner, path):

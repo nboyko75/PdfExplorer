@@ -378,6 +378,26 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.office_preview_checkbox.Enable.assert_called_once_with(False)
         mocked_show_file_preview.assert_called_once_with(owner, None)
 
+    def test_office_preview_toggle_reloads_selected_file_when_enabled(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            current_preview_path="report.docx",
+            preview_checkbox=types.SimpleNamespace(GetValue=lambda: True),
+            office_preview_checkbox=types.SimpleNamespace(GetValue=lambda: True),
+        )
+
+        with mock.patch.object(file_preview, "show_file_preview") as mocked_show_file_preview:
+            event = types.SimpleNamespace(GetEventObject=lambda: owner.office_preview_checkbox)
+            with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner):
+                file_preview.on_office_preview_checkbox_toggle(event)
+
+        self.assertTrue(owner.office_preview_enabled)
+        self.assertEqual(mocked_show_file_preview.call_count, 2)
+        mocked_show_file_preview.assert_any_call(owner, None)
+        mocked_show_file_preview.assert_any_call(owner, "report.docx")
+
     def test_preview_toggle_checkbox_defaults_to_checked(self):
         file_preview = _import_file_preview_with_mocked_wx()
 
