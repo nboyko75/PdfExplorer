@@ -138,6 +138,40 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertTrue(hasattr(filelist, "on_list_print"))
         self.assertTrue(callable(filelist.on_list_print))
 
+    def test_print_with_selected_printer_supports_office_subset_pages(self):
+        import controls.print_form as print_form
+
+        fake_win32print = mock.MagicMock()
+        fake_win32print.GetDefaultPrinter.return_value = "Printer One"
+        fake_win32print.SetDefaultPrinter.return_value = None
+        fake_win32print.OpenPrinter.return_value = mock.MagicMock()
+        fake_win32print.GetPrinter.return_value = (None, None, None, mock.MagicMock(Copies=1))
+
+        fake_word_app = mock.MagicMock()
+        fake_word_doc = mock.MagicMock()
+        fake_win32_client = mock.MagicMock()
+        fake_win32_client.DispatchEx.return_value = fake_word_app
+        fake_word_app.Documents.Open.return_value = fake_word_doc
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = os.path.join(temp_dir, "doc.docx")
+            with open(source_path, "w", encoding="utf-8") as handle:
+                handle.write("office")
+
+            with mock.patch.object(print_form, "win32print", fake_win32print), \
+                 mock.patch.object(print_form, "win32api", object()), \
+                 mock.patch.object(print_form, "fitz", None), \
+                 mock.patch.object(print_form, "win32_client", fake_win32_client), \
+                 mock.patch.object(print_form, "pythoncom", None), \
+                 mock.patch.object(print_form.office_preview, "can_preview_office", return_value=True), \
+                 mock.patch.object(print_form.os, "startfile") as mocked_startfile:
+                result = print_form._print_with_selected_printer(source_path, "Printer One", page_numbers=[0, 2])
+
+            self.assertEqual(result, "Printer One")
+            fake_win32_client.DispatchEx.assert_called_once_with("Word.Application")
+            fake_word_doc.PrintOut.assert_called_once_with(Copies=1, Pages="1,3", Background=False)
+            mocked_startfile.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

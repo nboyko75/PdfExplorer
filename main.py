@@ -580,6 +580,21 @@ class FileExplorer(wx.Frame):
             if event.ControlDown() and key_code == 70:  # 'F'
                 self.on_search_in_files()
                 return
+            if event.ControlDown() and key_code == 80:  # 'P'
+                selected_list_paths = filelist.get_selected_list_paths(self) if hasattr(self, "list") and self.list is not None else []
+                path = selected_list_paths[0] if len(selected_list_paths) == 1 else None
+                if not path:
+                    path = getattr(self, "current_preview_path", None)
+                if not path:
+                    path = filelist._resolve_tree_selection_path(self)
+                if path and os.path.isfile(path):
+                    filelist.on_list_print(self, None)
+                    return
+                if path and os.path.isdir(path):
+                    wx.MessageBox(tr("print_no_selection"), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
+                    return
+                filelist.on_list_print(self, None)
+                return
             if key_code == wx.WXK_F5:
                 tree_utils.refresh_tree_selection(self)
                 return

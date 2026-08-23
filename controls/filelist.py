@@ -932,6 +932,17 @@ def handle_file_ops_shortcut(owner, event):
             on_tree_delete(owner)
         return True
 
+    if key_code == ord("P"):
+        if list_has_focus:
+            on_list_print(owner, None)
+        else:
+            tree_path = _resolve_tree_selection_path(owner)
+            if isinstance(tree_path, str) and os.path.isfile(tree_path):
+                import controls.print_form as print_form
+                print_form.show_print_form(owner, tree_path)
+                return True
+        return True if list_has_focus else False
+
     return False
 
 

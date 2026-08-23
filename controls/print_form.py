@@ -15,6 +15,16 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     win32api = None
     win32print = None
 
+try:
+    import pythoncom  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - optional runtime dependency
+    pythoncom = None
+
+try:
+    import win32com.client as win32_client  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - optional runtime dependency
+    win32_client = None
+
 from localization import tr
 from controls.window_tools import load_settings, update_settings
 import file_operations.office_preview as office_preview
@@ -108,6 +118,106 @@ def _parse_page_numbers_input(text, page_count):
     return page_indices
 
 
+def _build_office_page_range(page_numbers):
+    normalized_pages = sorted({int(page) + 1 for page in (page_numbers or []) if isinstance(page, int) and page >= 0})
+    if not normalized_pages:
+        return ""
+
+    ranges = []
+    start = prev = normalized_pages[0]
+    for page in normalized_pages[1:]:
+        if page == prev + 1:
+            prev = page
+            continue
+        ranges.append(f"{start}-{prev}" if start != prev else str(start))
+        start = prev = page
+    ranges.append(f"{start}-{prev}" if start != prev else str(start))
+    return ",".join(ranges)
+
+
+def _print_office_document_pages(document_path, printer_name, copies=1, page_numbers=None):
+    if not isinstance(document_path, str) or not document_path or not os.path.exists(document_path):
+        raise FileNotFoundError(document_path)
+
+    if win32_client is None:
+        raise RuntimeError(tr("print_error_unavailable"))
+
+    if not page_numbers:
+        return
+
+    ext = os.path.splitext(document_path)[1].lower()
+    if pythoncom is not None:
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
+    try:
+        if ext in {".doc", ".docx", ".docm"}:
+            app = win32_client.DispatchEx("Word.Application")
+            try:
+                app.Visible = False
+                app.DisplayAlerts = 0
+                document = app.Documents.Open(document_path, ReadOnly=True)
+                try:
+                    app.ActivePrinter = printer_name
+                    document.PrintOut(Copies=copies, Pages=_build_office_page_range(page_numbers), Background=False)
+                finally:
+                    if document is not None:
+                        document.Close(False)
+            finally:
+                if app is not None:
+                    app.Quit()
+            return
+
+        if ext in {".xls", ".xlsx", ".xlsm"}:
+            app = win32_client.DispatchEx("Excel.Application")
+            try:
+                app.Visible = False
+                app.DisplayAlerts = False
+                workbook = app.Workbooks.Open(document_path, ReadOnly=True)
+                try:
+                    app.ActivePrinter = printer_name
+                    first_page = min(page_numbers) + 1
+                    last_page = max(page_numbers) + 1
+                    workbook.PrintOut(Copies=copies, From=first_page, To=last_page, Preview=False, ActivePrinter=printer_name)
+                finally:
+                    if workbook is not None:
+                        workbook.Close(False)
+            finally:
+                if app is not None:
+                    app.Quit()
+            return
+
+        if ext in {".ppt", ".pptx", ".pptm"}:
+            app = win32_client.DispatchEx("PowerPoint.Application")
+            try:
+                presentation = app.Presentations.Open(document_path, WithWindow=False)
+                try:
+                    app.ActivePrinter = printer_name
+                    first_page = min(page_numbers) + 1
+                    last_page = max(page_numbers) + 1
+                    presentation.PrintOptions.Ranges.ClearAll()
+                    presentation.PrintOptions.Ranges.Add(first_page, last_page)
+                    presentation.PrintOptions.RangeType = 2
+                    presentation.PrintOut()
+                finally:
+                    if presentation is not None:
+                        presentation.Close()
+            finally:
+                if app is not None:
+                    app.Quit()
+            return
+
+        raise ValueError(tr("print_error_unavailable"))
+    finally:
+        if pythoncom is not None:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
+
+
 def _print_with_selected_printer(document_path, printer_name, copies=1, page_numbers=None):
     if not isinstance(document_path, str) or not document_path or not os.path.exists(document_path):
         raise FileNotFoundError(document_path)
@@ -119,9 +229,13 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
     if not selected_printer:
         raise ValueError(tr("print_no_printer"))
 
+    if page_numbers and office_preview.can_preview_office(document_path):
+        _print_office_document_pages(document_path, selected_printer, copies=copies, page_numbers=page_numbers)
+        return selected_printer
+
     print_target = document_path
     if page_numbers:
-        if not document_path.lower().endswith(".pdf") or fitz is None:
+        if fitz is None:
             raise ValueError(tr("print_error_unavailable"))
 
         pdf_doc = fitz.open(document_path)
