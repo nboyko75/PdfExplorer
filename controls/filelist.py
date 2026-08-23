@@ -11,6 +11,7 @@ import file_operations.image_utils as image_utils
 import file_operations.archive_helper as archive_helper
 import controls.file_preview as file_preview
 import controls.drag_and_drop as drag_and_drop
+import controls.print_form as print_form
 from controls.window_tools import load_settings, update_settings
 
 CLIPBOARD_MODE_COPY = copy_and_paste.CLIPBOARD_MODE_COPY
@@ -116,6 +117,13 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.list_print_btn = image_utils.create_bitmap_button(
+        owner.list_host_panel,
+        wx.ART_PRINT,
+        tr("context_print"),
+        icon_size=list_btn_icon_size,
+        button_size=list_btn_size,
+    )
     owner.list_copy_btn = image_utils.create_bitmap_button2(
         owner.list_host_panel,
         owner.icon_manager,
@@ -159,6 +167,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_new_folder_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_print_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_copy_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_cut_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_paste_btn, 0, wx.RIGHT, 3)
@@ -195,6 +204,7 @@ def bind_list_events(owner):
     owner.list_open_btn.Bind(wx.EVT_BUTTON, owner.on_list_open)
     owner.list_rename_btn.Bind(wx.EVT_BUTTON, owner.on_list_rename)
     owner.list_new_folder_btn.Bind(wx.EVT_BUTTON, owner.on_list_new_folder)
+    owner.list_print_btn.Bind(wx.EVT_BUTTON, owner.on_list_print)
     owner.list_copy_btn.Bind(wx.EVT_BUTTON, owner.on_list_copy)
     owner.list_cut_btn.Bind(wx.EVT_BUTTON, owner.on_list_cut)
     owner.list_paste_btn.Bind(wx.EVT_BUTTON, owner.on_list_paste)
@@ -264,6 +274,10 @@ def update_list_toolbar_buttons(owner):
     button = getattr(owner, "list_new_folder_btn", None)
     if button is not None:
         button.Enable(os.path.isdir(current_folder))
+
+    button = getattr(owner, "list_print_btn", None)
+    if button is not None:
+        button.Enable(has_single_existing_item)
 
     for button_name in ("list_copy_btn", "list_cut_btn", "list_delete_btn"):
         button = getattr(owner, button_name, None)
@@ -390,6 +404,7 @@ def on_right_click(owner, event):
     open_item = menu.Append(-1, tr("context_open"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
+    print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
     menu.AppendSeparator()
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
@@ -406,12 +421,17 @@ def on_right_click(owner, event):
     if refresh_bmp.IsOk():
         refresh_item.SetBitmap(refresh_bmp)
 
+    print_bmp = wx.ArtProvider.GetBitmap(wx.ART_PRINT, wx.ART_MENU, (16, 16))
+    if print_bmp.IsOk():
+        print_item.SetBitmap(print_bmp)
+
     if icon_manager:
         icon_manager.set_menu_icon2(scan_item, "scan")
         icon_manager.set_menu_icon2(open_item, "file_view")
         icon_manager.set_menu_icon(rename_item, art_id=wx.ART_EDIT)
         icon_manager.set_menu_icon(new_folder_item, art_id=wx.ART_FOLDER)
         icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
+        icon_manager.set_menu_icon(print_item, art_id=wx.ART_PRINT)
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon(cut_item, art_id=wx.ART_CUT)
         icon_manager.set_menu_icon(paste_item, art_id=wx.ART_PASTE)
@@ -434,6 +454,7 @@ def on_right_click(owner, event):
     rename_item.Enable(can_act_on_single_selection)
     new_folder_item.Enable(can_create_in_current_folder)
     refresh_item.Enable(True)
+    print_item.Enable(can_act_on_single_selection)
     copy_item.Enable(can_act_on_selection)
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
@@ -446,6 +467,7 @@ def on_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, owner.on_list_rename, rename_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_new_folder, new_folder_item)
     owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
+    owner.Bind(wx.EVT_MENU, owner.on_list_print, print_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_copy, copy_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_cut, cut_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_paste, paste_item)
@@ -715,6 +737,21 @@ def create_new_folder(owner, target_path=None):
 
 def on_list_new_folder(owner, _):
     create_new_folder(owner)
+
+
+def on_list_print(owner, _):
+    selected_paths = get_selected_list_paths(owner)
+    path = selected_paths[0] if len(selected_paths) == 1 else getattr(owner, "current_preview_path", None)
+    if not path:
+        path = getattr(owner, "path_box", None)
+        if hasattr(path, "GetValue"):
+            path = path.GetValue()
+    if not isinstance(path, str) or not os.path.exists(path):
+        path = getattr(owner, "current_preview_path", None)
+    if not path:
+        wx.MessageBox(tr("print_no_selection"), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
+        return
+    print_form.show_print_form(owner, path)
 
 
 def on_list_delete(owner, _):

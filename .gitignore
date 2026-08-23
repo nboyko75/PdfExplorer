@@ -8,3 +8,4 @@ pdf/
 .pdf_explorer_settings.json
 .todo.txt
 *.zip
+pytest_print_check.txt

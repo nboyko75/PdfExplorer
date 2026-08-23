@@ -128,6 +128,16 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertTrue(dimmed.HasAlpha())
         self.assertLess(dimmed.GetRed(0, 0), image.GetRed(0, 0))
 
+    def test_print_button_and_print_translation_are_available(self):
+        import localization
+        import controls.filelist as filelist
+
+        self.assertIn("context_print", localization.TRANSLATIONS)
+        self.assertIn("print_dialog_title", localization.TRANSLATIONS)
+        self.assertIn("print_button", localization.TRANSLATIONS)
+        self.assertTrue(hasattr(filelist, "on_list_print"))
+        self.assertTrue(callable(filelist.on_list_print))
+
 
 if __name__ == "__main__":
     unittest.main()

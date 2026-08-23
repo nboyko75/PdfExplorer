@@ -389,6 +389,7 @@ def on_tree_right_click(owner, event):
     open_item = menu.Append(-1, tr("context_open"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
+    print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
     menu.AppendSeparator()
 
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
@@ -404,6 +405,7 @@ def on_tree_right_click(owner, event):
     open_item.Enable(can_act_on_selection)
     new_folder_item.Enable(can_create_new_folder)
     refresh_item.Enable(True)
+    print_item.Enable(bool(path and os.path.isfile(path)))
     copy_item.Enable(can_act_on_selection)
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
@@ -419,6 +421,10 @@ def on_tree_right_click(owner, event):
     refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
     if refresh_bmp.IsOk():
         refresh_item.SetBitmap(refresh_bmp)
+
+    print_bmp = wx.ArtProvider.GetBitmap(wx.ART_PRINT, wx.ART_MENU, (16, 16))
+    if print_bmp.IsOk():
+        print_item.SetBitmap(print_bmp)
 
     if icon_manager:
         icon_manager.set_menu_icon2(open_item, "file_view")
@@ -471,6 +477,11 @@ def on_tree_right_click(owner, event):
     def handle_refresh(_):
         refresh_tree_selection_and_filelist(owner)
 
+    def handle_print(_):
+        if path and os.path.isfile(path):
+            import controls.print_form as print_form
+            print_form.show_print_form(owner, path)
+
     def handle_copy(_):
         filelist.on_tree_copy(owner, path)
 
@@ -497,6 +508,7 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_open, open_item)
     owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
     owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
+    owner.Bind(wx.EVT_MENU, handle_print, print_item)
     owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
     owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
     owner.Bind(wx.EVT_MENU, handle_paste, paste_item)

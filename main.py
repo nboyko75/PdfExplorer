@@ -276,6 +276,9 @@ class FileExplorer(wx.Frame):
         else:
             self.refresh_tree_placeholders()
 
+    def on_list_print(self, _):
+        filelist.on_list_print(self, _)
+
     def on_about(self, _):
         about_form.show_about_form(self)
 
@@ -506,6 +509,7 @@ class FileExplorer(wx.Frame):
         self.list_open_btn.SetToolTip(tr("context_open"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
         self.list_new_folder_btn.SetToolTip(tr("context_new_folder"))
+        self.list_print_btn.SetToolTip(tr("context_print"))
         self.list_copy_btn.SetToolTip(tr("context_copy"))
         self.list_cut_btn.SetToolTip(tr("context_cut"))
         self.list_paste_btn.SetToolTip(tr("context_paste"))

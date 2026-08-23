@@ -1,1 +1,2 @@
-pip install pywin32
+-- pip install pywin32
+.\.venv\Scripts\python.exe -m pip install .\Whl\pywin32-312-cp310-cp310-win_amd64.whl
