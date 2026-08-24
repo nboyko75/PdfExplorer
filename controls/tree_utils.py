@@ -245,15 +245,17 @@ def refresh_tree_root(owner):
     if not root.IsOk():
         return
 
-    owner.tree.DeleteChildren(root)
+    cursor_ctx = owner.busy_cursor() if hasattr(owner, "busy_cursor") else _nullcontext()
+    with cursor_ctx:
+        owner.tree.DeleteChildren(root)
 
-    for drive in get_drives():
-        item = owner.tree.AppendItem(root, drive)
-        owner.tree.SetItemData(item, normalize_tree_path(drive))
-        owner.tree.SetItemImage(item, owner.tree_icon_folder)
-        owner.tree.AppendItem(item, tr("tree_expand_placeholder"))
+        for drive in get_drives():
+            item = owner.tree.AppendItem(root, drive)
+            owner.tree.SetItemData(item, normalize_tree_path(drive))
+            owner.tree.SetItemImage(item, owner.tree_icon_folder)
+            owner.tree.AppendItem(item, tr("tree_expand_placeholder"))
 
-    owner.tree.Expand(root)
+        owner.tree.Expand(root)
 
 
 def refresh_tree_selection(owner):

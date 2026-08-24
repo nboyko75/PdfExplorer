@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "print_range_selection": "所选页",
     "print_file_label": "文档",
     "print_button": "打印",
+    "print_parameters_button": "打印机参数",
     "print_cancel_button": "取消",
     "print_no_selection": "请选择要打印的文件。",
     "print_no_printer": "没有可用于 Microsoft Universal Print 的打印机。",

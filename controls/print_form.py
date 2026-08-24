@@ -10,9 +10,11 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 try:
     import win32api  # type: ignore[import-not-found]
+    import win32con  # type: ignore[import-not-found]
     import win32print  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional runtime dependency
     win32api = None
+    win32con = None
     win32print = None
 
 try:
@@ -154,45 +156,84 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
 
     try:
         if ext in {".doc", ".docx", ".docm"}:
-            app = win32_client.DispatchEx("Word.Application")
+            app = None
+            document = None
+            should_close_document = False
+            should_quit_app = True
             try:
+                try:
+                    app, document = office_preview._get_running_office_document(document_path, "Word.Application", "Documents")
+                except Exception:
+                    app, document = None, None
+                if app is None:
+                    app = win32_client.DispatchEx("Word.Application")
+                else:
+                    should_quit_app = False
                 app.Visible = False
                 app.DisplayAlerts = 0
-                document = app.Documents.Open(document_path, ReadOnly=True)
+                if document is None:
+                    document = app.Documents.Open(document_path, ReadOnly=True)
+                    should_close_document = True
                 try:
                     app.ActivePrinter = printer_name
                     document.PrintOut(Copies=copies, Pages=_build_office_page_range(page_numbers), Background=False)
                 finally:
-                    if document is not None:
+                    if should_close_document and document is not None:
                         document.Close(False)
             finally:
-                if app is not None:
+                if app is not None and should_quit_app:
                     app.Quit()
             return
 
         if ext in {".xls", ".xlsx", ".xlsm"}:
-            app = win32_client.DispatchEx("Excel.Application")
+            app = None
+            workbook = None
+            should_close_workbook = False
+            should_quit_app = True
             try:
+                try:
+                    app, workbook = office_preview._get_running_office_document(document_path, "Excel.Application", "Workbooks")
+                except Exception:
+                    app, workbook = None, None
+                if app is None:
+                    app = win32_client.DispatchEx("Excel.Application")
+                else:
+                    should_quit_app = False
                 app.Visible = False
                 app.DisplayAlerts = False
-                workbook = app.Workbooks.Open(document_path, ReadOnly=True)
+                if workbook is None:
+                    workbook = app.Workbooks.Open(document_path, ReadOnly=True)
+                    should_close_workbook = True
                 try:
                     app.ActivePrinter = printer_name
                     first_page = min(page_numbers) + 1
                     last_page = max(page_numbers) + 1
                     workbook.PrintOut(Copies=copies, From=first_page, To=last_page, Preview=False, ActivePrinter=printer_name)
                 finally:
-                    if workbook is not None:
+                    if should_close_workbook and workbook is not None:
                         workbook.Close(False)
             finally:
-                if app is not None:
+                if app is not None and should_quit_app:
                     app.Quit()
             return
 
         if ext in {".ppt", ".pptx", ".pptm"}:
-            app = win32_client.DispatchEx("PowerPoint.Application")
+            app = None
+            presentation = None
+            should_close_presentation = False
+            should_quit_app = True
             try:
-                presentation = app.Presentations.Open(document_path, WithWindow=False)
+                try:
+                    app, presentation = office_preview._get_running_office_document(document_path, "PowerPoint.Application", "Presentations")
+                except Exception:
+                    app, presentation = None, None
+                if app is None:
+                    app = win32_client.DispatchEx("PowerPoint.Application")
+                else:
+                    should_quit_app = False
+                if presentation is None:
+                    presentation = app.Presentations.Open(document_path, WithWindow=False)
+                    should_close_presentation = True
                 try:
                     app.ActivePrinter = printer_name
                     first_page = min(page_numbers) + 1
@@ -202,10 +243,10 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
                     presentation.PrintOptions.RangeType = 2
                     presentation.PrintOut()
                 finally:
-                    if presentation is not None:
+                    if should_close_presentation and presentation is not None:
                         presentation.Close()
             finally:
-                if app is not None:
+                if app is not None and should_quit_app:
                     app.Quit()
             return
 
@@ -277,6 +318,38 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
                 pass
 
     return selected_printer
+
+
+def _show_printer_properties(printer_name):
+    if win32print is None or win32con is None:
+        return False
+
+    selected_printer = str(printer_name or "").strip()
+    if not selected_printer:
+        return False
+
+    try:
+        printer_handle = win32print.OpenPrinter(selected_printer)
+    except Exception:
+        return False
+
+    try:
+        win32print.DocumentProperties(
+            0,
+            printer_handle,
+            selected_printer,
+            None,
+            None,
+            win32con.DM_IN_PROMPT | win32con.DM_OUT_BUFFER,
+        )
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            win32print.ClosePrinter(printer_handle)
+        except Exception:
+            pass
 
 
 def _save_print_form_geometry(dialog):
@@ -367,7 +440,14 @@ def show_print_form(owner, document_path=None):
     update_page_range_visibility()
 
     button_ok = wx.Button(panel, wx.ID_OK, tr("print_button"))
+    button_parameters = wx.Button(panel, wx.ID_ANY, tr("print_parameters_button"))
     button_cancel = wx.Button(panel, wx.ID_CANCEL, tr("print_cancel_button"))
+
+    def on_printer_parameters(_event=None):
+        selected_printer = printer_names[printer_choice.GetSelection()] if printer_choice.GetSelection() >= 0 else default_printer
+        _show_printer_properties(selected_printer)
+
+    button_parameters.Bind(wx.EVT_BUTTON, on_printer_parameters)
 
     fields = wx.FlexGridSizer(cols=2, hgap=10, vgap=10)
     fields.AddGrowableCol(1, 1)
@@ -386,6 +466,7 @@ def show_print_form(owner, document_path=None):
 
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
+    button_sizer.Add(button_parameters, 0, wx.RIGHT, 8)
     button_sizer.Add(button_ok, 0, wx.RIGHT, 8)
     button_sizer.Add(button_cancel, 0)
 

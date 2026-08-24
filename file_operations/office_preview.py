@@ -153,6 +153,40 @@ def is_office_file_open(path):
     return bool(result["value"])
 
 
+def _normalize_office_path(path):
+    if not isinstance(path, str) or not path:
+        return ""
+    return os.path.normcase(os.path.normpath(os.path.abspath(path)))
+
+
+def _get_running_office_document(path, app_name, collection_name):
+    if win32_client is None:
+        return None, None
+
+    target = _normalize_office_path(path)
+    if not target:
+        return None, None
+
+    try:
+        app = win32_client.GetActiveObject(app_name)
+    except Exception:
+        return None, None
+
+    collection = getattr(app, collection_name, None)
+    if collection is None:
+        return app, None
+
+    for item in collection:
+        try:
+            full_name = getattr(item, "FullName", None)
+            if full_name and _normalize_office_path(full_name) == target:
+                return app, item
+        except Exception:
+            continue
+
+    return app, None
+
+
 def _build_cached_preview_pdf_path(path):
     normalized_path = os.path.abspath(path)
     mtime_ns = os.path.getmtime(path)
@@ -351,25 +385,44 @@ def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
             pass
 
     app = None
+    doc = None
+    close_document = False
+    should_quit_app = True
     try:
-        app = win32_client.DispatchEx("Word.Application")
+        try:
+            app, doc = _get_running_office_document(source_path, "Word.Application", "Documents")
+        except Exception:
+            app, doc = None, None
+
+        if app is None:
+            app = win32_client.DispatchEx("Word.Application")
+        else:
+            should_quit_app = False
+
         app.Visible = False
         app.DisplayAlerts = 0
-        doc = None
-        try:
+
+        if doc is None:
             doc = app.Documents.Open(source_path, ReadOnly=True)
-            doc.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
-        finally:
-            if doc is not None:
-                doc.Close(False)
-            if app is not None:
-                app.Quit()
+            close_document = True
+
+        doc.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
     finally:
-        if pythoncom is not None:
+        if close_document and doc is not None:
             try:
-                pythoncom.CoUninitialize()
+                doc.Close(False)
             except Exception:
                 pass
+        if app is not None and should_quit_app:
+            try:
+                app.Quit()
+            except Exception:
+                pass
+    if pythoncom is not None:
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
@@ -385,25 +438,44 @@ def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
             pass
 
     app = None
+    workbook = None
+    close_workbook = False
+    should_quit_app = True
     try:
-        app = win32_client.DispatchEx("Excel.Application")
+        try:
+            app, workbook = _get_running_office_document(source_path, "Excel.Application", "Workbooks")
+        except Exception:
+            app, workbook = None, None
+
+        if app is None:
+            app = win32_client.DispatchEx("Excel.Application")
+        else:
+            should_quit_app = False
+
         app.Visible = False
         app.DisplayAlerts = False
-        workbook = None
-        try:
+
+        if workbook is None:
             workbook = app.Workbooks.Open(source_path, ReadOnly=True)
-            workbook.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
-        finally:
-            if workbook is not None:
-                workbook.Close(False)
-            if app is not None:
-                app.Quit()
+            close_workbook = True
+
+        workbook.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
     finally:
-        if pythoncom is not None:
+        if close_workbook and workbook is not None:
             try:
-                pythoncom.CoUninitialize()
+                workbook.Close(False)
             except Exception:
                 pass
+        if app is not None and should_quit_app:
+            try:
+                app.Quit()
+            except Exception:
+                pass
+    if pythoncom is not None:
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def _export_powerpoint_to_pdf(source_path, output_pdf):
@@ -418,24 +490,43 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
             pass
 
     app = None
+    presentation = None
+    close_presentation = False
+    should_quit_app = True
     try:
-        app = win32_client.DispatchEx("PowerPoint.Application")
-        app.Visible = 1
-        presentation = None
         try:
+            app, presentation = _get_running_office_document(source_path, "PowerPoint.Application", "Presentations")
+        except Exception:
+            app, presentation = None, None
+
+        if app is None:
+            app = win32_client.DispatchEx("PowerPoint.Application")
+        else:
+            should_quit_app = False
+
+        app.Visible = 1
+
+        if presentation is None:
             presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)
-            presentation.SaveAs(output_pdf, 32)
-        finally:
-            if presentation is not None:
-                presentation.Close()
-            if app is not None:
-                app.Quit()
+            close_presentation = True
+
+        presentation.SaveAs(output_pdf, 32)
     finally:
-        if pythoncom is not None:
+        if close_presentation and presentation is not None:
             try:
-                pythoncom.CoUninitialize()
+                presentation.Close()
             except Exception:
                 pass
+        if app is not None and should_quit_app:
+            try:
+                app.Quit()
+            except Exception:
+                pass
+    if pythoncom is not None:
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def convert_office_to_preview_pdf(path, max_pages=None):

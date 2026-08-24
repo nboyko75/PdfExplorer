@@ -284,57 +284,108 @@ def _read_office_com_text(path):
 
         try:
             if ext in {".doc", ".docx", ".docm"}:
-                app = win32_client.Dispatch("Word.Application")
-                app.Visible = False
-                document = app.Documents.Open(path, ReadOnly=True)
+                app = None
+                document = None
+                close_document = False
+                should_quit_app = True
                 try:
-                    return document.Content.Text or ""
+                    try:
+                        app, document = office_preview._get_running_office_document(path, "Word.Application", "Documents")
+                    except Exception:
+                        app, document = None, None
+                    if app is None:
+                        app = win32_client.Dispatch("Word.Application")
+                    else:
+                        should_quit_app = False
+                    app.Visible = False
+                    if document is None:
+                        document = app.Documents.Open(path, ReadOnly=True)
+                        close_document = True
+                    try:
+                        return document.Content.Text or ""
+                    finally:
+                        if close_document and document is not None:
+                            document.Close(False)
                 finally:
-                    document.Close(False)
-                    app.Quit()
+                    if app is not None and should_quit_app:
+                        app.Quit()
 
             if ext in {".xls", ".xlsx", ".xlsm"}:
-                app = win32_client.Dispatch("Excel.Application")
-                app.Visible = False
-                workbook = app.Workbooks.Open(path, ReadOnly=True)
+                app = None
+                workbook = None
+                close_workbook = False
+                should_quit_app = True
                 try:
-                    data = []
-                    for sheet in workbook.Sheets:
-                        used_range = sheet.UsedRange
-                        if used_range is not None:
-                            values = used_range.Value
-                            if isinstance(values, list):
-                                for row in values:
-                                    if row is None:
-                                        continue
-                                    flattened = []
-                                    for value in row:
-                                        if value is None:
-                                            flattened.append("")
-                                        else:
-                                            flattened.append(str(value))
-                                    data.append(" ".join(flattened))
-                    return "\n".join(data)
+                    try:
+                        app, workbook = office_preview._get_running_office_document(path, "Excel.Application", "Workbooks")
+                    except Exception:
+                        app, workbook = None, None
+                    if app is None:
+                        app = win32_client.Dispatch("Excel.Application")
+                    else:
+                        should_quit_app = False
+                    app.Visible = False
+                    if workbook is None:
+                        workbook = app.Workbooks.Open(path, ReadOnly=True)
+                        close_workbook = True
+                    try:
+                        data = []
+                        for sheet in workbook.Sheets:
+                            used_range = sheet.UsedRange
+                            if used_range is not None:
+                                values = used_range.Value
+                                if isinstance(values, list):
+                                    for row in values:
+                                        if row is None:
+                                            continue
+                                        flattened = []
+                                        for value in row:
+                                            if value is None:
+                                                flattened.append("")
+                                            else:
+                                                flattened.append(str(value))
+                                        data.append(" ".join(flattened))
+                        return "\n".join(data)
+                    finally:
+                        if close_workbook and workbook is not None:
+                            workbook.Close(False)
                 finally:
-                    workbook.Close(False)
-                    app.Quit()
+                    if app is not None and should_quit_app:
+                        app.Quit()
 
             if ext in {".ppt", ".pptx", ".pptm"}:
-                app = win32_client.Dispatch("PowerPoint.Application")
-                presentation = app.Presentations.Open(path, WithWindow=False)
+                app = None
+                presentation = None
+                close_presentation = False
+                should_quit_app = True
                 try:
-                    parts = []
-                    for slide in presentation.Slides:
-                        for shape in slide.Shapes:
-                            try:
-                                if hasattr(shape, "TextFrame") and shape.TextFrame is not None:
-                                    parts.append(shape.TextFrame.TextRange.Text)
-                            except Exception:
-                                continue
-                    return "\n".join(part for part in parts if part)
+                    try:
+                        app, presentation = office_preview._get_running_office_document(path, "PowerPoint.Application", "Presentations")
+                    except Exception:
+                        app, presentation = None, None
+                    if app is None:
+                        app = win32_client.Dispatch("PowerPoint.Application")
+                    else:
+                        should_quit_app = False
+                    if presentation is None:
+                        presentation = app.Presentations.Open(path, WithWindow=False)
+                        close_presentation = True
+                    try:
+                        parts = []
+                        for slide in presentation.Slides:
+                            for shape in slide.Shapes:
+                                try:
+                                    if hasattr(shape, "TextFrame") and shape.TextFrame is not None:
+                                        parts.append(shape.TextFrame.TextRange.Text)
+                                except Exception:
+                                    continue
+                        return "\n".join(part for part in parts if part)
+                    finally:
+                        if close_presentation and presentation is not None:
+                            presentation.Close()
                 finally:
-                    presentation.Close()
-                    app.Quit()
+                    if app is not None and should_quit_app:
+                        app.Quit()
         except Exception:
             return ""
     finally:

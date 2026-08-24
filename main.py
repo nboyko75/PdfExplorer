@@ -821,12 +821,10 @@ class FileExplorer(wx.Frame):
         self.show_hidden = bool(self.hidden_chk.GetValue())
         update_settings({"show_hidden": self.show_hidden})
 
-        self.refresh()
+        tree_utils.refresh_tree_root(self)
+        self.select_tree_item_by_path(os.path.dirname(self.path_box.GetValue()))
         if hasattr(self, "tree") and self.tree is not None:
-            if hasattr(self.tree, "GetSelection"):
-                tree_utils.refresh_tree_selection_and_filelist(self)
-            else:
-                tree_utils.refresh_tree_selection(self)
+            tree_utils.refresh_tree_selection_and_filelist(self)
 
     def refresh(self):
         self.load_folder(self.path_box.GetValue())

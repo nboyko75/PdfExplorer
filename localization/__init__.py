@@ -141,6 +141,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "print_range_selection": "Selected pages",
     "print_file_label": "Document",
     "print_button": "Print",
+    "print_parameters_button": "Printer parameters",
     "print_cancel_button": "Cancel",
     "print_no_selection": "Select a file to print.",
     "print_no_printer": "No printers are available for Microsoft Universal Print.",

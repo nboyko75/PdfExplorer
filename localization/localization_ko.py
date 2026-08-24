@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "print_range_selection": "선택한 페이지",
     "print_file_label": "문서",
     "print_button": "인쇄",
+    "print_parameters_button": "프린터 설정",
     "print_cancel_button": "취소",
     "print_no_selection": "인쇄할 파일을 선택하세요.",
     "print_no_printer": "Microsoft Universal Print를 사용할 수 있는 프린터가 없습니다.",

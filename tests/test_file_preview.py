@@ -859,6 +859,34 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         worker.start.assert_called_once()
         worker.join.assert_called_once_with(timeout=office_preview._OFFICE_OPEN_CHECK_TIMEOUT)
 
+    def test_office_exports_reuse_already_open_document(self):
+        office_preview = __import__("file_operations.office_preview", fromlist=["_export_word_to_pdf", "_export_excel_to_pdf", "_export_powerpoint_to_pdf"])
+
+        cases = [
+            ("Word.Application", ".docx", "Documents", "_export_word_to_pdf", "ExportAsFixedFormat"),
+            ("Excel.Application", ".xlsx", "Workbooks", "_export_excel_to_pdf", "ExportAsFixedFormat"),
+            ("PowerPoint.Application", ".pptx", "Presentations", "_export_powerpoint_to_pdf", "SaveAs"),
+        ]
+
+        for app_name, ext, collection_name, export_name, export_method in cases:
+            with self.subTest(app_name=app_name):
+                target_path = f"C:/temp/report{ext}"
+                existing_app = mock.Mock()
+                existing_document = mock.Mock()
+                existing_document.FullName = target_path
+                setattr(existing_app, collection_name, [existing_document])
+
+                with mock.patch.object(office_preview, "win32_client", mock.Mock()), \
+                     mock.patch.object(office_preview, "pythoncom", mock.Mock()), \
+                     mock.patch.object(office_preview.win32_client, "GetActiveObject", return_value=existing_app), \
+                     mock.patch.object(office_preview.win32_client, "DispatchEx") as mocked_dispatch:
+                    getattr(office_preview, export_name)(target_path, "preview.pdf")
+
+                mocked_dispatch.assert_not_called()
+                getattr(existing_document, export_method).assert_called_once()
+                existing_document.Close.assert_not_called()
+                existing_app.Quit.assert_not_called()
+
 
 class OfficePreviewLimitTests(unittest.TestCase):
     def test_export_word_to_pdf_limits_page_range(self):

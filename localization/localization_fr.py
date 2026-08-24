@@ -139,6 +139,7 @@ TRANSLATIONS = {
     "print_range_selection": "Pages sélectionnées",
     "print_file_label": "Document",
     "print_button": "Imprimer",
+    "print_parameters_button": "Paramètres de l'imprimante",
     "print_cancel_button": "Annuler",
     "print_no_selection": "Sélectionnez un fichier à imprimer.",
     "print_no_printer": "Aucune imprimante n'est disponible pour Microsoft Universal Print.",

@@ -115,6 +115,7 @@ TRANSLATIONS = {
     "print_range_selection": "選択ページ",
     "print_file_label": "ドキュメント",
     "print_button": "印刷",
+    "print_parameters_button": "プリンター設定",
     "print_cancel_button": "キャンセル",
     "print_no_selection": "印刷するファイルを選択してください。",
     "print_no_printer": "Microsoft Universal Print に利用可能なプリンターがありません。",

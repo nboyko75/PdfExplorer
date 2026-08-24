@@ -22,7 +22,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             tree=object(),
         )
 
-        with mock.patch.object(main.tree_utils, "refresh_tree_selection") as mocked_refresh_tree:
+        with mock.patch.object(main.tree_utils, "refresh_tree_selection_and_filelist") as mocked_refresh_tree:
             main.FileExplorer.on_toggle_hidden(owner, None)
 
         self.assertTrue(owner.show_hidden)
@@ -137,6 +137,28 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertIn("print_button", localization.TRANSLATIONS)
         self.assertTrue(hasattr(filelist, "on_list_print"))
         self.assertTrue(callable(filelist.on_list_print))
+
+    def test_selected_printer_setup_uses_windows_properties_dialog(self):
+        import controls.print_form as print_form
+
+        fake_printer = mock.MagicMock()
+        fake_win32print = mock.MagicMock()
+        fake_win32con = types.SimpleNamespace(DM_IN_PROMPT=4, DM_OUT_BUFFER=2)
+        fake_win32print.OpenPrinter.return_value = fake_printer
+
+        with mock.patch.object(print_form, "win32print", fake_win32print), \
+             mock.patch.object(print_form, "win32con", fake_win32con):
+            print_form._show_printer_properties("Printer One")
+
+        fake_win32print.OpenPrinter.assert_called_once_with("Printer One")
+        fake_win32print.DocumentProperties.assert_called_once_with(
+            0,
+            fake_printer,
+            "Printer One",
+            None,
+            None,
+            fake_win32con.DM_IN_PROMPT | fake_win32con.DM_OUT_BUFFER,
+        )
 
     def test_print_with_selected_printer_supports_office_subset_pages(self):
         import controls.print_form as print_form
