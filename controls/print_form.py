@@ -121,10 +121,47 @@ def _parse_page_numbers_input(text, page_count):
 
 
 def _build_office_page_range(page_numbers):
-    normalized_pages = sorted({int(page) + 1 for page in (page_numbers or []) if isinstance(page, int) and page >= 0})
+    if page_numbers is None:
+        return ""
+
+    raw_is_string = isinstance(page_numbers, str)
+    if raw_is_string:
+        raw_value = page_numbers.strip()
+        if not raw_value:
+            return ""
+        values = []
+        for chunk in [token.strip() for token in raw_value.split(",") if token.strip()]:
+            if "-" in chunk:
+                start_text, end_text = [part.strip() for part in chunk.split("-", 1)]
+                if not start_text or not end_text or not start_text.isdigit() or not end_text.isdigit():
+                    return ""
+                start_page = int(start_text)
+                end_page = int(end_text)
+                if end_page < start_page:
+                    return ""
+                values.extend(range(start_page, end_page + 1))
+            elif chunk.isdigit():
+                values.append(int(chunk))
+            else:
+                return ""
+        page_numbers = values
+    elif isinstance(page_numbers, int):
+        page_numbers = [page_numbers]
+
+    normalized_pages = []
+    for page in (page_numbers or []):
+        try:
+            page_value = int(page)
+        except (TypeError, ValueError):
+            continue
+        if page_value < 1:
+            continue
+        normalized_pages.append(page_value + (0 if raw_is_string else 1))
+
     if not normalized_pages:
         return ""
 
+    normalized_pages = sorted(set(normalized_pages))
     ranges = []
     start = prev = normalized_pages[0]
     for page in normalized_pages[1:]:
@@ -175,8 +212,21 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
                     document = app.Documents.Open(document_path, ReadOnly=True)
                     should_close_document = True
                 try:
+                    print(document.PrintOut.__doc__)
                     app.ActivePrinter = printer_name
-                    document.PrintOut(Copies=copies, Pages=_build_office_page_range(page_numbers), Background=False)
+                    doc_pages = _build_office_page_range(page_numbers)
+                    range_type = 4  # wdPrintRangeOfPages 
+                    document.PrintOut(
+                        Background=False,
+                        Append=False,
+                        Range=4,
+                        OutputFileName="",
+                        From="",
+                        To="",
+                        Item=0, 
+                        Copies=copies,
+                        Pages=doc_pages
+                    )
                 finally:
                     if should_close_document and document is not None:
                         document.Close(False)
@@ -334,12 +384,29 @@ def _show_printer_properties(printer_name):
         return False
 
     try:
+        try:
+            printer_info = win32print.GetPrinter(printer_handle, 2)
+            devmode = printer_info[3] if isinstance(printer_info, (tuple, list)) and len(printer_info) > 3 else None
+        except Exception:
+            devmode = None
+
+        if devmode is None:
+            win32print.DocumentProperties(
+                0,
+                printer_handle,
+                selected_printer,
+                None,
+                None,
+                win32con.DM_IN_PROMPT,
+            )
+            return True
+
         win32print.DocumentProperties(
             0,
             printer_handle,
             selected_printer,
-            None,
-            None,
+            devmode,
+            devmode,
             win32con.DM_IN_PROMPT | win32con.DM_OUT_BUFFER,
         )
         return True

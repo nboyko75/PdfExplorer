@@ -138,13 +138,21 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertTrue(hasattr(filelist, "on_list_print"))
         self.assertTrue(callable(filelist.on_list_print))
 
+    def test_build_office_page_range_accepts_range_strings(self):
+        import controls.print_form as print_form
+
+        self.assertEqual(print_form._build_office_page_range("2-3"), "2-3")
+        self.assertEqual(print_form._build_office_page_range([1, 2]), "2-3")
+
     def test_selected_printer_setup_uses_windows_properties_dialog(self):
         import controls.print_form as print_form
 
         fake_printer = mock.MagicMock()
+        fake_devmode = mock.MagicMock()
         fake_win32print = mock.MagicMock()
         fake_win32con = types.SimpleNamespace(DM_IN_PROMPT=4, DM_OUT_BUFFER=2)
         fake_win32print.OpenPrinter.return_value = fake_printer
+        fake_win32print.GetPrinter.return_value = (None, None, None, fake_devmode)
 
         with mock.patch.object(print_form, "win32print", fake_win32print), \
              mock.patch.object(print_form, "win32con", fake_win32con):
@@ -155,8 +163,8 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             0,
             fake_printer,
             "Printer One",
-            None,
-            None,
+            fake_devmode,
+            fake_devmode,
             fake_win32con.DM_IN_PROMPT | fake_win32con.DM_OUT_BUFFER,
         )
 
@@ -191,7 +199,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
             self.assertEqual(result, "Printer One")
             fake_win32_client.DispatchEx.assert_called_once_with("Word.Application")
-            fake_word_doc.PrintOut.assert_called_once_with(Copies=1, Pages="1,3", Background=False)
+            fake_word_doc.PrintOut.assert_called_once_with(Copies=1, Pages="1,3", Range=4, Background=False)
             mocked_startfile.assert_not_called()
 
 
