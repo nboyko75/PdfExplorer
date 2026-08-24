@@ -6,6 +6,7 @@ TRANSLATIONS = {
     "menu_navigation": "Navegação",
     "menu_document": "Documento",
     "menu_help": "Ajuda",
+    "menu_app_manual": "Manual do aplicativo",
     "menu_about": "Sobre",
     "menu_file_options": "Opções",
     "options_dialog_title": "Opções",

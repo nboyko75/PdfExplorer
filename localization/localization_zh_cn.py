@@ -2,6 +2,9 @@
 
 TRANSLATIONS = {
     "app_title": "Document Explorer",
+    "menu_help": "帮助",
+    "menu_app_manual": "应用手册",
+    "menu_about": "关于",
     "menu_file_options": "选项",
     "options_dialog_title": "选项",
     "options_group_main": "主要",

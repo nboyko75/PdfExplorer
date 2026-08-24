@@ -15,6 +15,7 @@ import controls.file_preview as file_preview
 import controls.filelist as filelist
 import controls.scanform as scanform
 import controls.about_form as about_form
+import controls.help_form as help_form
 
 
 LANGUAGE_CHOICES = [
@@ -170,6 +171,7 @@ class FileExplorer(wx.Frame):
         self.menu_bar.Append(self.document_menu, tr("menu_document"))
 
         self.help_menu = wx.Menu()
+        self.help_manual_item = self.help_menu.Append(wx.ID_ANY, tr("menu_app_manual"))
         self.help_about_item = self.help_menu.Append(wx.ID_ANY, tr("menu_about"))
         self.menu_bar.Append(self.help_menu, tr("menu_help"))
 
@@ -216,6 +218,7 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, file_preview.on_preview_adjust_page_width, self.doc_adjust_page_width_item)
         self.Bind(wx.EVT_MENU, file_preview.on_preview_optimize, self.doc_optimize_item)
 
+        self.Bind(wx.EVT_MENU, self.on_app_manual, self.help_manual_item)
         self.Bind(wx.EVT_MENU, self.on_about, self.help_about_item)
 
     def _update_main_menu_state(self):
@@ -278,6 +281,9 @@ class FileExplorer(wx.Frame):
 
     def on_list_print(self, _):
         filelist.on_list_print(self, _)
+
+    def on_app_manual(self, _):
+        help_form.show_app_manual_form(self)
 
     def on_about(self, _):
         about_form.show_about_form(self)

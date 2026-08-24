@@ -2,6 +2,9 @@
 
 TRANSLATIONS = {
     "app_title": "Document Explorer",
+    "menu_help": "도움말",
+    "menu_app_manual": "앱 매뉴얼",
+    "menu_about": "정보",
     "menu_file_options": "옵션",
     "options_dialog_title": "옵션",
     "options_group_main": "기본",

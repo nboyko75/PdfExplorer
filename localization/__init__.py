@@ -8,6 +8,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "menu_navigation": "Navigation",
     "menu_document": "Document",
     "menu_help": "Help",
+    "menu_app_manual": "App manual",
     "menu_about": "About",
     "menu_file_options": "Options",
     "options_dialog_title": "Options",

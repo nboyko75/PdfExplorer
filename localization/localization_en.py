@@ -4,6 +4,7 @@ TRANSLATIONS = {
     "menu_navigation": "Navigation",
     "menu_document": "Document",
     "menu_help": "Help",
+    "menu_app_manual": "App manual",
     "menu_about": "About",
     "back_button": "Back",
     "forward_button": "Forward",
