@@ -359,7 +359,19 @@ def on_tree_select(owner, event):
 
 def on_tree_activated(owner, event):
     item = event.GetItem()
+    if not item or not item.IsOk():
+        return
+
     path = normalize_tree_path(owner.tree.GetItemData(item))
+    if os.path.isdir(path):
+        if owner.tree.IsExpanded(item):
+            owner.tree.Collapse(item)
+        else:
+            owner.tree.Expand(item)
+        if hasattr(owner, "open_path"):
+            owner.open_path(path)
+        return
+
     filelist.open_path_or_file(owner, path)
 
 

@@ -1,3 +1,4 @@
+import inspect
 import os
 import sys
 import tempfile
@@ -137,6 +138,46 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertIn("print_button", localization.TRANSLATIONS)
         self.assertTrue(hasattr(filelist, "on_list_print"))
         self.assertTrue(callable(filelist.on_list_print))
+
+    def test_main_menu_and_manual_cover_context_actions(self):
+        import controls.help_form as help_form
+
+        main_menu_source = inspect.getsource(main.FileExplorer._build_main_menu_bar)
+        help_source = inspect.getsource(help_form.show_app_manual_form)
+
+        self.assertIn("self.file_print_item", main_menu_source)
+        self.assertIn("self.file_archive_item", main_menu_source)
+        self.assertIn("self.file_extract_archive_item", main_menu_source)
+        self.assertIn("self.doc_optimize_all_item", main_menu_source)
+        self.assertIn("self.doc_adjust_all_page_width_item", main_menu_source)
+
+        self.assertIn("Print - print the selected file.", help_source)
+        self.assertIn("Add to archive / Extract from archive - package or unpack selected files.", help_source)
+        self.assertIn("Optimize all PDF / Adjust page width all - batch-process PDFs in a folder or file.", help_source)
+
+    def test_double_click_expands_selected_folder_in_tree_and_list(self):
+        tree = mock.MagicMock()
+        tree.IsExpanded.return_value = False
+        owner = types.SimpleNamespace(tree=tree, open_path=mock.MagicMock(), select_tree_item_by_path=mock.MagicMock())
+        item = mock.MagicMock()
+        item.IsOk.return_value = True
+        item_path = r"D:\Projects\Folder"
+        owner.tree.GetItemData.return_value = item_path
+        owner.tree.GetSelection.return_value = item
+
+        event = types.SimpleNamespace(GetItem=lambda: item)
+        tree_utils = __import__("controls.tree_utils", fromlist=["on_tree_activated"])
+        tree_utils.on_tree_activated(owner, event)
+
+        owner.tree.Expand.assert_called_once_with(item)
+        owner.open_path.assert_called_once_with(item_path)
+
+        owner_list = types.SimpleNamespace(select_tree_item_by_path=mock.MagicMock(), path_box=types.SimpleNamespace(GetValue=lambda: ""))
+        with mock.patch.object(filelist, "open_path_or_file") as mocked_open:
+            filelist.on_list_open(owner_list, None, path=r"D:\Projects\Folder")
+
+        owner_list.select_tree_item_by_path.assert_called_once_with(r"D:\Projects\Folder")
+        mocked_open.assert_called_once_with(owner_list, r"D:\Projects\Folder")
 
     def test_build_office_page_range_accepts_range_strings(self):
         import controls.print_form as print_form

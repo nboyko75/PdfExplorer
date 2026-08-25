@@ -664,6 +664,10 @@ def on_list_open(owner, _, path=None):
         selected_paths = get_selected_list_paths(owner)
         path = selected_paths[0] if len(selected_paths) == 1 else None
 
+    if isinstance(path, str) and os.path.isdir(path):
+        if hasattr(owner, "select_tree_item_by_path"):
+            owner.select_tree_item_by_path(path)
+
     open_path_or_file(owner, path)
 
 
