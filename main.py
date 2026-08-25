@@ -124,13 +124,13 @@ class FileExplorer(wx.Frame):
         self.file_open_item = self.file_menu.Append(wx.ID_ANY, tr("context_open"))
         self.file_rename_item = self.file_menu.Append(wx.ID_ANY, tr("context_rename"))
         self.file_new_folder_item = self.file_menu.Append(wx.ID_ANY, tr("context_new_folder"))
-        self.file_refresh_item = self.file_menu.Append(wx.ID_ANY, tr("context_refresh"))
-        self.file_print_item = self.file_menu.Append(wx.ID_ANY, tr("context_print"))
+        self.file_refresh_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_refresh')}\tF5")
+        self.file_print_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_print')}\tCtrl+P")
         self.file_menu.AppendSeparator()
-        self.file_copy_item = self.file_menu.Append(wx.ID_ANY, tr("context_copy"))
-        self.file_cut_item = self.file_menu.Append(wx.ID_ANY, tr("context_cut"))
-        self.file_paste_item = self.file_menu.Append(wx.ID_ANY, tr("context_paste"))
-        self.file_delete_item = self.file_menu.Append(wx.ID_ANY, tr("context_delete"))
+        self.file_copy_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_copy')}\tCtrl+C")
+        self.file_cut_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_cut')}\tCtrl+X")
+        self.file_paste_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_paste')}\tCtrl+V")
+        self.file_delete_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_delete')}\tCtrl+D")
         self.file_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_add_to_archive"))
         self.file_extract_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive"))
         self.file_menu.AppendSeparator()
@@ -176,14 +176,35 @@ class FileExplorer(wx.Frame):
         self.menu_bar.Append(self.document_menu, tr("menu_document"))
 
         self.help_menu = wx.Menu()
-        self.help_manual_item = self.help_menu.Append(wx.ID_ANY, tr("menu_app_manual"))
+        self.help_manual_item = self.help_menu.Append(wx.ID_HELP, f"{tr('menu_app_manual')}\tF1")
         self.help_about_item = self.help_menu.Append(wx.ID_ANY, tr("menu_about"))
         self.menu_bar.Append(self.help_menu, tr("menu_help"))
 
         self.SetMenuBar(self.menu_bar)
+        self._apply_main_menu_icons()
 
         self._bind_main_menu_items()
         self._update_main_menu_state()
+
+    def _apply_main_menu_icons(self):
+        if not hasattr(self, "icon_manager") or self.icon_manager is None:
+            return
+
+        self.icon_manager.set_menu_icon2(self.file_scan_item, "scan")
+        self.icon_manager.set_menu_icon2(self.file_open_item, "file_view")
+        self.icon_manager.set_menu_icon(self.file_rename_item, art_id=wx.ART_EDIT)
+        self.icon_manager.set_menu_icon(self.file_new_folder_item, art_id=wx.ART_FOLDER)
+        self.icon_manager.set_menu_icon(self.file_refresh_item, art_id=wx.ART_REDO)
+        self.icon_manager.set_menu_icon(self.file_print_item, art_id=wx.ART_PRINT)
+        self.icon_manager.set_menu_icon2(self.file_copy_item, "copy")
+        self.icon_manager.set_menu_icon(self.file_cut_item, art_id=wx.ART_CUT)
+        self.icon_manager.set_menu_icon(self.file_paste_item, art_id=wx.ART_PASTE)
+        self.icon_manager.set_menu_icon(self.file_delete_item, art_id=wx.ART_DELETE)
+        self.icon_manager.set_menu_icon2(self.file_archive_item, "add_to_archive")
+        self.icon_manager.set_menu_icon2(self.file_extract_archive_item, "extract_from_archive")
+
+        self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
+        self.icon_manager.set_menu_icon(self.help_about_item, art_id=wx.ART_INFORMATION)
 
     def _bind_main_menu_items(self):
         self.Bind(wx.EVT_MENU, self.on_list_scan, self.file_scan_item)

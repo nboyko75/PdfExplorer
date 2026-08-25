@@ -3,15 +3,15 @@ import wx
 from localization import tr
 
 
-def _build_manual_section_text(title, entries):
-    lines = [title, "-"]
+def _build_manual_section_text(entries):
+    lines = []
     for entry in entries:
         lines.append(f"• {entry}")
     return "\n".join(lines)
 
 
 def show_app_manual_form(owner):
-    dialog = wx.Dialog(owner, title=tr("menu_app_manual"), size=(720, 520))
+    dialog = wx.Dialog(owner, title=tr("menu_app_manual"), size=(800, 600))
     panel = wx.Panel(dialog)
     scroll = wx.ScrolledWindow(panel)
     scroll.SetScrollRate(12, 12)
@@ -20,6 +20,7 @@ def show_app_manual_form(owner):
         (
             tr("menu_file"),
             [
+                "Scan - scan a document using a connected scanner.",
                 "Open - open a selected file or folder.",
                 "New folder - create a folder inside the current directory.",
                 "Rename - rename the selected item.",
@@ -63,7 +64,7 @@ def show_app_manual_form(owner):
     for title, entries in sections:
         heading = wx.StaticText(scroll, label=title)
         heading.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-        body = wx.StaticText(scroll, label=_build_manual_section_text(title, entries))
+        body = wx.StaticText(scroll, label=_build_manual_section_text(entries))
         body.Wrap(620)
         body_sizer.Add(heading, 0, wx.ALL | wx.EXPAND, 8)
         body_sizer.Add(body, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
