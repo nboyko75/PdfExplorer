@@ -26,9 +26,192 @@ FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW
 VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
 
 
+def _get_preview_tab_label(path):
+    if not path:
+        return ""
+    name = os.path.basename(path)
+    return name[:20]
+
+
+def _get_preview_tab_hint(path):
+    if not path:
+        return ""
+    return os.path.basename(path)
+
+
+def _ensure_preview_tab_state(owner):
+    if not hasattr(owner, "preview_tabs"):
+        owner.preview_tabs = []
+    if not hasattr(owner, "preview_active_tab_index"):
+        owner.preview_active_tab_index = None
+
+
+def _render_preview_tab_bar(owner):
+    _ensure_preview_tab_state(owner)
+    tab_pane = getattr(owner, "preview_tab_pane", None)
+    tab_sizer = getattr(owner, "preview_tab_sizer", None)
+    if tab_pane is None or tab_sizer is None:
+        return
+
+    try:
+        tab_sizer.Clear(True)
+    except Exception:
+        pass
+
+    if not owner.preview_tabs:
+        tab_pane.Hide()
+        tab_pane.Layout()
+        return
+
+    active_index = owner.preview_active_tab_index
+    if active_index is None or active_index < 0 or active_index >= len(owner.preview_tabs):
+        active_index = 0
+        owner.preview_active_tab_index = 0
+
+    for index, tab in enumerate(owner.preview_tabs):
+        caption = _get_preview_tab_label(tab.get("path"))
+        hint = _get_preview_tab_hint(tab.get("path"))
+        tab_panel = wx.Panel(tab_pane, style=wx.BORDER_SIMPLE)
+        tab_panel.SetMinSize((200, 28))
+        if index == active_index:
+            tab_panel.SetBackgroundColour(wx.Colour(230, 240, 255))
+        else:
+            tab_panel.SetBackgroundColour(wx.NullColour)
+
+        tab_label = wx.StaticText(tab_panel, label=caption)
+        tab_label.SetToolTip(hint)
+        tab_label.Bind(wx.EVT_LEFT_DOWN, lambda event, tab_index=index: _select_preview_tab(owner, tab_index))
+
+        pin_label = "📍" if tab.get("pinned") else "📌"
+        pin_btn = wx.Button(tab_panel, label=pin_label, size=(28, 22))
+        pin_btn.SetToolTip(tr("preview_pin_button") if not tab.get("pinned") else tr("preview_unpin_button"))
+        pin_btn.Bind(wx.EVT_BUTTON, lambda event, tab_index=index: _toggle_preview_tab_pin(owner, tab_index))
+
+        close_btn = wx.Button(tab_panel, label="✕", size=(28, 22))
+        close_btn.Bind(wx.EVT_BUTTON, lambda event, tab_index=index: _close_preview_tab(owner, tab_index))
+        if index == 0:
+            close_btn.Hide()
+
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        row.Add(tab_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 6)
+        row.Add(pin_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        if index != 0:
+            row.Add(close_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        tab_panel.SetSizer(row)
+        tab_panel.Bind(wx.EVT_LEFT_DOWN, lambda event, tab_index=index: _select_preview_tab(owner, tab_index))
+        tab_sizer.Add(tab_panel, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 2)
+
+    tab_pane.Show(True)
+    tab_pane.Layout()
+    if hasattr(owner, "preview_content_panel"):
+        owner.preview_content_panel.Layout()
+        owner.preview_content_panel.Refresh()
+
+
+def _select_preview_tab(owner, tab_index):
+    _ensure_preview_tab_state(owner)
+    if tab_index < 0 or tab_index >= len(owner.preview_tabs):
+        return
+
+    owner.preview_active_tab_index = tab_index
+    path = owner.preview_tabs[tab_index].get("path")
+    if path:
+        show_file_preview(owner, path)
+    else:
+        _render_preview_tab_bar(owner)
+
+
+def _toggle_preview_tab_pin(owner, tab_index):
+    _ensure_preview_tab_state(owner)
+    if tab_index < 0 or tab_index >= len(owner.preview_tabs):
+        return
+
+    owner.preview_tabs[tab_index]["pinned"] = not bool(owner.preview_tabs[tab_index].get("pinned", False))
+    owner.preview_active_tab_index = tab_index
+    _render_preview_tab_bar(owner)
+
+
+def _close_preview_tab(owner, tab_index):
+    _ensure_preview_tab_state(owner)
+    if tab_index < 0 or tab_index >= len(owner.preview_tabs):
+        return
+
+    active_index = owner.preview_active_tab_index
+    del owner.preview_tabs[tab_index]
+
+    if not owner.preview_tabs:
+        owner.preview_active_tab_index = None
+        current_preview_path = getattr(owner, "current_preview_path", None)
+        if current_preview_path:
+            owner.current_preview_path = None
+        _render_preview_tab_bar(owner)
+        return
+
+    if active_index is None:
+        active_index = 0
+    elif tab_index < active_index:
+        active_index -= 1
+    elif tab_index == active_index and tab_index >= len(owner.preview_tabs):
+        active_index = len(owner.preview_tabs) - 1
+    owner.preview_active_tab_index = max(0, min(active_index, len(owner.preview_tabs) - 1))
+    _render_preview_tab_bar(owner)
+    show_file_preview(owner, owner.preview_tabs[owner.preview_active_tab_index].get("path"))
+
+
+def _sync_preview_tab_for_path(owner, path):
+    _ensure_preview_tab_state(owner)
+    if not path:
+        return
+
+    normalized_path = os.path.normpath(path)
+    active_index = owner.preview_active_tab_index
+    if active_index is not None and 0 <= active_index < len(owner.preview_tabs):
+        active_tab = owner.preview_tabs[active_index]
+        active_path = active_tab.get("path")
+        if active_path and os.path.normpath(active_path) == normalized_path:
+            active_tab["caption"] = _get_preview_tab_label(path)
+            active_tab["hint"] = _get_preview_tab_hint(path)
+            _render_preview_tab_bar(owner)
+            return
+
+        if active_tab.get("pinned"):
+            owner.preview_tabs.append({
+                "path": path,
+                "pinned": False,
+                "caption": _get_preview_tab_label(path),
+                "hint": _get_preview_tab_hint(path),
+            })
+            owner.preview_active_tab_index = len(owner.preview_tabs) - 1
+            _render_preview_tab_bar(owner)
+            return
+
+    for index, tab in enumerate(owner.preview_tabs):
+        if tab.get("path") and os.path.normpath(tab["path"]) == normalized_path:
+            owner.preview_active_tab_index = index
+            tab["caption"] = _get_preview_tab_label(path)
+            tab["hint"] = _get_preview_tab_hint(path)
+            _render_preview_tab_bar(owner)
+            return
+
+    if not owner.preview_tabs:
+        owner.preview_tabs.append({
+            "path": path,
+            "pinned": False,
+            "caption": _get_preview_tab_label(path),
+            "hint": _get_preview_tab_hint(path),
+        })
+        owner.preview_active_tab_index = 0
+    else:
+        owner.preview_tabs[owner.preview_active_tab_index or 0]["path"] = path
+        owner.preview_tabs[owner.preview_active_tab_index or 0]["caption"] = _get_preview_tab_label(path)
+        owner.preview_tabs[owner.preview_active_tab_index or 0]["hint"] = _get_preview_tab_hint(path)
+    _render_preview_tab_bar(owner)
+
+
 def build_file_preview_pane(owner, file_splitter):
     """Create and configure the file preview pane UI."""
-    owner.filePreview = wx.Panel(file_splitter, style=wx.BORDER_SUNKEN)
+    owner.preview_content_panel = wx.Panel(file_splitter)
+    owner.filePreview = wx.Panel(owner.preview_content_panel, style=wx.BORDER_SUNKEN)
     owner.preview_toolbar = wx.BoxSizer(wx.HORIZONTAL)
     owner.preview_enabled = getattr(owner, "preview_enabled", True)
     owner.office_preview_enabled = getattr(owner, "office_preview_enabled", False)
@@ -113,6 +296,11 @@ def build_file_preview_pane(owner, file_splitter):
     owner.pdf_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
     owner.filePreview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
 
+    owner.preview_tab_pane = wx.Panel(owner.preview_content_panel)
+    owner.preview_tab_pane.Hide()
+    owner.preview_tab_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    owner.preview_tab_pane.SetSizer(owner.preview_tab_sizer)
+
     preview_sizer = wx.BoxSizer(wx.VERTICAL)
     preview_sizer.Add(owner.preview_toolbar, 0, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.preview_text, 1, wx.EXPAND | wx.ALL, 5)
@@ -120,8 +308,15 @@ def build_file_preview_pane(owner, file_splitter):
     preview_sizer.Add(owner.pdf_preview_container, 1, wx.EXPAND | wx.ALL, 5)
     owner.filePreview.SetSizer(preview_sizer)
 
+    content_sizer = wx.BoxSizer(wx.VERTICAL)
+    content_sizer.Add(owner.filePreview, 1, wx.EXPAND)
+    content_sizer.Add(owner.preview_tab_pane, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+    owner.preview_content_panel.SetSizer(content_sizer)
+    owner.preview_content_panel.Layout()
+
+    _ensure_preview_tab_state(owner)
     top_pane = getattr(owner, "list_host_panel", owner.list)
-    file_splitter.SplitHorizontally(top_pane, owner.filePreview, 400)
+    file_splitter.SplitHorizontally(top_pane, owner.preview_content_panel, 400)
 
 
 def bind_preview_events(owner):
@@ -1129,6 +1324,10 @@ def on_office_preview_checkbox_toggle(event):
 
 
 def show_file_preview(owner, path):
+    _ensure_preview_tab_state(owner)
+    if path:
+        _sync_preview_tab_for_path(owner, path)
+
     if not getattr(owner, "preview_enabled", True):
         owner.current_preview_path = path
         owner.preview_text.Show(False)
