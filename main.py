@@ -206,16 +206,35 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.file_delete_item, art_id=wx.ART_DELETE)
         self.icon_manager.set_menu_icon2(self.file_archive_item, "add_to_archive")
         self.icon_manager.set_menu_icon2(self.file_extract_archive_item, "extract_from_archive")
-        self.icon_manager.set_menu_icon(self.file_options_item, art_id=wx.ART_PREFERENCES)
+        self.icon_manager.set_menu_icon2(self.file_options_item, "setup")
         self.icon_manager.set_menu_icon(self.file_quit_item, art_id=wx.ART_QUIT)
 
         self.icon_manager.set_menu_icon(self.nav_back_item, art_id=wx.ART_GO_BACK)
         self.icon_manager.set_menu_icon(self.nav_forward_item, art_id=wx.ART_GO_FORWARD)
-        self.icon_manager.set_menu_icon(self.nav_up_item, art_id=wx.ART_GO_UP)
+        self.icon_manager.set_menu_icon2(self.nav_up_item, "up")
         self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
         self.icon_manager.set_menu_icon(self.help_about_item, art_id=wx.ART_INFORMATION)
+
+        self.icon_manager.set_menu_icon(self.doc_import_item, art_id=wx.ART_FILE_OPEN)
+        self.icon_manager.set_menu_icon2(self.doc_import_scanner_item, "scan")
+        export_art_id = getattr(wx, "ART_FILE_SAVE_AS", wx.ART_FILE_SAVE)
+        self.icon_manager.set_menu_icon(self.doc_export_item, art_id=export_art_id)
+        self.icon_manager.set_menu_icon2(self.doc_save_item, "save")
+        self.icon_manager.set_menu_icon2(self.doc_cancel_item, "cancel")
+        self.icon_manager.set_menu_icon(self.doc_zoom_in_item, art_id=wx.ART_PLUS)
+        self.icon_manager.set_menu_icon(self.doc_zoom_out_item, art_id=wx.ART_MINUS)
+        self.icon_manager.set_menu_icon(self.doc_rotate_all_left_item, art_id=wx.ART_UNDO)
+        self.icon_manager.set_menu_icon(self.doc_rotate_left_item, art_id=wx.ART_UNDO)
+        self.icon_manager.set_menu_icon(self.doc_rotate_right_item, art_id=wx.ART_REDO)
+        self.icon_manager.set_menu_icon(self.doc_rotate_all_right_item, art_id=wx.ART_REDO)
+        self.icon_manager.set_menu_icon(self.doc_move_page_item, art_id=wx.ART_GO_FORWARD)
+        self.icon_manager.set_menu_icon2(self.doc_remove_page_item, "delete")
+        self.icon_manager.set_menu_icon(self.doc_adjust_page_width_item, art_id=wx.ART_REPORT_VIEW)
+        self.icon_manager.set_menu_icon2(self.doc_optimize_item, "ok")
+        self.icon_manager.set_menu_icon2(self.doc_optimize_all_item, "ok")
+        self.icon_manager.set_menu_icon(self.doc_adjust_all_page_width_item, art_id=wx.ART_REPORT_VIEW)
 
     def _bind_main_menu_items(self):
         self.Bind(wx.EVT_MENU, self.on_list_scan, self.file_scan_item)
@@ -378,7 +397,6 @@ class FileExplorer(wx.Frame):
 
         self.fileSplitter = wx.SplitterWindow(self.filePanel)
 
-        self.icon_manager = image_utils.IconManager()
         filelist.build_list_panel(self, self.fileSplitter)
 
         file_preview.build_file_preview_pane(self, self.fileSplitter)
