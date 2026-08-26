@@ -11,6 +11,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 import wx
 
+import controls.filelist as filelist
 import main
 
 
@@ -155,6 +156,19 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertIn("Add to archive / Extract from archive - package or unpack selected files.", help_source)
         self.assertIn("Optimize all PDF / Adjust page width all - batch-process PDFs in a folder or file.", help_source)
 
+    def test_folder_up_action_uses_parent_directory(self):
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: r"D:\Projects\Current\Child"),
+            open_path=mock.MagicMock(return_value=True),
+            select_tree_item_by_path=mock.MagicMock(),
+        )
+
+        self.assertTrue(hasattr(main.FileExplorer, "on_folder_up"))
+        main.FileExplorer.on_folder_up(owner, None)
+
+        owner.open_path.assert_called_once_with(r"D:\Projects\Current", add_history=True)
+        owner.select_tree_item_by_path.assert_called_once_with(r"D:\Projects\Current")
+
     def test_double_click_expands_selected_folder_in_tree_and_list(self):
         tree = mock.MagicMock()
         tree.IsExpanded.return_value = False
@@ -221,6 +235,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_word_app = mock.MagicMock()
         fake_word_doc = mock.MagicMock()
         fake_win32_client = mock.MagicMock()
+        fake_win32_client.GetActiveObject.side_effect = Exception("no active office")
         fake_win32_client.DispatchEx.return_value = fake_word_app
         fake_word_app.Documents.Open.return_value = fake_word_doc
 

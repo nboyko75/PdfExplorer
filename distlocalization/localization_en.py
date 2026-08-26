@@ -2,6 +2,7 @@ TRANSLATIONS = {
     "app_title": "Doc Explorer",
     "back_button": "Back",
     "forward_button": "Forward",
+    "folder_up_button": "Folder up",
     "exit_button": "Exit",
     "search_hint": "Search...",
     "filter_label": "Filter",

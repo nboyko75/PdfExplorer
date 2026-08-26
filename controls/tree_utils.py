@@ -241,34 +241,42 @@ def refresh_tree_subtree(owner, item, path):
 
 
 def refresh_tree_root(owner):
-    root = owner.tree.GetRootItem()
+    tree = getattr(owner, "tree", None)
+    if tree is None or not hasattr(tree, "GetRootItem"):
+        return
+
+    root = tree.GetRootItem()
     if not root.IsOk():
         return
 
     cursor_ctx = owner.busy_cursor() if hasattr(owner, "busy_cursor") else _nullcontext()
     with cursor_ctx:
-        owner.tree.DeleteChildren(root)
+        tree.DeleteChildren(root)
 
         for drive in get_drives():
-            item = owner.tree.AppendItem(root, drive)
-            owner.tree.SetItemData(item, normalize_tree_path(drive))
-            owner.tree.SetItemImage(item, owner.tree_icon_folder)
-            owner.tree.AppendItem(item, tr("tree_expand_placeholder"))
+            item = tree.AppendItem(root, drive)
+            tree.SetItemData(item, normalize_tree_path(drive))
+            tree.SetItemImage(item, getattr(owner, "tree_icon_folder", 0))
+            tree.AppendItem(item, tr("tree_expand_placeholder"))
 
-        owner.tree.Expand(root)
+        tree.Expand(root)
 
 
 def refresh_tree_selection(owner):
-    selected_item = owner.tree.GetSelection()
-    if not selected_item or not selected_item.IsOk():
-        selected_item = owner.tree.GetRootItem()
+    tree = getattr(owner, "tree", None)
+    if tree is None or not hasattr(tree, "GetSelection") or not hasattr(tree, "GetRootItem"):
+        return
 
-    if selected_item and selected_item.IsOk() and selected_item == owner.tree.GetRootItem():
+    selected_item = tree.GetSelection()
+    if not selected_item or not selected_item.IsOk():
+        selected_item = tree.GetRootItem()
+
+    if selected_item and selected_item.IsOk() and selected_item == tree.GetRootItem():
         refresh_tree_root(owner)
         return
 
     if selected_item and selected_item.IsOk():
-        selected_path = owner.tree.GetItemData(selected_item)
+        selected_path = tree.GetItemData(selected_item)
         if isinstance(selected_path, str) and os.path.isdir(normalize_tree_path(selected_path)):
             refresh_tree_subtree(owner, selected_item, selected_path)
 
@@ -363,7 +371,8 @@ def on_tree_activated(owner, event):
         return
 
     path = normalize_tree_path(owner.tree.GetItemData(item))
-    if os.path.isdir(path):
+    is_tree_folder = bool(path) and not os.path.isfile(path)
+    if is_tree_folder:
         if owner.tree.IsExpanded(item):
             owner.tree.Collapse(item)
         else:
@@ -401,6 +410,7 @@ def on_tree_right_click(owner, event):
 
     menu = wx.Menu()
     open_item = menu.Append(-1, tr("context_open"))
+    folder_up_item = menu.Insert(2, -1, tr("folder_up_button"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
@@ -417,6 +427,7 @@ def on_tree_right_click(owner, event):
     extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive"))
 
     open_item.Enable(can_act_on_selection)
+    folder_up_item.Enable(bool(path and os.path.isdir(path) and os.path.dirname(path)))
     new_folder_item.Enable(can_create_new_folder)
     refresh_item.Enable(True)
     print_item.Enable(bool(path and os.path.isfile(path)))
@@ -427,6 +438,10 @@ def on_tree_right_click(owner, event):
     delete_item.Enable(can_act_on_selection)
     add_to_archive_item.Enable(bool(path and os.path.exists(path) and not archive_helper._is_archive_file(path)))
     extract_from_archive_item.Enable(bool(path and archive_helper._is_archive_file(path)))
+
+    folder_up_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_MENU, (16, 16))
+    if folder_up_bmp.IsOk():
+        folder_up_item.SetBitmap(folder_up_bmp)
 
     new_folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_MENU, (16, 16))
     if new_folder_bmp.IsOk():
@@ -488,6 +503,18 @@ def on_tree_right_click(owner, event):
     def handle_new_folder(_):
         filelist.create_new_folder(owner, create_target)
 
+    def handle_go_up(_):
+        target_path = path or getattr(owner.path_box, "GetValue", lambda: "")()
+        if not isinstance(target_path, str) or not target_path:
+            return
+        parent_path = os.path.dirname(target_path)
+        if not parent_path or not os.path.isdir(parent_path):
+            return
+        if hasattr(owner, "select_tree_item_by_path"):
+            owner.select_tree_item_by_path(parent_path)
+        if hasattr(owner, "open_path"):
+            owner.open_path(parent_path, add_history=True)
+
     def handle_refresh(_):
         refresh_tree_selection_and_filelist(owner)
 
@@ -520,6 +547,7 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
     owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
     owner.Bind(wx.EVT_MENU, handle_open, open_item)
+    owner.Bind(wx.EVT_MENU, handle_go_up, folder_up_item)
     owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
     owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
     owner.Bind(wx.EVT_MENU, handle_print, print_item)

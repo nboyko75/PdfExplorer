@@ -1,3 +1,4 @@
+import ntpath
 import os
 import shutil
 
@@ -110,6 +111,14 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.list_up_btn = image_utils.create_bitmap_button2(
+        owner.list_host_panel,
+        owner.icon_manager,
+        "up",
+        tr("folder_up_button"),
+        icon_size=list_btn_icon_size,
+        button_size=list_btn_size,
+    )
     owner.list_new_folder_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
         wx.ART_FOLDER,
@@ -166,6 +175,7 @@ def build_list_panel(owner, parent_splitter):
 
     owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_up_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_new_folder_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_print_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_copy_btn, 0, wx.RIGHT, 3)
@@ -203,6 +213,7 @@ def bind_list_events(owner):
     owner.list_scan_btn.Bind(wx.EVT_BUTTON, owner.on_list_scan)
     owner.list_open_btn.Bind(wx.EVT_BUTTON, owner.on_list_open)
     owner.list_rename_btn.Bind(wx.EVT_BUTTON, owner.on_list_rename)
+    owner.list_up_btn.Bind(wx.EVT_BUTTON, owner.on_folder_up)
     owner.list_new_folder_btn.Bind(wx.EVT_BUTTON, owner.on_list_new_folder)
     owner.list_print_btn.Bind(wx.EVT_BUTTON, owner.on_list_print)
     owner.list_copy_btn.Bind(wx.EVT_BUTTON, owner.on_list_copy)
@@ -270,6 +281,11 @@ def update_list_toolbar_buttons(owner):
     button = getattr(owner, "list_rename_btn", None)
     if button is not None:
         button.Enable(has_single_existing_item)
+
+    button = getattr(owner, "list_up_btn", None)
+    if button is not None:
+        parent_folder = ntpath.dirname(current_folder) if isinstance(current_folder, str) and current_folder else ""
+        button.Enable(bool(current_folder and os.path.isdir(current_folder) and parent_folder and ntpath.normpath(parent_folder) != ntpath.normpath(current_folder)))
 
     button = getattr(owner, "list_new_folder_btn", None)
     if button is not None:
@@ -402,6 +418,7 @@ def on_right_click(owner, event):
 
     scan_item = menu.Append(-1, tr("scan"))
     open_item = menu.Append(-1, tr("context_open"))
+    folder_up_item = menu.Insert(2, -1, tr("folder_up_button"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
@@ -428,6 +445,7 @@ def on_right_click(owner, event):
     if icon_manager:
         icon_manager.set_menu_icon2(scan_item, "scan")
         icon_manager.set_menu_icon2(open_item, "file_view")
+        icon_manager.set_menu_icon(folder_up_item, art_id=wx.ART_GO_UP)
         icon_manager.set_menu_icon(rename_item, art_id=wx.ART_EDIT)
         icon_manager.set_menu_icon(new_folder_item, art_id=wx.ART_FOLDER)
         icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
@@ -444,13 +462,16 @@ def on_right_click(owner, event):
     valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and os.path.exists(path)]
     can_act_on_selection = bool(valid_selected_paths)
     can_act_on_single_selection = len(valid_selected_paths) == 1
-    can_create_in_current_folder = os.path.isdir(owner.path_box.GetValue())
-    can_paste = _can_paste_into_directory(owner, owner.path_box.GetValue())
+    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+    can_create_in_current_folder = os.path.isdir(current_folder)
+    can_go_up = bool(current_folder and os.path.isdir(current_folder) and os.path.dirname(current_folder))
+    can_paste = _can_paste_into_directory(owner, current_folder)
     can_add_to_archive = bool(valid_selected_paths and all(not _is_archive_file(path) for path in valid_selected_paths))
     can_extract_from_archive = bool(len(valid_selected_paths) == 1 and _is_archive_file(valid_selected_paths[0]))
 
     scan_item.Enable(True)
     open_item.Enable(can_act_on_single_selection)
+    folder_up_item.Enable(can_go_up)
     rename_item.Enable(can_act_on_single_selection)
     new_folder_item.Enable(can_create_in_current_folder)
     refresh_item.Enable(True)
@@ -464,6 +485,7 @@ def on_right_click(owner, event):
 
     owner.Bind(wx.EVT_MENU, owner.on_list_scan, scan_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_open, open_item)
+    owner.Bind(wx.EVT_MENU, owner.on_folder_up, folder_up_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_rename, rename_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_new_folder, new_folder_item)
     owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
@@ -665,7 +687,7 @@ def on_list_open(owner, _, path=None):
         selected_paths = get_selected_list_paths(owner)
         path = selected_paths[0] if len(selected_paths) == 1 else None
 
-    if isinstance(path, str) and os.path.isdir(path):
+    if isinstance(path, str) and not os.path.isfile(path):
         if hasattr(owner, "select_tree_item_by_path"):
             owner.select_tree_item_by_path(path)
 
@@ -738,6 +760,21 @@ def create_new_folder(owner, target_path=None):
         _refresh_after_fs_change(owner, affected_dirs=[target_dir])
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+
+
+def on_folder_up(owner, _):
+    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") and owner.path_box is not None else ""
+    if not isinstance(current_folder, str) or not current_folder:
+        return
+
+    parent_folder = ntpath.dirname(current_folder)
+    if not parent_folder:
+        return
+
+    if hasattr(owner, "select_tree_item_by_path"):
+        owner.select_tree_item_by_path(parent_folder)
+    if hasattr(owner, "open_path"):
+        owner.open_path(parent_folder, add_history=True)
 
 
 def on_list_new_folder(owner, _):

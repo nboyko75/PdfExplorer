@@ -1,3 +1,4 @@
+import ntpath
 import os
 import sys
 from contextlib import contextmanager
@@ -141,6 +142,7 @@ class FileExplorer(wx.Frame):
         self.navigation_menu = wx.Menu()
         self.nav_back_item = self.navigation_menu.Append(wx.ID_ANY, tr("back_button"))
         self.nav_forward_item = self.navigation_menu.Append(wx.ID_ANY, tr("forward_button"))
+        self.nav_up_item = self.navigation_menu.Append(wx.ID_ANY, tr("folder_up_button"))
         self.nav_search_item = self.navigation_menu.Append(wx.ID_ANY, tr("search_in_files_button"))
         self.navigation_menu.AppendSeparator()
         self.nav_exit_item = self.navigation_menu.Append(wx.ID_ANY, tr("exit_button"))
@@ -202,6 +204,14 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.file_delete_item, art_id=wx.ART_DELETE)
         self.icon_manager.set_menu_icon2(self.file_archive_item, "add_to_archive")
         self.icon_manager.set_menu_icon2(self.file_extract_archive_item, "extract_from_archive")
+        self.icon_manager.set_menu_icon(self.file_options_item, art_id=wx.ART_PREFERENCES)
+        self.icon_manager.set_menu_icon(self.file_quit_item, art_id=wx.ART_QUIT)
+
+        self.icon_manager.set_menu_icon(self.nav_back_item, art_id=wx.ART_GO_BACK)
+        self.icon_manager.set_menu_icon(self.nav_forward_item, art_id=wx.ART_GO_FORWARD)
+        self.icon_manager.set_menu_icon(self.nav_up_item, art_id=wx.ART_GO_UP)
+        self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
+        self.icon_manager.set_menu_icon(self.nav_exit_item, art_id=wx.ART_QUIT)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
         self.icon_manager.set_menu_icon(self.help_about_item, art_id=wx.ART_INFORMATION)
@@ -224,6 +234,7 @@ class FileExplorer(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.go_back, self.nav_back_item)
         self.Bind(wx.EVT_MENU, self.go_forward, self.nav_forward_item)
+        self.Bind(wx.EVT_MENU, self.on_folder_up, self.nav_up_item)
         self.Bind(wx.EVT_MENU, self.on_search_in_files, self.nav_search_item)
         self.Bind(wx.EVT_MENU, self.on_exit, self.nav_exit_item)
 
@@ -277,6 +288,8 @@ class FileExplorer(wx.Frame):
 
         self.nav_back_item.Enable(bool(getattr(self, "history", [])))
         self.nav_forward_item.Enable(bool(getattr(self, "history", [])) and self.history_index < len(self.history) - 1)
+        parent_folder = ntpath.dirname(current_path) if current_path else ""
+        self.nav_up_item.Enable(bool(current_path and os.path.isdir(current_path) and parent_folder and ntpath.normpath(parent_folder) != ntpath.normpath(current_path)))
         self.nav_search_item.Enable(True)
         self.nav_exit_item.Enable(True)
 
@@ -504,6 +517,7 @@ class FileExplorer(wx.Frame):
             self.file_quit_item.SetItemLabel(tr("exit_button"))
             self.nav_back_item.SetItemLabel(tr("back_button"))
             self.nav_forward_item.SetItemLabel(tr("forward_button"))
+            self.nav_up_item.SetItemLabel(tr("folder_up_button"))
             self.nav_search_item.SetItemLabel(tr("search_in_files_button"))
             self.nav_exit_item.SetItemLabel(tr("exit_button"))
             self.help_about_item.SetItemLabel(tr("menu_about"))
@@ -552,6 +566,7 @@ class FileExplorer(wx.Frame):
         self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
+        self.list_up_btn.SetToolTip(tr("folder_up_button"))
         self.list_new_folder_btn.SetToolTip(tr("context_new_folder"))
         self.list_print_btn.SetToolTip(tr("context_print"))
         self.list_copy_btn.SetToolTip(tr("context_copy"))
@@ -720,6 +735,9 @@ class FileExplorer(wx.Frame):
     def go_forward(self, _):
         navigation_utils.go_forward(self, _)
 
+    def on_folder_up(self, _):
+        filelist.on_folder_up(self, _)
+
     # ---------------- LIST ----------------
     def load_folder(self, path):
         navigation_utils.load_folder(self, path)
@@ -866,9 +884,14 @@ class FileExplorer(wx.Frame):
         update_settings({"show_hidden": self.show_hidden})
 
         tree_utils.refresh_tree_root(self)
-        self.select_tree_item_by_path(os.path.dirname(self.path_box.GetValue()))
+        if hasattr(self, "path_box") and hasattr(self, "select_tree_item_by_path"):
+            current_path = self.path_box.GetValue()
+            if isinstance(current_path, str) and current_path:
+                self.select_tree_item_by_path(os.path.dirname(current_path))
         if hasattr(self, "tree") and self.tree is not None:
             tree_utils.refresh_tree_selection_and_filelist(self)
+        if hasattr(self, "refresh"):
+            self.refresh()
 
     def refresh(self):
         self.load_folder(self.path_box.GetValue())

@@ -62,6 +62,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "locale_name_russian": "Russian",
     "back_button": "Back",
     "forward_button": "Forward",
+    "folder_up_button": "Folder up",
     "search_hint": "Search...",
     "filter_label": "Filter",
     "search_in_files_button": "Search in files",

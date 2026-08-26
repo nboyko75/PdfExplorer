@@ -657,6 +657,34 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         owner.tree.SelectItem.assert_called_once_with(parent)
 
+    def test_copy_and_paste_reads_native_explorer_clipboard(self):
+        copy_and_paste = __import__("file_operations.copy_and_paste", fromlist=["_get_clipboard_paths", "_get_clipboard_mode", "CLIPBOARD_MODE_COPY"])
+        owner = types.SimpleNamespace(file_clipboard_paths=[], file_clipboard_mode=None)
+        fake_clipboard = mock.MagicMock()
+        fake_clipboard.Open.return_value = True
+        fake_data = mock.MagicMock()
+        fake_data.GetFilenames.return_value = ["C:/explorer/source.txt"]
+        fake_clipboard.GetData.return_value = True
+
+        with mock.patch.object(copy_and_paste.wx, "TheClipboard", fake_clipboard), \
+             mock.patch.object(copy_and_paste.wx, "FileDataObject", return_value=fake_data):
+            self.assertEqual(copy_and_paste._get_clipboard_paths(owner), [os.path.normpath("C:/explorer/source.txt")])
+            self.assertEqual(copy_and_paste._get_clipboard_mode(owner), copy_and_paste.CLIPBOARD_MODE_COPY)
+
+    def test_copy_and_paste_writes_native_explorer_clipboard(self):
+        copy_and_paste = __import__("file_operations.copy_and_paste", fromlist=["_set_clipboard", "CLIPBOARD_MODE_COPY"])
+        owner = types.SimpleNamespace(file_clipboard_paths=[], file_clipboard_mode=None)
+        fake_clipboard = mock.MagicMock()
+        fake_clipboard.Open.return_value = True
+        fake_data = mock.MagicMock()
+
+        with mock.patch.object(copy_and_paste.wx, "TheClipboard", fake_clipboard), \
+             mock.patch.object(copy_and_paste.wx, "FileDataObject", return_value=fake_data):
+            copy_and_paste._set_clipboard(owner, ["C:/source.txt"], copy_and_paste.CLIPBOARD_MODE_COPY)
+
+        fake_clipboard.SetData.assert_called_once_with(fake_data)
+        fake_clipboard.Flush.assert_called_once()
+
     def test_paste_prompts_before_overwriting_existing_file(self):
         filelist = __import__("controls.filelist", fromlist=["paste_into_path", "_confirm_overwrite_existing_path"])
         owner = types.SimpleNamespace(

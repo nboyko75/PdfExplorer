@@ -555,9 +555,11 @@ def update_page_buttons_state(owner):
     load_all_btn = getattr(owner, "preview_load_all_btn", None)
     if load_all_btn is not None:
         load_all_btn.Enable(_is_preview_page_limit_active(current_path, owner=owner) and (is_pdf_preview or is_office_preview_allowed(owner, current_path) or can_preview_html(current_path)))
+    # === COPILOT PROTECTED: BEGIN ===
     ## don't remove these lines, they prevent superfluous office doc calls at update_load_all_btn_state
     ## update_load_all_btn_state is called on file select only to avoid duplicate calls
     ## update_load_all_btn_state(owner)
+    # === COPILOT PROTECTED: END ===
 
 
 def update_load_all_btn_state(owner):

@@ -21,12 +21,65 @@ def _unique_preserving_order(paths):
     return unique_paths
 
 
+def _read_native_clipboard_paths():
+    clipboard = getattr(wx, "TheClipboard", None)
+    if clipboard is None or not hasattr(clipboard, "Open"):
+        return []
+
+    try:
+        if not clipboard.Open():
+            return []
+        try:
+            data = wx.FileDataObject()
+            if not clipboard.GetData(data):
+                return []
+            return [os.path.normpath(path) for path in data.GetFilenames() if isinstance(path, str) and path]
+        finally:
+            try:
+                clipboard.Close()
+            except Exception:
+                pass
+    except Exception:
+        return []
+
+
+def _write_native_clipboard(paths, mode):
+    if mode not in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT):
+        return False
+
+    clipboard = getattr(wx, "TheClipboard", None)
+    if clipboard is None or not hasattr(clipboard, "Open"):
+        return False
+
+    data = wx.FileDataObject()
+    for path in paths:
+        if isinstance(path, str) and path:
+            data.AddFile(path)
+
+    try:
+        if not clipboard.Open():
+            return False
+        try:
+            if not clipboard.SetData(data):
+                return False
+            clipboard.Flush()
+            return True
+        finally:
+            try:
+                clipboard.Close()
+            except Exception:
+                pass
+    except Exception:
+        return False
+
+
 def _set_clipboard(owner, paths, mode, update_toolbar_callback=None):
     if mode not in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT):
         return
 
     owner.file_clipboard_paths = [os.path.normpath(path) for path in paths]
     owner.file_clipboard_mode = mode
+    _write_native_clipboard(owner.file_clipboard_paths, mode)
 
     if update_toolbar_callback is not None:
         update_toolbar_callback(owner)
@@ -38,15 +91,26 @@ def _set_clipboard(owner, paths, mode, update_toolbar_callback=None):
 
 def _get_clipboard_paths(owner):
     paths = getattr(owner, "file_clipboard_paths", None)
-    if not isinstance(paths, list):
-        return []
-    return [path for path in paths if isinstance(path, str) and path]
+    if isinstance(paths, list) and paths:
+        return [path for path in paths if isinstance(path, str) and path]
+
+    native_paths = _read_native_clipboard_paths()
+    if native_paths:
+        owner.file_clipboard_paths = [os.path.normpath(path) for path in native_paths]
+        return owner.file_clipboard_paths
+    return []
 
 
 def _get_clipboard_mode(owner):
     mode = getattr(owner, "file_clipboard_mode", None)
     if mode in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT):
         return mode
+
+    paths = _read_native_clipboard_paths()
+    if paths:
+        owner.file_clipboard_mode = CLIPBOARD_MODE_COPY
+        owner.file_clipboard_paths = [os.path.normpath(path) for path in paths]
+        return owner.file_clipboard_mode
     return None
 
 

@@ -154,9 +154,14 @@ def _build_office_page_range(page_numbers):
             page_value = int(page)
         except (TypeError, ValueError):
             continue
-        if page_value < 1:
-            continue
-        normalized_pages.append(page_value + (0 if raw_is_string else 1))
+        if raw_is_string:
+            if page_value < 1:
+                continue
+            normalized_pages.append(page_value)
+        else:
+            if page_value < 0:
+                continue
+            normalized_pages.append(page_value + 1)
 
     if not normalized_pages:
         return ""
@@ -172,6 +177,31 @@ def _build_office_page_range(page_numbers):
         start = prev = page
     ranges.append(f"{start}-{prev}" if start != prev else str(start))
     return ",".join(ranges)
+
+
+def _get_running_print_office_document(document_path, app_name, collection_name):
+    if win32_client is None:
+        return None, None
+
+    try:
+        app = win32_client.GetActiveObject(app_name)
+    except Exception:
+        return None, None
+
+    collection = getattr(app, collection_name, None)
+    if collection is None:
+        return app, None
+
+    target = os.path.normcase(os.path.normpath(os.path.abspath(document_path)))
+    for item in collection:
+        try:
+            full_name = getattr(item, "FullName", None)
+            if full_name and os.path.normcase(os.path.normpath(os.path.abspath(full_name))) == target:
+                return app, item
+        except Exception:
+            continue
+
+    return app, None
 
 
 def _print_office_document_pages(document_path, printer_name, copies=1, page_numbers=None):
@@ -199,7 +229,7 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
             should_quit_app = True
             try:
                 try:
-                    app, document = office_preview._get_running_office_document(document_path, "Word.Application", "Documents")
+                    app, document = _get_running_print_office_document(document_path, "Word.Application", "Documents")
                 except Exception:
                     app, document = None, None
                 if app is None:
@@ -212,14 +242,14 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
                     document = app.Documents.Open(document_path, ReadOnly=True)
                     should_close_document = True
                 try:
-                    print(document.PrintOut.__doc__)
                     app.ActivePrinter = printer_name
                     doc_pages = _build_office_page_range(page_numbers)
+                    # === COPILOT PROTECTED: BEGIN ===
                     range_type = 4  # wdPrintRangeOfPages 
                     document.PrintOut(
                         Background=False,
                         Append=False,
-                        Range=4,
+                        Range=range_type,
                         OutputFileName="",
                         From="",
                         To="",
@@ -227,6 +257,7 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
                         Copies=copies,
                         Pages=doc_pages
                     )
+                    # === COPILOT PROTECTED: END ===
                 finally:
                     if should_close_document and document is not None:
                         document.Close(False)

@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "settings_scan_open_after": "스캔 후 열기",
     "back_button": "뒤로",
     "forward_button": "앞으로",
+    "folder_up_button": "상위 폴더",
     "exit_button": "종료",
     "search_hint": "검색...",
     "filter_label": "필터",

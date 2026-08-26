@@ -60,6 +60,7 @@ TRANSLATIONS = {
     "locale_name_russian": "Російська",
     "back_button": "Назад",
     "forward_button": "Вперед",
+    "folder_up_button": "На рівень вгору",
     "exit_button": "Вихід",
     "search_hint": "Пошук...",
     "filter_label": "Фільтр",

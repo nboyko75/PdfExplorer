@@ -38,6 +38,7 @@ TRANSLATIONS = {
     "settings_scan_open_after": "扫描后打开",
     "back_button": "后退",
     "forward_button": "前进",
+    "folder_up_button": "上级文件夹",
     "exit_button": "退出",
     "search_hint": "搜索...",
     "filter_label": "筛选",
