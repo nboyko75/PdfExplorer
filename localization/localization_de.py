@@ -207,6 +207,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Seite entfernen",
     "preview_move_page_button": "Seite verschieben",
     "preview_load_all_button": "Alle laden",
+    "preview_pin_button": "Registerkarte anheften",
+    "preview_unpin_button": "Registerkarte loslösen",
+    "preview_close_tab_button": "Registerkarte schließen",
     "preview_import_button": "Importieren",
     "preview_import_from_file_button": "Aus Datei importieren",
 

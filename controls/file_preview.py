@@ -46,6 +46,39 @@ def _ensure_preview_tab_state(owner):
         owner.preview_active_tab_index = None
 
 
+def _normalize_preview_tabs(owner):
+    _ensure_preview_tab_state(owner)
+    if not owner.preview_tabs:
+        owner.preview_active_tab_index = None
+        return
+
+    active_index = owner.preview_active_tab_index
+    active_path = None
+    if active_index is not None and 0 <= active_index < len(owner.preview_tabs):
+        active_path = owner.preview_tabs[active_index].get("path")
+
+    pinned_tabs = [tab for tab in owner.preview_tabs if tab.get("pinned", False)]
+    unpinned_tabs = [tab for tab in owner.preview_tabs if not tab.get("pinned", False)]
+
+    if active_path is not None:
+        for index, tab in enumerate(unpinned_tabs):
+            if tab.get("path") == active_path:
+                unpinned_tabs = unpinned_tabs[:index] + unpinned_tabs[index + 1:] + [tab]
+                break
+
+    owner.preview_tabs = pinned_tabs + unpinned_tabs
+
+    if active_path is not None:
+        for index, tab in enumerate(owner.preview_tabs):
+            if tab.get("path") == active_path:
+                owner.preview_active_tab_index = index
+                break
+        else:
+            owner.preview_active_tab_index = max(0, len(owner.preview_tabs) - 1)
+    else:
+        owner.preview_active_tab_index = max(0, len(owner.preview_tabs) - 1)
+
+
 def _render_preview_tab_bar(owner):
     _ensure_preview_tab_state(owner)
     tab_pane = getattr(owner, "preview_tab_pane", None)
@@ -88,6 +121,7 @@ def _render_preview_tab_bar(owner):
         pin_btn.Bind(wx.EVT_BUTTON, lambda event, tab_index=index: _toggle_preview_tab_pin(owner, tab_index))
 
         close_btn = wx.Button(tab_panel, label="✕", size=(28, 22))
+        close_btn.SetToolTip(tr("preview_close_tab_button"))
         close_btn.Bind(wx.EVT_BUTTON, lambda event, tab_index=index: _close_preview_tab(owner, tab_index))
         if index == 0:
             close_btn.Hide()
@@ -126,8 +160,17 @@ def _toggle_preview_tab_pin(owner, tab_index):
     if tab_index < 0 or tab_index >= len(owner.preview_tabs):
         return
 
+    active_path = owner.preview_tabs[tab_index].get("path")
     owner.preview_tabs[tab_index]["pinned"] = not bool(owner.preview_tabs[tab_index].get("pinned", False))
-    owner.preview_active_tab_index = tab_index
+    _normalize_preview_tabs(owner)
+
+    if active_path is not None:
+        for index, tab in enumerate(owner.preview_tabs):
+            if tab.get("path") == active_path:
+                owner.preview_active_tab_index = index
+                break
+    if owner.preview_active_tab_index is None or owner.preview_active_tab_index >= len(owner.preview_tabs):
+        owner.preview_active_tab_index = len(owner.preview_tabs) - 1 if owner.preview_tabs else None
     _render_preview_tab_bar(owner)
 
 
@@ -174,17 +217,6 @@ def _sync_preview_tab_for_path(owner, path):
             _render_preview_tab_bar(owner)
             return
 
-        if active_tab.get("pinned"):
-            owner.preview_tabs.append({
-                "path": path,
-                "pinned": False,
-                "caption": _get_preview_tab_label(path),
-                "hint": _get_preview_tab_hint(path),
-            })
-            owner.preview_active_tab_index = len(owner.preview_tabs) - 1
-            _render_preview_tab_bar(owner)
-            return
-
     for index, tab in enumerate(owner.preview_tabs):
         if tab.get("path") and os.path.normpath(tab["path"]) == normalized_path:
             owner.preview_active_tab_index = index
@@ -193,18 +225,27 @@ def _sync_preview_tab_for_path(owner, path):
             _render_preview_tab_bar(owner)
             return
 
-    if not owner.preview_tabs:
+    unpinned_tabs = [tab for tab in owner.preview_tabs if not tab.get("pinned", False)]
+    if unpinned_tabs:
+        reuse_tab = unpinned_tabs[-1]
+        reuse_index = owner.preview_tabs.index(reuse_tab)
+        owner.preview_tabs[reuse_index] = {
+            "path": path,
+            "pinned": False,
+            "caption": _get_preview_tab_label(path),
+            "hint": _get_preview_tab_hint(path),
+        }
+        owner.preview_active_tab_index = reuse_index
+    else:
         owner.preview_tabs.append({
             "path": path,
             "pinned": False,
             "caption": _get_preview_tab_label(path),
             "hint": _get_preview_tab_hint(path),
         })
-        owner.preview_active_tab_index = 0
-    else:
-        owner.preview_tabs[owner.preview_active_tab_index or 0]["path"] = path
-        owner.preview_tabs[owner.preview_active_tab_index or 0]["caption"] = _get_preview_tab_label(path)
-        owner.preview_tabs[owner.preview_active_tab_index or 0]["hint"] = _get_preview_tab_hint(path)
+        owner.preview_active_tab_index = len(owner.preview_tabs) - 1
+
+    _normalize_preview_tabs(owner)
     _render_preview_tab_bar(owner)
 
 

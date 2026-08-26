@@ -207,6 +207,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Удалить страницу",
     "preview_move_page_button": "Переместить страницу",
     "preview_load_all_button": "Загрузить все",
+    "preview_pin_button": "Закрепить вкладку",
+    "preview_unpin_button": "Открепить вкладку",
+    "preview_close_tab_button": "Закрыть вкладку",
     "preview_import_button": "Импорт",
     "preview_import_from_file_button": "Импортировать из файла",
 

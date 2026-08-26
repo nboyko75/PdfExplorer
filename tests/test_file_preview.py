@@ -234,6 +234,79 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_zoom_in_btn.Enable.assert_called_once_with(False)
         owner.preview_zoom_out_btn.Enable.assert_called_once_with(False)
 
+    def test_toggle_preview_tab_pin_keeps_active_tab_and_moves_single_unpinned_to_right(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_tabs=[
+                {"path": "left.pdf", "pinned": True},
+                {"path": "mid.pdf", "pinned": True},
+                {"path": "right.pdf", "pinned": False},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        file_preview._toggle_preview_tab_pin(owner, 0)
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["mid.pdf", "right.pdf", "left.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 2)
+        self.assertFalse(owner.preview_tabs[2]["pinned"])
+
+    def test_normalize_preview_tabs_allows_multiple_unpinned_tabs_and_keeps_active_unpinned_last(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_tabs=[
+                {"path": "first.pdf", "pinned": True},
+                {"path": "second.pdf", "pinned": False},
+                {"path": "third.pdf", "pinned": False},
+                {"path": "fourth.pdf", "pinned": True},
+            ],
+            preview_active_tab_index=1,
+        )
+
+        file_preview._normalize_preview_tabs(owner)
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["first.pdf", "fourth.pdf", "third.pdf", "second.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 3)
+        self.assertFalse(owner.preview_tabs[-1]["pinned"])
+        self.assertEqual(sum(1 for tab in owner.preview_tabs if not tab.get("pinned", False)), 2)
+
+    def test_sync_preview_tab_for_path_reuses_first_unpinned_tab_or_creates_new_one(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_tabs=[
+                {"path": "pinned.pdf", "pinned": True, "caption": "pinned.pdf", "hint": "pinned.pdf"},
+                {"path": "old-right.pdf", "pinned": False, "caption": "old-right.pdf", "hint": "old-right.pdf"},
+                {"path": "other-right.pdf", "pinned": False, "caption": "other-right.pdf", "hint": "other-right.pdf"},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        file_preview._sync_preview_tab_for_path(owner, "new-file.pdf")
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf", "other-right.pdf", "new-file.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 2)
+
+        owner = types.SimpleNamespace(
+            preview_tabs=[
+                {"path": "pinned.pdf", "pinned": True, "caption": "pinned.pdf", "hint": "pinned.pdf"},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        file_preview._sync_preview_tab_for_path(owner, "fresh.pdf")
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf", "fresh.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 1)
+
     def test_unavailable_zoom_action_does_not_show_message_box(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

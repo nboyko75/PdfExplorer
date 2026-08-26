@@ -185,6 +185,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "删除页面",
     "preview_move_page_button": "移动页面",
     "preview_load_all_button": "加载全部",
+    "preview_pin_button": "固定标签页",
+    "preview_unpin_button": "取消固定标签页",
+    "preview_close_tab_button": "关闭标签页",
     "preview_import_button": "导入",
     "preview_import_from_file_button": "从文件导入",
 

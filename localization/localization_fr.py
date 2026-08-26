@@ -207,6 +207,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Supprimer la page",
     "preview_move_page_button": "Deplacer la page",
     "preview_load_all_button": "Tout charger",
+    "preview_pin_button": "Épingler l'onglet",
+    "preview_unpin_button": "Désépingler l'onglet",
+    "preview_close_tab_button": "Fermer l'onglet",
     "preview_import_button": "Importer",
     "preview_import_from_file_button": "Importer depuis un fichier",
 

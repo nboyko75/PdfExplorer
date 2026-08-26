@@ -185,6 +185,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "페이지 제거",
     "preview_move_page_button": "페이지 이동",
     "preview_load_all_button": "모두 불러오기",
+    "preview_pin_button": "탭 고정",
+    "preview_unpin_button": "탭 고정 해제",
+    "preview_close_tab_button": "탭 닫기",
     "preview_import_button": "가져오기",
     "preview_import_from_file_button": "파일에서 가져오기",
 

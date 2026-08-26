@@ -140,6 +140,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Remove page",
     "preview_move_page_button": "Move page",
     "preview_load_all_button": "Load all",
+    "preview_pin_button": "Pin tab",
+    "preview_unpin_button": "Unpin tab",
+    "preview_close_tab_button": "Close tab",
     "preview_import_button": "Import",
     "preview_import_from_file_button": "Import from file",
 

@@ -185,6 +185,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "ページを削除",
     "preview_move_page_button": "ページを移動",
     "preview_load_all_button": "すべて読み込む",
+    "preview_pin_button": "タブを固定",
+    "preview_unpin_button": "タブの固定を解除",
+    "preview_close_tab_button": "タブを閉じる",
     "preview_import_button": "インポート",
     "preview_import_from_file_button": "ファイルからインポート",
 

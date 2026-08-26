@@ -207,6 +207,9 @@ TRANSLATIONS = {
     "preview_remove_page_button": "Remover pagina",
     "preview_move_page_button": "Mover pagina",
     "preview_load_all_button": "Carregar tudo",
+    "preview_pin_button": "Fixar guia",
+    "preview_unpin_button": "Desafixar guia",
+    "preview_close_tab_button": "Fechar guia",
     "preview_import_button": "Importar",
     "preview_import_from_file_button": "Importar do arquivo",
 
