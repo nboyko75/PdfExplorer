@@ -211,7 +211,7 @@ class FileExplorer(wx.Frame):
 
         self.icon_manager.set_menu_icon(self.nav_back_item, art_id=wx.ART_GO_BACK)
         self.icon_manager.set_menu_icon(self.nav_forward_item, art_id=wx.ART_GO_FORWARD)
-        self.icon_manager.set_menu_icon2(self.nav_up_item, "up")
+        self.icon_manager.set_menu_icon(self.nav_up_item, art_id=wx.ART_GO_UP)
         self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)

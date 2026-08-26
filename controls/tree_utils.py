@@ -410,7 +410,7 @@ def on_tree_right_click(owner, event):
 
     menu = wx.Menu()
     open_item = menu.Append(-1, tr("context_open"))
-    folder_up_item = menu.Insert(2, -1, tr("folder_up_button"))
+    folder_up_item = menu.Append(-1, tr("folder_up_button"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")

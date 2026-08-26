@@ -111,10 +111,9 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
-    owner.list_up_btn = image_utils.create_bitmap_button2(
+    owner.list_up_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
-        owner.icon_manager,
-        "up",
+        wx.ART_GO_UP,
         tr("folder_up_button"),
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
@@ -418,7 +417,7 @@ def on_right_click(owner, event):
 
     scan_item = menu.Append(-1, tr("scan"))
     open_item = menu.Append(-1, tr("context_open"))
-    folder_up_item = menu.Insert(2, -1, tr("folder_up_button"))
+    folder_up_item = menu.Append(-1, tr("folder_up_button"))
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")

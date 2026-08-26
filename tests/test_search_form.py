@@ -12,6 +12,7 @@ from unittest import mock
 import fitz
 import wx
 
+import controls.tree_utils as tree_utils_module
 from common import date_utils as common_date_utils
 import controls.filelist as filelist_module
 import controls.search_form as search_form_module
@@ -25,6 +26,34 @@ from controls.search_form import (
     search_files,
 )
 from localization import load_locale, tr
+
+
+class TreeContextMenuTests(unittest.TestCase):
+    def test_tree_right_click_keeps_menu_insert_index_valid(self):
+        owner = types.SimpleNamespace(
+            tree=mock.Mock(),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/temp"),
+            icon_manager=None,
+        )
+        owner.tree.GetSelection.return_value = None
+        owner.tree.GetRootItem.return_value = mock.Mock(IsOk=mock.Mock(return_value=False))
+        owner.tree.ScreenToClient.return_value = (0, 0)
+        owner.tree.HitTest.return_value = (None, None)
+        owner.tree.GetItemData.return_value = None
+        owner.tree.PopupMenu = mock.Mock()
+
+        event = mock.Mock()
+        event.GetPosition.return_value = wx.DefaultPosition
+        event.GetEventObject.return_value = owner.tree
+
+        with mock.patch.object(tree_utils_module, "_resolve_tree_context_path", return_value="C:/temp/folder"), \
+             mock.patch.object(tree_utils_module, "_is_folder_or_single_pdf", return_value=False), \
+             mock.patch.object(tree_utils_module, "_resolve_tree_new_folder_target", return_value=None), \
+             mock.patch.object(filelist_module, "_can_paste_into_directory", return_value=False), \
+             mock.patch.object(filelist_module, "_resolve_paste_target_directory", return_value="C:/temp"):
+            tree_utils_module.on_tree_right_click(owner, event)
+
+        owner.tree.PopupMenu.assert_called_once()
 
 
 class SearchFilesTests(unittest.TestCase):
