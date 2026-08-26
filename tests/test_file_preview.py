@@ -572,7 +572,8 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         with mock.patch.object(filelist, "get_selected_list_paths", return_value=selected_paths), \
              mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in selected_paths), \
              mock.patch.object(filelist.wx, "FileDataObject") as mocked_file_data, \
-             mock.patch.object(filelist.wx, "DropSource") as mocked_drop_source:
+             mock.patch.object(filelist.wx, "DropSource") as mocked_drop_source, \
+             mock.patch.object(filelist.wx, "Drag_AllowCopy", create=True, new=object()) as drag_allow_copy:
             data = mock.MagicMock()
             mocked_file_data.return_value = data
             src = mock.MagicMock()
@@ -583,7 +584,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         data.AddFile.assert_has_calls([mock.call("C:/first.txt"), mock.call("C:/second.txt")])
         mocked_drop_source.assert_called_once_with(owner.list)
         src.SetData.assert_called_once_with(data)
-        src.DoDragDrop.assert_called_once_with(filelist.wx.Drag_AllowMove)
+        src.DoDragDrop.assert_called_once_with(drag_allow_copy)
 
     def test_list_pane_accepts_files_dropped_from_explorer(self):
         filelist = __import__("controls.filelist", fromlist=["FileListDropTarget"])

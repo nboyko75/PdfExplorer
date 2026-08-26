@@ -499,7 +499,8 @@ def on_list_begin_drag(owner, event):
 
     drag_source = wx.DropSource(owner.list)
     drag_source.SetData(file_data)
-    drag_source.DoDragDrop(wx.Drag_AllowMove)
+    drag_action = getattr(wx, "Drag_AllowCopy", getattr(wx, "Drag_CopyOnly", wx.Drag_AllowMove))
+    drag_source.DoDragDrop(drag_action)
 
 
 def get_selected_list_paths(owner):
