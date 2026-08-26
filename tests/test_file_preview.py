@@ -307,6 +307,40 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf", "fresh.pdf"])
         self.assertEqual(owner.preview_active_tab_index, 1)
 
+    def test_sync_preview_tab_for_path_respects_preview_settings(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=False,
+            office_preview_enabled=False,
+            preview_tabs=[],
+            preview_active_tab_index=None,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        file_preview._sync_preview_tab_for_path(owner, "report.docx")
+
+        self.assertEqual(owner.preview_tabs, [])
+        self.assertIsNone(owner.preview_active_tab_index)
+
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            preview_tabs=[],
+            preview_active_tab_index=None,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=True), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False):
+            file_preview._sync_preview_tab_for_path(owner, "report.docx")
+
+        self.assertEqual(owner.preview_tabs, [])
+        self.assertIsNone(owner.preview_active_tab_index)
+
     def test_unavailable_zoom_action_does_not_show_message_box(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

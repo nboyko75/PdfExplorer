@@ -201,9 +201,32 @@ def _close_preview_tab(owner, tab_index):
     show_file_preview(owner, owner.preview_tabs[owner.preview_active_tab_index].get("path"))
 
 
+def _is_office_preview_path(path):
+    if not isinstance(path, str):
+        return False
+    _, ext = os.path.splitext(path)
+    return ext.lower() in {
+        ".doc",
+        ".docx",
+        ".docm",
+        ".xls",
+        ".xlsx",
+        ".xlsm",
+        ".ppt",
+        ".pptx",
+        ".pptm",
+    }
+
+
 def _sync_preview_tab_for_path(owner, path):
     _ensure_preview_tab_state(owner)
     if not path:
+        return
+
+    if not getattr(owner, "preview_enabled", True):
+        return
+
+    if _is_office_preview_path(path) and not is_office_preview_allowed(owner, path):
         return
 
     normalized_path = os.path.normpath(path)
