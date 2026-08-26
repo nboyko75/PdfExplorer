@@ -118,6 +118,9 @@ class FileExplorer(wx.Frame):
                 wx.EndBusyCursor()
 
     def _build_main_menu_bar(self):
+        if not hasattr(self, "icon_manager") or self.icon_manager is None:
+            self.icon_manager = image_utils.IconManager()
+
         self.menu_bar = wx.MenuBar()
 
         self.file_menu = wx.Menu()
@@ -145,7 +148,6 @@ class FileExplorer(wx.Frame):
         self.nav_up_item = self.navigation_menu.Append(wx.ID_ANY, tr("folder_up_button"))
         self.nav_search_item = self.navigation_menu.Append(wx.ID_ANY, tr("search_in_files_button"))
         self.navigation_menu.AppendSeparator()
-        self.nav_exit_item = self.navigation_menu.Append(wx.ID_ANY, tr("exit_button"))
         self.menu_bar.Append(self.navigation_menu, tr("menu_navigation"))
 
         self.document_menu = wx.Menu()
@@ -190,7 +192,7 @@ class FileExplorer(wx.Frame):
 
     def _apply_main_menu_icons(self):
         if not hasattr(self, "icon_manager") or self.icon_manager is None:
-            return
+            self.icon_manager = image_utils.IconManager()
 
         self.icon_manager.set_menu_icon2(self.file_scan_item, "scan")
         self.icon_manager.set_menu_icon2(self.file_open_item, "file_view")
@@ -211,7 +213,6 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.nav_forward_item, art_id=wx.ART_GO_FORWARD)
         self.icon_manager.set_menu_icon(self.nav_up_item, art_id=wx.ART_GO_UP)
         self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
-        self.icon_manager.set_menu_icon(self.nav_exit_item, art_id=wx.ART_QUIT)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
         self.icon_manager.set_menu_icon(self.help_about_item, art_id=wx.ART_INFORMATION)
@@ -236,7 +237,6 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.go_forward, self.nav_forward_item)
         self.Bind(wx.EVT_MENU, self.on_folder_up, self.nav_up_item)
         self.Bind(wx.EVT_MENU, self.on_search_in_files, self.nav_search_item)
-        self.Bind(wx.EVT_MENU, self.on_exit, self.nav_exit_item)
 
         self.Bind(wx.EVT_MENU, file_preview.on_preview_import_from_file, self.doc_import_item)
         self.Bind(wx.EVT_MENU, file_preview.on_preview_import_from_scanner, self.doc_import_scanner_item)
@@ -291,7 +291,6 @@ class FileExplorer(wx.Frame):
         parent_folder = ntpath.dirname(current_path) if current_path else ""
         self.nav_up_item.Enable(bool(current_path and os.path.isdir(current_path) and parent_folder and ntpath.normpath(parent_folder) != ntpath.normpath(current_path)))
         self.nav_search_item.Enable(True)
-        self.nav_exit_item.Enable(True)
 
         is_pdf_preview = bool(current_preview and is_pdf_file(current_preview))
         is_image_preview = bool(current_preview and image_utils.can_preview_image(current_preview))
@@ -340,6 +339,9 @@ class FileExplorer(wx.Frame):
         about_form.show_about_form(self)
 
     def build_ui(self):
+        if not hasattr(self, "icon_manager") or self.icon_manager is None:
+            self.icon_manager = image_utils.IconManager()
+
         self._build_main_menu_bar()
 
         panel = wx.Panel(self)
@@ -519,7 +521,6 @@ class FileExplorer(wx.Frame):
             self.nav_forward_item.SetItemLabel(tr("forward_button"))
             self.nav_up_item.SetItemLabel(tr("folder_up_button"))
             self.nav_search_item.SetItemLabel(tr("search_in_files_button"))
-            self.nav_exit_item.SetItemLabel(tr("exit_button"))
             self.help_about_item.SetItemLabel(tr("menu_about"))
             self.doc_import_item.SetItemLabel(tr("preview_import_from_file_button"))
             self.doc_import_scanner_item.SetItemLabel(tr("preview_import_from_scanner_button"))
