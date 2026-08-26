@@ -13,7 +13,7 @@ import file_operations.image_utils as image_utils
 import controls.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
-import controls.scanform as scanform
+import controls.scan_form as scan_form
 import controls.about_form as about_form
 import controls.help_form as help_form
 
@@ -795,7 +795,7 @@ class FileExplorer(wx.Frame):
         return filelist.get_selected_list_path(self)
 
     def on_scan_form(self, _=None):
-        scanform.on_scan_form(self)
+        scan_form.on_scan_form(self)
 
     def on_list_scan(self, _):
         filelist.on_list_scan(self, _)
