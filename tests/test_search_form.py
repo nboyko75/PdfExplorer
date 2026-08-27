@@ -733,6 +733,43 @@ class SearchFilesTests(unittest.TestCase):
 
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_archive_refresh_refreshes_filelist_for_parent_folder(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-archive-filelist-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(
+                    GetValue=lambda: temp_dir,
+                    ChangeValue=lambda value: setattr(self, "path_box_value", value),
+                )
+                self.path_box_value = temp_dir
+                self.loaded_folder = None
+                self.tree = object()
+                self.selected_tree_path = None
+                self.selected_list_path = None
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+            def select_tree_item_by_path(self, path):
+                self.selected_tree_path = path
+
+            def select_list_item_by_path(self, path):
+                self.selected_list_path = path
+
+        owner = FakeOwner()
+
+        archive_helper._refresh_after_archive_change(owner, archive_path)
+
+        self.assertEqual(owner.loaded_folder, temp_dir)
+        self.assertEqual(owner.selected_tree_path, archive_path)
+        self.assertEqual(owner.selected_list_path, archive_path)
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
     def test_extract_selected_archive_refreshes_active_folder_and_tree(self):
         import file_operations.archive_helper as archive_helper
 
