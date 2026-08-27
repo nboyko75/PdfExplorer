@@ -223,6 +223,15 @@ def _sync_preview_tab_for_path(owner, path):
     if not path:
         return
 
+    if os.path.isdir(path):
+        owner.preview_tabs = [
+            tab for tab in owner.preview_tabs
+            if not tab.get("path") or not os.path.isdir(tab["path"])
+        ]
+        _normalize_preview_tabs(owner)
+        _render_preview_tab_bar(owner)
+        return
+
     if not getattr(owner, "preview_enabled", True):
         return
 
@@ -250,7 +259,9 @@ def _sync_preview_tab_for_path(owner, path):
 
     unpinned_tabs = [tab for tab in owner.preview_tabs if not tab.get("pinned", False)]
     if unpinned_tabs:
+        # === COPILOT PROTECTED: BEGIN ===
         reuse_tab = unpinned_tabs[-1]
+        # === COPILOT PROTECTED: END ===
         reuse_index = owner.preview_tabs.index(reuse_tab)
         owner.preview_tabs[reuse_index] = {
             "path": path,

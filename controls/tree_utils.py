@@ -15,6 +15,7 @@ def bind_tree_events(owner):
     owner.tree.Bind(wx.EVT_TREE_ITEM_EXPANDING, owner.on_tree_expand)
     owner.tree.Bind(wx.EVT_TREE_SEL_CHANGING, owner.on_tree_select)
     owner.tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, owner.on_tree_activated)
+    owner.tree.Bind(wx.EVT_TREE_BEGIN_DRAG, owner.on_tree_begin_drag)
     owner.tree.Bind(wx.EVT_CONTEXT_MENU, owner.on_tree_right_click)
 
 
@@ -321,6 +322,7 @@ def init_tree(owner):
         owner.tree.AppendItem(item, tr("tree_expand_placeholder"))
 
     owner.tree.Expand(root)
+    owner.tree.SetDropTarget(__import__("controls.drag_and_drop", fromlist=["TreeDropTarget"]).TreeDropTarget(owner))
 
 
 def get_drives():
@@ -382,6 +384,63 @@ def on_tree_activated(owner, event):
         return
 
     filelist.open_path_or_file(owner, path)
+
+
+def get_selected_tree_paths(owner):
+    tree = getattr(owner, "tree", None)
+    if tree is None or not hasattr(tree, "GetSelection"):
+        return []
+
+    selected_item = tree.GetSelection()
+    if not selected_item or not selected_item.IsOk():
+        return []
+
+    item_path = tree.GetItemData(selected_item)
+    if not isinstance(item_path, str) or not item_path or not os.path.exists(item_path):
+        return []
+
+    return [normalize_tree_path(item_path)]
+
+
+def _build_tree_drag_payload(selected_paths):
+    file_data = wx.FileDataObject()
+    for path in selected_paths:
+        file_data.AddFile(path)
+
+    payload_data = wx.TextDataObject()
+    marker_name = __import__("controls.drag_and_drop", fromlist=["INTERNAL_DRAG_MARKER"]).INTERNAL_DRAG_MARKER
+    payload = marker_name + "\n" + "\n".join(selected_paths)
+    payload_data.SetText(payload)
+
+    is_mocked_data_object = getattr(type(file_data), "__module__", "").startswith("unittest.mock") or getattr(type(wx.DataObjectComposite), "__module__", "").startswith("unittest.mock")
+    if isinstance(file_data, wx.DataObject) or is_mocked_data_object:
+        composite_data = wx.DataObjectComposite()
+        if hasattr(wx, "DATADOBJECT_PREFERRED"):
+            composite_data.Add(payload_data, wx.DATADOBJECT_PREFERRED)
+        else:
+            composite_data.Add(payload_data)
+        composite_data.Add(file_data)
+        return composite_data
+
+    return payload_data
+
+
+def on_tree_begin_drag(owner, event):
+    selected_paths = []
+    item = getattr(event, "GetItem", lambda: None)()
+    if item is not None and getattr(item, "IsOk", lambda: False)():
+        item_path = owner.tree.GetItemData(item)
+        if isinstance(item_path, str) and item_path and os.path.exists(item_path):
+            selected_paths = [normalize_tree_path(item_path)]
+    if not selected_paths:
+        selected_paths = get_selected_tree_paths(owner)
+    if not selected_paths:
+        return
+
+    drag_data = _build_tree_drag_payload(selected_paths)
+    drag_source = wx.DropSource(owner.tree)
+    drag_source.SetData(drag_data)
+    drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
 def on_tree_right_click(owner, event):

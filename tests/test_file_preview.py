@@ -341,6 +341,27 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.preview_tabs, [])
         self.assertIsNone(owner.preview_active_tab_index)
 
+    def test_sync_preview_tab_for_path_ignores_folder_paths(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            preview_tabs=[
+                {"path": "folder", "pinned": False, "caption": "folder", "hint": "folder"},
+                {"path": "keep.pdf", "pinned": False, "caption": "keep.pdf", "hint": "keep.pdf"},
+            ],
+            preview_active_tab_index=1,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        with mock.patch("controls.file_preview.os.path.isdir", side_effect=lambda path: path == "folder"):
+            file_preview._sync_preview_tab_for_path(owner, "folder")
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["keep.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 0)
+
     def test_unavailable_zoom_action_does_not_show_message_box(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
@@ -572,19 +593,57 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         with mock.patch.object(filelist, "get_selected_list_paths", return_value=selected_paths), \
              mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in selected_paths), \
              mock.patch.object(filelist.wx, "FileDataObject") as mocked_file_data, \
+             mock.patch.object(filelist.wx, "TextDataObject") as mocked_text_data, \
+             mock.patch.object(filelist.wx, "DataObjectComposite") as mocked_composite, \
              mock.patch.object(filelist.wx, "DropSource") as mocked_drop_source, \
-             mock.patch.object(filelist.wx, "Drag_AllowCopy", create=True, new=object()) as drag_allow_copy:
+             mock.patch.object(filelist.wx, "Drag_AllowMove", create=True, new=object()) as drag_allow_move:
             data = mock.MagicMock()
+            marker_data = mock.MagicMock()
+            composite_data = mock.MagicMock()
             mocked_file_data.return_value = data
+            mocked_text_data.return_value = marker_data
+            mocked_composite.return_value = composite_data
             src = mock.MagicMock()
             mocked_drop_source.return_value = src
 
             filelist.on_list_begin_drag(owner, None)
 
         data.AddFile.assert_has_calls([mock.call("C:/first.txt"), mock.call("C:/second.txt")])
+        composite_data.Add.assert_any_call(data, filelist.wx.DATADOBJECT_PREFERRED)
+        composite_data.Add.assert_any_call(marker_data)
         mocked_drop_source.assert_called_once_with(owner.list)
-        src.SetData.assert_called_once_with(data)
-        src.DoDragDrop.assert_called_once_with(drag_allow_copy)
+        src.SetData.assert_called_once_with(composite_data)
+        src.DoDragDrop.assert_called_once_with(drag_allow_move)
+
+    def test_file_list_drag_out_marks_internal_moves_for_folder_drops(self):
+        filelist = __import__("controls.filelist", fromlist=["on_list_begin_drag", "get_selected_list_paths"])
+        owner = types.SimpleNamespace(list=object())
+        selected_paths = ["C:/first.txt"]
+
+        with mock.patch.object(filelist, "get_selected_list_paths", return_value=selected_paths), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in selected_paths), \
+             mock.patch.object(filelist.wx, "FileDataObject") as mocked_file_data, \
+             mock.patch.object(filelist.wx, "TextDataObject") as mocked_text_data, \
+             mock.patch.object(filelist.wx, "DataObjectComposite") as mocked_composite, \
+             mock.patch.object(filelist.wx, "DropSource") as mocked_drop_source, \
+             mock.patch.object(filelist.wx, "Drag_AllowMove", create=True, new=object()) as drag_allow_move:
+            file_data = mock.MagicMock()
+            marker_data = mock.MagicMock()
+            composite_data = mock.MagicMock()
+            mocked_file_data.return_value = file_data
+            mocked_text_data.return_value = marker_data
+            mocked_composite.return_value = composite_data
+            src = mock.MagicMock()
+            mocked_drop_source.return_value = src
+
+            filelist.on_list_begin_drag(owner, None)
+
+        composite_data.Add.assert_any_call(file_data, filelist.wx.DATADOBJECT_PREFERRED)
+        composite_data.Add.assert_any_call(marker_data)
+        mocked_drop_source.assert_called_once_with(owner.list)
+        src.SetData.assert_called_once_with(composite_data)
+        src.DoDragDrop.assert_called_once_with(drag_allow_move)
+        marker_data.SetText.assert_called_once_with(filelist.drag_and_drop.INTERNAL_DRAG_MARKER)
 
     def test_list_pane_accepts_files_dropped_from_explorer(self):
         filelist = __import__("controls.filelist", fromlist=["FileListDropTarget"])
@@ -601,6 +660,67 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         expected_destination = os.path.join("C:/current", "drop.txt")
         self.assertTrue(result)
         mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
+
+    def test_list_pane_drops_into_folder_row_target(self):
+        filelist = __import__("controls.filelist", fromlist=["FileListDropTarget"])
+        owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), list=mock.MagicMock())
+        owner.list.HitTest.return_value = (0, 0)
+        owner.list.GetItemText.return_value = "folder"
+
+        with mock.patch.object(filelist, "_build_non_conflicting_path", side_effect=lambda path: path), \
+             mock.patch.object(filelist.shutil, "copy2") as mocked_copy, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: path == os.path.join("C:/current", "folder")), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in {os.path.join("C:/current", "folder"), "C:/drop.txt"}):
+            drop_target = filelist.FileListDropTarget(owner)
+            result = drop_target.OnDropFiles(10, 20, ["C:/drop.txt"])
+
+        expected_destination = os.path.join("C:/current", "folder", "drop.txt")
+        self.assertTrue(result)
+        mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.join("C:/current", "folder")])
+
+    def test_tree_pane_drops_into_folder_node_target(self):
+        drag_and_drop = __import__("controls.drag_and_drop", fromlist=["TreeDropTarget"])
+        owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), tree=mock.MagicMock())
+        target_item = mock.MagicMock()
+        target_item.IsOk.return_value = True
+        owner.tree.HitTest.return_value = (target_item, 0)
+        owner.tree.GetItemData.return_value = os.path.join("C:/current", "folder")
+
+        with mock.patch.object(drag_and_drop, "_build_non_conflicting_path", side_effect=lambda path: path), \
+             mock.patch.object(drag_and_drop.shutil, "copy2") as mocked_copy, \
+             mock.patch.object(drag_and_drop.sys.modules.get("controls.filelist"), "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(drag_and_drop.os.path, "isdir", side_effect=lambda path: path == os.path.join("C:/current", "folder")), \
+             mock.patch.object(drag_and_drop.os.path, "exists", side_effect=lambda path: path in {os.path.join("C:/current", "folder"), "C:/drop.txt"}):
+            drop_target = drag_and_drop.TreeDropTarget(owner)
+            result = drop_target.OnDropFiles(10, 20, ["C:/drop.txt"])
+
+        expected_destination = os.path.join("C:/current", "folder", "drop.txt")
+        self.assertTrue(result)
+        mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.join("C:/current", "folder")])
+
+    def test_drop_targets_implement_ondata_for_wx_drag_transfer(self):
+        filelist = __import__("controls.filelist", fromlist=["FileListDropTarget"])
+        drag_and_drop = __import__("controls.drag_and_drop", fromlist=["TreeDropTarget", "FileListDropTarget"])
+        owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), list=mock.MagicMock())
+        owner.list.HitTest.return_value = (wx.NOT_FOUND, 0)
+
+        drop_target = filelist.FileListDropTarget(owner)
+        drop_target.file_data.GetFilenames = mock.MagicMock(return_value=["C:/drop.txt"])
+        drop_target.marker_data.GetText = mock.MagicMock(return_value=drag_and_drop.INTERNAL_DRAG_MARKER)
+        with mock.patch.object(drop_target, "GetData", return_value=True), \
+             mock.patch.object(filelist, "_build_non_conflicting_path", side_effect=lambda path: path), \
+             mock.patch.object(filelist.shutil, "move") as mocked_move, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: path == "C:/current"), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path in {"C:/current", "C:/drop.txt"}):
+            result = drop_target.OnData(0, 0, wx.DragCopy)
+
+        self.assertEqual(result, wx.DragMove)
+        mocked_move.assert_called_once_with("C:/drop.txt", os.path.join("C:/current", "drop.txt"))
         mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
 
     def test_handle_file_ops_shortcut_supports_delete_key(self):

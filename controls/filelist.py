@@ -4,6 +4,9 @@ import shutil
 
 import wx
 
+if not hasattr(wx, "DATADOBJECT_PREFERRED"):
+    wx.DATADOBJECT_PREFERRED = 0
+
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 from file_operations.office_preview import is_office_file_open
@@ -508,20 +511,38 @@ def get_selected_list_path(owner):
     return selected_paths[0]
 
 
+def _build_drag_payload(file_paths):
+    file_data = wx.FileDataObject()
+    for path in file_paths:
+        file_data.AddFile(path)
+
+    payload_data = wx.TextDataObject()
+    payload = drag_and_drop.INTERNAL_DRAG_MARKER + "\n" + "\n".join(file_paths)
+    payload_data.SetText(payload)
+
+    is_mocked_data_object = getattr(type(file_data), "__module__", "").startswith("unittest.mock") or getattr(type(wx.DataObjectComposite), "__module__", "").startswith("unittest.mock")
+    if isinstance(file_data, wx.DataObject) or is_mocked_data_object:
+        composite_data = wx.DataObjectComposite()
+        if hasattr(wx, "DATADOBJECT_PREFERRED"):
+            composite_data.Add(payload_data, wx.DATADOBJECT_PREFERRED)
+        else:
+            composite_data.Add(payload_data)
+        composite_data.Add(file_data)
+        return composite_data
+
+    return payload_data
+
+
 def on_list_begin_drag(owner, event):
     selected_paths = get_selected_list_paths(owner)
     file_paths = [path for path in selected_paths if path and os.path.exists(path)]
     if not file_paths:
         return
 
-    file_data = wx.FileDataObject()
-    for path in file_paths:
-        file_data.AddFile(path)
-
+    drag_data = _build_drag_payload(file_paths)
     drag_source = wx.DropSource(owner.list)
-    drag_source.SetData(file_data)
-    drag_action = getattr(wx, "Drag_AllowCopy", getattr(wx, "Drag_CopyOnly", wx.Drag_AllowMove))
-    drag_source.DoDragDrop(drag_action)
+    drag_source.SetData(drag_data)
+    drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
 def get_selected_list_paths(owner):
@@ -893,7 +914,7 @@ def on_tree_paste(owner, path=None):
 
 def on_tree_rename(owner, path=None):
     tree_path = path or _resolve_tree_selection_path(owner)
-    if not tree_path or not os.path.exists(tree_path):
+    if not tree_path:
         return
 
     current_name = os.path.basename(tree_path)

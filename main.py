@@ -811,6 +811,9 @@ class FileExplorer(wx.Frame):
     def on_tree_activated(self, event):
         return tree_utils.on_tree_activated(self, event)
 
+    def on_tree_begin_drag(self, event):
+        return tree_utils.on_tree_begin_drag(self, event)
+
     def on_tree_right_click(self, event):
         return tree_utils.on_tree_right_click(self, event)
 

@@ -82,11 +82,17 @@ def _set_clipboard(owner, paths, mode, update_toolbar_callback=None):
     _write_native_clipboard(owner.file_clipboard_paths, mode)
 
     if update_toolbar_callback is not None:
-        update_toolbar_callback(owner)
+        if getattr(update_toolbar_callback, "__self__", None) is not None:
+            update_toolbar_callback()
+        else:
+            update_toolbar_callback(owner)
     else:
         fallback = getattr(owner, "update_list_toolbar_buttons", None)
         if callable(fallback):
-            fallback(owner)
+            if getattr(fallback, "__self__", None) is not None:
+                fallback()
+            else:
+                fallback(owner)
 
 
 def _get_clipboard_paths(owner):

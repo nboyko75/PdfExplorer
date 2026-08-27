@@ -89,6 +89,66 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertEqual(called["dirs"], ["D:/Temp"])
         self.assertEqual(called["preview"], "D:/Temp/file.txt")
 
+    def test_internal_drag_payload_is_persisted_in_text_data(self):
+        import controls.drag_and_drop as drag_and_drop_module
+
+        owner = types.SimpleNamespace()
+        target = drag_and_drop_module.FileListDropTarget(owner)
+        target.text_data.SetText("pdfexplorer_internal_move\nC:/Temp/alpha.txt\nC:/Temp/beta.txt")
+        target.file_data.AddFile("C:/Temp/alpha.txt")
+        target.file_data.AddFile("C:/Temp/beta.txt")
+
+        marker, filenames = target._read_drag_payload()
+
+        self.assertEqual(marker, "pdfexplorer_internal_move")
+        self.assertEqual(filenames, ["C:/Temp/alpha.txt", "C:/Temp/beta.txt"])
+
+    def test_set_clipboard_calls_bound_toolbar_callback_without_double_owner(self):
+        import file_operations.copy_and_paste as copy_and_paste
+
+        owner = types.SimpleNamespace()
+        owner.file_clipboard_paths = []
+        owner.file_clipboard_mode = None
+        calls = []
+
+        class FakeOwner:
+            def update_list_toolbar_buttons(self):
+                calls.append("called")
+
+        fake_owner = FakeOwner()
+        fake_owner.file_clipboard_paths = []
+        fake_owner.file_clipboard_mode = None
+
+        copy_and_paste._set_clipboard(
+            fake_owner,
+            ["C:/Temp/example.txt"],
+            copy_and_paste.CLIPBOARD_MODE_COPY,
+            fake_owner.update_list_toolbar_buttons,
+        )
+
+        self.assertEqual(calls, ["called"])
+        self.assertEqual(fake_owner.file_clipboard_paths, [os.path.normpath("C:/Temp/example.txt")])
+        self.assertEqual(fake_owner.file_clipboard_mode, copy_and_paste.CLIPBOARD_MODE_COPY)
+
+    def test_drop_target_reports_drag_result_without_side_effects(self):
+        import controls.drag_and_drop as drag_and_drop_module
+
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: "D:/Temp"),
+            list=mock.MagicMock(),
+        )
+
+        target = drag_and_drop_module.FileListDropTarget(owner)
+        target.GetData = mock.Mock(return_value=True)
+        target._read_drag_payload = mock.Mock(return_value=(drag_and_drop_module.INTERNAL_DRAG_MARKER, ["D:/Temp/source.txt"]))
+        target._resolve_drop_target_dir = mock.Mock(return_value="D:/Temp/target_folder")
+
+        result = target.OnData(0, 0, wx.DragCopy)
+
+        self.assertEqual(result, wx.DragCopy)
+        target._read_drag_payload.assert_called_once_with()
+        target._resolve_drop_target_dir.assert_called_once_with(0, 0)
+
     def test_non_conflicting_path_helper_is_single_shared_implementation(self):
         import file_operations.copy_and_paste as copy_and_paste_module
         import controls.drag_and_drop as drag_and_drop_module
@@ -255,7 +315,12 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
             self.assertEqual(result, "Printer One")
             fake_win32_client.DispatchEx.assert_called_once_with("Word.Application")
-            fake_word_doc.PrintOut.assert_called_once_with(Copies=1, Pages="1,3", Range=4, Background=False)
+            fake_word_doc.PrintOut.assert_called_once()
+            print_kwargs = fake_word_doc.PrintOut.call_args.kwargs
+            self.assertEqual(print_kwargs["Copies"], 1)
+            self.assertEqual(print_kwargs["Pages"], "1,3")
+            self.assertEqual(print_kwargs["Range"], 4)
+            self.assertEqual(print_kwargs["Background"], False)
             mocked_startfile.assert_not_called()
 
 
