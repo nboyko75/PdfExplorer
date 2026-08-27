@@ -67,6 +67,9 @@ class FileListDropTarget(wx.DropTarget):
     def _apply_drop(self, target_dir, filenames, move_files):
         build_non_conflicting_path, refresh_after_fs_change = self._resolve_drop_helpers()
         errors = []
+        affected_dirs = [target_dir]
+        seen_dirs = {os.path.normcase(os.path.normpath(target_dir))} if isinstance(target_dir, str) and target_dir else set()
+
         for source_path in filenames:
             if not isinstance(source_path, str) or not source_path:
                 continue
@@ -75,6 +78,14 @@ class FileListDropTarget(wx.DropTarget):
             destination_path = os.path.join(target_dir, source_name)
             if os.path.exists(destination_path):
                 destination_path = build_non_conflicting_path(destination_path)
+
+            if move_files:
+                source_parent = os.path.dirname(source_path)
+                if isinstance(source_parent, str) and source_parent and os.path.isdir(source_parent):
+                    normalized = os.path.normcase(os.path.normpath(source_parent))
+                    if normalized not in seen_dirs:
+                        affected_dirs.append(source_parent)
+                        seen_dirs.add(normalized)
 
             try:
                 if move_files:
@@ -92,7 +103,7 @@ class FileListDropTarget(wx.DropTarget):
         if errors:
             wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
         else:
-            refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
+            refresh_after_fs_change(self.owner, affected_dirs=affected_dirs)
 
         return True
 
@@ -207,6 +218,9 @@ class TreeDropTarget(wx.DropTarget):
     def _apply_drop(self, target_dir, filenames, move_files):
         build_non_conflicting_path, refresh_after_fs_change = self._resolve_drop_helpers()
         errors = []
+        affected_dirs = [target_dir]
+        seen_dirs = {os.path.normcase(os.path.normpath(target_dir))} if isinstance(target_dir, str) and target_dir else set()
+
         for source_path in filenames:
             if not isinstance(source_path, str) or not source_path:
                 continue
@@ -215,6 +229,14 @@ class TreeDropTarget(wx.DropTarget):
             destination_path = os.path.join(target_dir, source_name)
             if os.path.exists(destination_path):
                 destination_path = build_non_conflicting_path(destination_path)
+
+            if move_files:
+                source_parent = os.path.dirname(source_path)
+                if isinstance(source_parent, str) and source_parent and os.path.isdir(source_parent):
+                    normalized = os.path.normcase(os.path.normpath(source_parent))
+                    if normalized not in seen_dirs:
+                        affected_dirs.append(source_parent)
+                        seen_dirs.add(normalized)
 
             try:
                 if move_files:
@@ -229,7 +251,7 @@ class TreeDropTarget(wx.DropTarget):
         if errors:
             wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
         else:
-            refresh_after_fs_change(self.owner, affected_dirs=[target_dir])
+            refresh_after_fs_change(self.owner, affected_dirs=affected_dirs)
 
         return True
 

@@ -4,6 +4,7 @@ import sys
 import tempfile
 import types
 import unittest
+import wx
 from unittest import mock
 
 
@@ -709,6 +710,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.join("C:/current", "folder")])
 
     def test_tree_pane_drops_into_folder_node_target(self):
+        filelist = __import__("controls.filelist", fromlist=["_refresh_after_fs_change"])
         drag_and_drop = __import__("controls.drag_and_drop", fromlist=["TreeDropTarget"])
         owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), tree=mock.MagicMock())
         target_item = mock.MagicMock()
@@ -718,7 +720,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         with mock.patch.object(drag_and_drop, "_build_non_conflicting_path", side_effect=lambda path: path), \
              mock.patch.object(drag_and_drop.shutil, "copy2") as mocked_copy, \
-             mock.patch.object(drag_and_drop.sys.modules.get("controls.filelist"), "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
              mock.patch.object(drag_and_drop.os.path, "isdir", side_effect=lambda path: path == os.path.join("C:/current", "folder")), \
              mock.patch.object(drag_and_drop.os.path, "exists", side_effect=lambda path: path in {os.path.join("C:/current", "folder"), "C:/drop.txt"}):
             drop_target = drag_and_drop.TreeDropTarget(owner)
@@ -729,6 +731,30 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
         mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.join("C:/current", "folder")])
 
+    def test_tree_pane_drag_move_refreshes_source_and_target_folders(self):
+        filelist = __import__("controls.filelist", fromlist=["_refresh_after_fs_change"])
+        drag_and_drop = __import__("controls.drag_and_drop", fromlist=["TreeDropTarget"])
+        owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), tree=mock.MagicMock())
+        target_item = mock.MagicMock()
+        target_item.IsOk.return_value = True
+        owner.tree.HitTest.return_value = (target_item, 0)
+        owner.tree.GetItemData.return_value = os.path.join("C:/current", "folder")
+
+        with mock.patch.object(drag_and_drop, "_build_non_conflicting_path", side_effect=lambda path: path), \
+             mock.patch.object(drag_and_drop.shutil, "move") as mocked_move, \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(drag_and_drop.os.path, "isdir", side_effect=lambda path: path in {"C:/source", os.path.join("C:/current", "folder")}), \
+             mock.patch.object(drag_and_drop.os.path, "exists", side_effect=lambda path: path == "C:/source/old.txt"):
+            drop_target = drag_and_drop.TreeDropTarget(owner)
+            drop_target.text_data.GetText = mock.MagicMock(return_value=drag_and_drop.INTERNAL_DRAG_MARKER + "\nC:/source/old.txt")
+            with mock.patch.object(drop_target, "GetData", return_value=True):
+                result = drop_target.OnDrop(10, 20)
+
+        expected_destination = os.path.join("C:/current", "folder", "old.txt")
+        self.assertTrue(result)
+        mocked_move.assert_called_once_with("C:/source/old.txt", expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.join("C:/current", "folder"), "C:/source"])
+
     def test_drop_targets_implement_ondata_for_wx_drag_transfer(self):
         filelist = __import__("controls.filelist", fromlist=["FileListDropTarget"])
         drag_and_drop = __import__("controls.drag_and_drop", fromlist=["TreeDropTarget", "FileListDropTarget"])
@@ -737,7 +763,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         drop_target = filelist.FileListDropTarget(owner)
         drop_target.file_data.GetFilenames = mock.MagicMock(return_value=["C:/drop.txt"])
-        drop_target.marker_data.GetText = mock.MagicMock(return_value=drag_and_drop.INTERNAL_DRAG_MARKER)
+        drop_target.text_data.GetText = mock.MagicMock(return_value=drag_and_drop.INTERNAL_DRAG_MARKER + "\nC:/drop.txt")
         with mock.patch.object(drop_target, "GetData", return_value=True), \
              mock.patch.object(filelist, "_build_non_conflicting_path", side_effect=lambda path: path), \
              mock.patch.object(filelist.shutil, "move") as mocked_move, \
