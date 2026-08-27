@@ -27,6 +27,7 @@ try:
 except ImportError:  # pragma: no cover - optional runtime dependency
     win32_client = None
 
+from controls.file_preview import IMAGE_EXTENSIONS
 from localization import tr
 from controls.window_tools import load_settings, update_settings
 import file_operations.office_preview as office_preview
@@ -61,7 +62,7 @@ def _get_printer_names():
 
 
 def _get_document_page_count(path):
-    if not isinstance(path, str) or not path or not os.path.exists(path):
+    if not isinstance(path, str) or not path:
         return 0
 
     lower_path = path.lower()
@@ -77,8 +78,7 @@ def _get_document_page_count(path):
         except Exception:
             return 0
 
-    image_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
-    if os.path.splitext(lower_path)[1] in image_extensions:
+    if os.path.splitext(lower_path)[1] in IMAGE_EXTENSIONS:
         return 1
 
     return 1

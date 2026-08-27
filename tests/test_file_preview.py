@@ -289,7 +289,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         file_preview._sync_preview_tab_for_path(owner, "new-file.pdf")
 
-        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf", "other-right.pdf", "new-file.pdf"])
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf", "old-right.pdf", "new-file.pdf"])
         self.assertEqual(owner.preview_active_tab_index, 2)
 
         owner = types.SimpleNamespace(
@@ -360,6 +360,33 @@ class FilePreviewManualZoomTests(unittest.TestCase):
             file_preview._sync_preview_tab_for_path(owner, "folder")
 
         self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["keep.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 0)
+
+    def test_sync_preview_tab_for_path_removes_unpinned_tabs_for_unpreviewable_file(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            preview_tabs=[
+                {"path": "pinned.pdf", "pinned": True, "caption": "pinned.pdf", "hint": "pinned.pdf"},
+                {"path": "stale.pdf", "pinned": False, "caption": "stale.pdf", "hint": "stale.pdf"},
+                {"path": "other.pdf", "pinned": False, "caption": "other.pdf", "hint": "other.pdf"},
+            ],
+            preview_active_tab_index=2,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        with mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False), \
+             mock.patch("controls.file_preview.os.path.isfile", return_value=True):
+            file_preview._sync_preview_tab_for_path(owner, "report.docx")
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf"])
         self.assertEqual(owner.preview_active_tab_index, 0)
 
     def test_unavailable_zoom_action_does_not_show_message_box(self):

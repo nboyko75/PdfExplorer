@@ -24,7 +24,10 @@ PAGE_VIEW_MODE_1_TALL = "1_page_tall"
 PAGE_VIEW_MODE_MANUAL = "manual"
 FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_1_TALL}
 VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
-
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
+HTML_EXTENSIONS = {".html", ".htm"}
+TEXT_FILE_EXTENSIONS = {".txt", ".log", ".ini", ".cfg", ".conf", ".csv", ".json", ".xml", ".yaml", ".yml", ".md"}
+OFFICE_EXTENSIONS = {".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm", ".ppt", ".pptx", ".pptm"}
 
 def _get_preview_tab_label(path):
     if not path:
@@ -205,17 +208,26 @@ def _is_office_preview_path(path):
     if not isinstance(path, str):
         return False
     _, ext = os.path.splitext(path)
-    return ext.lower() in {
-        ".doc",
-        ".docx",
-        ".docm",
-        ".xls",
-        ".xlsx",
-        ".xlsm",
-        ".ppt",
-        ".pptx",
-        ".pptm",
-    }
+    return ext.lower() in OFFICE_EXTENSIONS
+
+
+def _is_previewable_path(owner, path):
+    if not isinstance(path, str) or not path:
+        return False
+
+    if is_pdf_file(path):
+        return True
+
+    _, ext = os.path.splitext(path)
+    if ext.lower() in IMAGE_EXTENSIONS:
+        return True
+    if ext.lower() in HTML_EXTENSIONS:
+        return True
+    if ext.lower() in TEXT_FILE_EXTENSIONS:
+        return True
+    if _is_office_preview_path(path):
+        return is_office_preview_allowed(owner, path)
+    return False
 
 
 def _sync_preview_tab_for_path(owner, path):
@@ -235,7 +247,13 @@ def _sync_preview_tab_for_path(owner, path):
     if not getattr(owner, "preview_enabled", True):
         return
 
-    if _is_office_preview_path(path) and not is_office_preview_allowed(owner, path):
+    if not _is_previewable_path(owner, path):
+        owner.preview_tabs = [tab for tab in owner.preview_tabs if tab.get("pinned", False)]
+        if owner.preview_tabs:
+            owner.preview_active_tab_index = max(0, len(owner.preview_tabs) - 1)
+        else:
+            owner.preview_active_tab_index = None
+        _render_preview_tab_bar(owner)
         return
 
     normalized_path = os.path.normpath(path)
