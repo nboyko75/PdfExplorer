@@ -135,7 +135,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "context_cut": "Cut",
     "context_paste": "Paste",
     "context_remove_to_recycle_bin": "Remove to Recycle Bin",
-    "context_delete": "Delete",
+    "context_delete": "Delete permanently",
     "ok_button": "OK",
     "cancel_button": "Cancel",
     "context_add_to_archive": "Add to archive",

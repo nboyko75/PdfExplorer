@@ -109,7 +109,7 @@ TRANSLATIONS = {
     "context_cut": "잘라내기",
     "context_paste": "붙여넣기",
     "context_remove_to_recycle_bin": "휴지통으로 이동",
-    "context_delete": "삭제",
+    "context_delete": "영구 삭제",
     "ok_button": "확인",
     "cancel_button": "취소",
     "context_add_to_archive": "아카이브에 추가",

@@ -933,26 +933,6 @@ def delete_paths(owner, paths, permanent=False):
     if not unique_paths:
         return
 
-    if permanent:
-        if len(unique_paths) == 1:
-            confirm_target = unique_paths[0]
-        else:
-            confirm_target = f"{len(unique_paths)} item(s)"
-
-        dialog = wx.MessageDialog(
-            owner,
-            tr("confirm_delete", path=confirm_target),
-            tr("context_delete"),
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-        )
-        should_delete = dialog.ShowModal() == wx.ID_YES
-        dialog.Destroy()
-
-        if not should_delete:
-            return
-    else:
-        should_delete = True
-
     errors = []
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
     affected_dirs = [current_folder] if current_folder else []

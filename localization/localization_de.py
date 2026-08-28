@@ -133,7 +133,7 @@ TRANSLATIONS = {
     "context_cut": "Ausschneiden",
     "context_paste": "Einfügen",
     "context_remove_to_recycle_bin": "In den Papierkorb verschieben",
-    "context_delete": "Löschen",
+    "context_delete": "Dauerhaft löschen",
     "ok_button": "OK",
     "cancel_button": "Abbrechen",
     "context_add_to_archive": "Zum Archiv hinzufügen",

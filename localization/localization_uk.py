@@ -134,7 +134,7 @@ TRANSLATIONS = {
     "context_cut": "Вирізати",
     "context_paste": "Вставити",
     "context_remove_to_recycle_bin": "Перемістити до кошика",
-    "context_delete": "Видалити",
+    "context_delete": "Видалити назавжди",
     "ok_button": "OK",
     "cancel_button": "Скасувати",
     "context_add_to_archive": "Додати до архіву",

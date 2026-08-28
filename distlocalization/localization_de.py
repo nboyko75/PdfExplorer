@@ -51,7 +51,7 @@ TRANSLATIONS = {
     "context_copy": "Kopieren",
     "context_cut": "Ausschneiden",
     "context_paste": "Einfügen",
-    "context_delete": "Loschen",
+    "context_delete": "Dauerhaft löschen",
     "scan": "Scannen",
     "scan_dialog_title": "Dokumente scannen",
     "scan_scanner_label": "Scanner",

@@ -35,7 +35,7 @@ def move_to_recycle_bin(paths):
     operation.wFunc = 0x0003
     operation.pFrom = file_buffer
     operation.pTo = None
-    operation.fFlags = 0x0002 | 0x0004
+    operation.fFlags = 0x0004 | 0x0010 | 0x0040
     result = shell32.SHFileOperationW(ctypes.byref(operation))
     if result == 1223:
         return False

@@ -51,7 +51,7 @@ TRANSLATIONS = {
     "context_copy": "复制",
     "context_cut": "剪切",
     "context_paste": "粘贴",
-    "context_delete": "删除",
+    "context_delete": "永久删除",
     "scan": "扫描",
     "scan_dialog_title": "扫描文档",
     "scan_scanner_label": "扫描仪",
