@@ -2,25 +2,15 @@ import os
 import shutil
 import subprocess
 from contextlib import nullcontext
+from zipfile import Path
+from pathlib import Path as FilePath
 
 import wx
 
+from controls.window_tools import load_settings, update_settings
 from localization import tr
 
-_ARCHIVE_SUFFIXES = (
-    ".tar.gz",
-    ".tar.bz2",
-    ".tar.xz",
-    ".tar.zst",
-    ".zip",
-    ".rar",
-    ".7z",
-    ".tar",
-    ".gz",
-    ".bz2",
-    ".xz",
-    ".cab",
-)
+_ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab")
 
 
 def _is_archive_file(path):
@@ -131,29 +121,39 @@ def _extract_archive_file(archive_path, destination_dir):
     destination_dir = os.path.normpath(destination_dir or os.path.dirname(archive_path))
     os.makedirs(destination_dir, exist_ok=True)
 
-    powershell = shutil.which("powershell")
-    if powershell:
-        quoted_archive = archive_path.replace('"', '""')
-        quoted_destination = destination_dir.replace('"', '""')
-        _run_command([
-            powershell,
-            "-NoProfile",
-            "-Command",
-            f'Expand-Archive -LiteralPath "{quoted_archive}" -DestinationPath "{quoted_destination}" -Force',
-        ])
-        return destination_dir
+    was_busy = wx.IsBusy() if hasattr(wx, "IsBusy") else False
+    cursor_started = False
+    if not was_busy and hasattr(wx, "BeginBusyCursor"):
+        wx.BeginBusyCursor()
+        cursor_started = True
 
-    unzip_executable = shutil.which("unzip")
-    if unzip_executable:
-        _run_command([unzip_executable, "-o", archive_path, "-d", destination_dir])
-        return destination_dir
+    try:
+        powershell = shutil.which("powershell")
+        if powershell:
+            quoted_archive = archive_path.replace('"', '""')
+            quoted_destination = destination_dir.replace('"', '""')
+            _run_command([
+                powershell,
+                "-NoProfile",
+                "-Command",
+                f'Expand-Archive -LiteralPath "{quoted_archive}" -DestinationPath "{quoted_destination}" -Force',
+            ])
+            return destination_dir
 
-    tar_executable = shutil.which("tar")
-    if tar_executable and not archive_path.lower().endswith(".zip"):
-        _run_command([tar_executable, "-xf", archive_path, "-C", destination_dir])
-        return destination_dir
+        unzip_executable = shutil.which("unzip")
+        if unzip_executable:
+            _run_command([unzip_executable, "-o", archive_path, "-d", destination_dir])
+            return destination_dir
 
-    raise RuntimeError("No system archive extraction tool is available.")
+        tar_executable = shutil.which("tar")
+        if tar_executable and not archive_path.lower().endswith(".zip"):
+            _run_command([tar_executable, "-xf", archive_path, "-C", destination_dir])
+            return destination_dir
+
+        raise RuntimeError("No system archive extraction tool is available.")
+    finally:
+        if cursor_started and hasattr(wx, "EndBusyCursor"):
+            wx.EndBusyCursor()
 
 
 def _refresh_after_archive_change(owner, archive_path):
@@ -170,11 +170,18 @@ def _refresh_after_archive_change(owner, archive_path):
         except Exception:
             pass
 
+    path_box = getattr(owner, "path_box", None)
+    has_path_box_get_value = path_box is not None and hasattr(path_box, "GetValue")
+
+    try:
+        if hasattr(owner, "open_path") and (path_box is None or has_path_box_get_value):
+            owner.open_path(archive_folder)
+    except Exception:
+        pass
+
     try:
         if hasattr(owner, "load_folder"):
             owner.load_folder(archive_folder)
-        elif hasattr(owner, "open_path"):
-            owner.open_path(archive_folder)
     except Exception:
         pass
 
@@ -263,28 +270,195 @@ def _archive_selected_path(owner, path):
     return _archive_selected_paths(owner, [path])
 
 
+def _default_extract_destination(path, current_folder=None):
+    if not _is_archive_file(path):
+        return ""
+
+    base_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else os.path.dirname(path) or os.getcwd()
+    archive_name = os.path.splitext(os.path.basename(path))[0]
+    if not archive_name:
+        archive_name = "archive"
+    else:
+        archive_name = FilePath(archive_name).stem  # Remove additional extensions like .tar, .gz, etc.
+    return os.path.normpath(os.path.join(base_folder, archive_name))
+
+
+def _save_archive_extract_form_geometry(dialog):
+    position = dialog.GetPosition()
+    size = dialog.GetSize()
+    update_settings({
+        "archive_extract_form_position": [int(position.x), int(position.y)],
+        "archive_extract_form_size": [int(size.x), int(size.y)],
+    })
+
+
+def _apply_archive_extract_form_geometry(dialog, settings=None):
+    if settings is None:
+        settings = load_settings()
+
+    saved_position = settings.get("archive_extract_form_position")
+    saved_size = settings.get("archive_extract_form_size")
+
+    min_width, min_height = 360, 150
+    default_width, default_height = 480, 180
+    dialog.SetMinSize((min_width, min_height))
+    dialog.SetSize((default_width, default_height))
+
+    if isinstance(saved_size, list) and len(saved_size) == 2:
+        width, height = int(saved_size[0]), int(saved_size[1])
+        if width >= min_width and height >= min_height:
+            dialog.SetSize((width, height))
+
+    if isinstance(saved_position, list) and len(saved_position) == 2:
+        x, y = int(saved_position[0]), int(saved_position[1])
+        dialog.SetPosition((x, y))
+
+
+def _show_extract_archive_into_dialog(owner, default_path):
+    default_dir = default_path if isinstance(default_path, str) and default_path else os.getcwd()
+
+    app_instance = wx.App.GetInstance() if hasattr(wx, "App") else None
+    if app_instance is None:
+        dialog = wx.TextEntryDialog(
+            owner,
+            tr("archive_extract_folder_label"),
+            tr("context_extract_from_archive_into"),
+            value=default_dir,
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return None
+            selected_path = dialog.GetValue().strip()
+            return selected_path or None
+        finally:
+            dialog.Destroy()
+
+    dialog = wx.Dialog(owner, title=tr("context_extract_from_archive_into"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    _apply_archive_extract_form_geometry(dialog)
+    panel = wx.Panel(dialog)
+    main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+    folder_label = wx.StaticText(panel, label=tr("archive_extract_folder_label"))
+    path_field = wx.TextCtrl(panel, value=default_dir)
+    browse_button = wx.Button(panel, label=tr("search_browse_button"))
+    browse_button.SetMinSize((90, -1))
+
+    input_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    input_sizer.Add(path_field, 1, wx.EXPAND | wx.RIGHT, 6)
+    input_sizer.Add(browse_button, 0, wx.ALIGN_CENTER_VERTICAL, 6)
+
+    buttons = wx.StdDialogButtonSizer()
+    ok_button = wx.Button(panel, wx.ID_OK, tr("ok_button"))
+    cancel_button = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
+    buttons.AddButton(ok_button)
+    buttons.AddButton(cancel_button)
+    buttons.Realize()
+
+    main_sizer.Add(folder_label, 0, wx.EXPAND | wx.LEFT | wx.BOTTOM, 12)
+    main_sizer.Add(input_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+    main_sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
+    panel.SetSizer(main_sizer)
+    main_sizer.Fit(dialog)
+
+    def browse_for_folder(_event):
+        chooser = wx.DirDialog(dialog, tr("archive_extract_select_folder_title"), defaultPath=path_field.GetValue() or default_dir)
+        try:
+            if chooser.ShowModal() == wx.ID_OK:
+                chosen_path = chooser.GetPath()
+                if chosen_path:
+                    path_field.SetValue(chosen_path)
+        finally:
+            chooser.Destroy()
+
+    browse_button.Bind(wx.EVT_BUTTON, browse_for_folder)
+    ok_button.SetDefault()
+
+    try:
+        result = dialog.ShowModal()
+        if result != wx.ID_OK:
+            return None
+
+        selected_path = path_field.GetValue().strip()
+        return selected_path or None
+    finally:
+        try:
+            _save_archive_extract_form_geometry(dialog)
+        except Exception:
+            pass
+        dialog.Destroy()
+
+
 def _extract_selected_archive(owner, path):
     if not _is_archive_file(path):
         return False
 
     try:
         current_folder = getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")()
-        if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder):
-            _extract_archive_file(path, current_folder)
-            try:
-                if hasattr(owner, "load_folder"):
-                    owner.load_folder(current_folder)
-            except Exception:
-                pass
+        destination_dir = os.path.dirname(path) or os.getcwd()
+        if not destination_dir:
+            return False
 
-            try:
-                if hasattr(owner, "tree"):
-                    import controls.tree_utils as tree_utils
-                    item = tree_utils.find_tree_item_by_path(owner, current_folder)
-                    if item is not None and hasattr(item, "IsOk") and item.IsOk():
-                        tree_utils.refresh_tree_subtree(owner, item, current_folder)
-            except Exception:
-                pass
+        refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else destination_dir
+        _extract_archive_file(path, destination_dir)
+
+        try:
+            if hasattr(owner, "load_folder"):
+                owner.load_folder(refresh_folder)
+        except Exception:
+            pass
+
+        try:
+            if hasattr(owner, "tree"):
+                import controls.tree_utils as tree_utils
+                item = tree_utils.find_tree_item_by_path(owner, refresh_folder)
+                if item is not None and hasattr(item, "IsOk") and item.IsOk():
+                    tree_utils.refresh_tree_subtree(owner, item, refresh_folder)
+        except Exception:
+            pass
+
+        return True
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+        return False
+
+
+def _extract_selected_archive_into(owner, path):
+    if not _is_archive_file(path):
+        return False
+
+    try:
+        current_folder = getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")()
+        default_dir = _default_extract_destination(path, current_folder)
+        target_dir = _show_extract_archive_into_dialog(owner, default_dir)
+        if not target_dir:
+            return False
+
+        target_dir = os.path.normpath(target_dir)
+        parent_dir = os.path.dirname(target_dir) or os.getcwd()
+        refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else parent_dir
+        os.makedirs(target_dir, exist_ok=True)
+        _extract_archive_file(path, target_dir)
+
+        try:
+            if hasattr(owner, "load_folder"):
+                owner.load_folder(refresh_folder)
+        except Exception:
+            pass
+
+        try:
+            if hasattr(owner, "tree"):
+                import controls.tree_utils as tree_utils
+                item = tree_utils.find_tree_item_by_path(owner, refresh_folder)
+                if item is not None and hasattr(item, "IsOk") and item.IsOk():
+                    tree_utils.refresh_tree_subtree(owner, item, refresh_folder)
+        except Exception:
+            pass
+
+        try:
+            if hasattr(owner, "select_list_item_by_path"):
+                owner.select_list_item_by_path(target_dir)
+        except Exception:
+            pass
 
         return True
     except Exception as exc:

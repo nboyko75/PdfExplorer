@@ -285,6 +285,16 @@ def refresh_tree_selection(owner):
 
 
 def refresh_tree_selection_and_filelist(owner):
+    list_ctrl = getattr(owner, "list", None)
+    if list_ctrl is not None and hasattr(list_ctrl, "GetItemCount"):
+        for index in range(list_ctrl.GetItemCount()):
+            list_ctrl.SetItemState(index, 0, wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED)
+
+    if hasattr(owner, "current_preview_path"):
+        owner.current_preview_path = None
+    if hasattr(owner, "show_file_preview"):
+        owner.show_file_preview(None)
+
     selected_item = owner.tree.GetSelection()
     if not selected_item or not selected_item.IsOk():
         selected_item = owner.tree.GetRootItem()
@@ -485,7 +495,8 @@ def on_tree_right_click(owner, event):
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
-    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive"))
+    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
+    extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
 
     open_item.Enable(can_act_on_selection)
     folder_up_item.Enable(bool(path and os.path.isdir(path) and os.path.dirname(path)))
@@ -498,7 +509,9 @@ def on_tree_right_click(owner, event):
     rename_item.Enable(can_act_on_selection)
     delete_item.Enable(can_act_on_selection)
     add_to_archive_item.Enable(bool(path and os.path.exists(path) and not archive_helper._is_archive_file(path)))
-    extract_from_archive_item.Enable(bool(path and archive_helper._is_archive_file(path)))
+    can_extract_from_archive = bool(path and archive_helper._is_archive_file(path))
+    extract_from_archive_item.Enable(can_extract_from_archive)
+    extract_from_archive_into_item.Enable(can_extract_from_archive)
 
     folder_up_bmp = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_MENU, (16, 16))
     if folder_up_bmp.IsOk():
@@ -521,6 +534,7 @@ def on_tree_right_click(owner, event):
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
+        icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
 
     cut_bmp = wx.ArtProvider.GetBitmap(wx.ART_CUT, wx.ART_MENU, (16, 16))
     if cut_bmp.IsOk():
@@ -605,6 +619,9 @@ def on_tree_right_click(owner, event):
     def handle_extract_from_archive(_):
         archive_helper._extract_selected_archive(owner, path)
 
+    def handle_extract_from_archive_into(_):
+        archive_helper._extract_selected_archive_into(owner, path)
+
     owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
     owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
     owner.Bind(wx.EVT_MENU, handle_open, open_item)
@@ -619,6 +636,7 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
     owner.Bind(wx.EVT_MENU, handle_add_to_archive, add_to_archive_item)
     owner.Bind(wx.EVT_MENU, handle_extract_from_archive, extract_from_archive_item)
+    owner.Bind(wx.EVT_MENU, handle_extract_from_archive_into, extract_from_archive_into_item)
 
     popup_window = owner.tree
     if event is not None:

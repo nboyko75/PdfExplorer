@@ -770,6 +770,32 @@ class SearchFilesTests(unittest.TestCase):
 
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_refresh_tree_selection_and_filelist_clears_stale_preview(self):
+        import controls.tree_utils as tree_utils
+
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/temp"),
+            tree=mock.Mock(),
+            list=mock.Mock(),
+            current_preview_path="C:/temp/last_file.txt",
+            show_file_preview=mock.Mock(),
+        )
+        owner.tree.GetSelection.return_value = None
+        owner.tree.GetRootItem.return_value = mock.Mock(IsOk=mock.Mock(return_value=False))
+        owner.list.GetItemCount.return_value = 2
+
+        with mock.patch.object(tree_utils, "refresh_tree_root") as mocked_refresh_root, \
+             mock.patch.object(tree_utils, "refresh_tree_subtree") as mocked_refresh_subtree, \
+             mock.patch.object(tree_utils, "refresh_tree_selection") as mocked_refresh_tree_selection:
+            tree_utils.refresh_tree_selection_and_filelist(owner)
+
+        owner.show_file_preview.assert_called_once_with(None)
+        owner.list.SetItemState.assert_any_call(0, 0, wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED)
+        owner.list.SetItemState.assert_any_call(1, 0, wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED)
+        mocked_refresh_root.assert_not_called()
+        mocked_refresh_tree_selection.assert_called_once_with(owner)
+        mocked_refresh_subtree.assert_not_called()
+
     def test_extract_selected_archive_refreshes_active_folder_and_tree(self):
         import file_operations.archive_helper as archive_helper
 
@@ -800,12 +826,143 @@ class SearchFilesTests(unittest.TestCase):
              mock.patch("controls.tree_utils.refresh_tree_subtree") as refresh_subtree:
             self.assertTrue(archive_helper._extract_selected_archive(owner, archive_path))
 
-        mocked_extract.assert_called_once_with(archive_path, os.path.join(temp_dir, "bundle"))
+        mocked_extract.assert_called_once_with(archive_path, temp_dir)
         self.assertEqual(owner.loaded_folder, temp_dir)
         self.assertTrue(find_item.called)
         refresh_subtree.assert_called_once_with(owner, parent_item, temp_dir)
 
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_extract_selected_archive_into_creates_target_folder_and_extracts(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-extract-into-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+        target_dir = os.path.join(temp_dir, "custom_output")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+                self.loaded_folder = None
+                self.tree = object()
+                self.selected_tree_path = None
+                self.selected_list_path = None
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+            def select_tree_item_by_path(self, path):
+                self.selected_tree_path = path
+
+            def select_list_item_by_path(self, path):
+                self.selected_list_path = path
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                self.value = kwargs.get("value", "")
+
+            def ShowModal(self):
+                return wx.ID_OK
+
+            def GetValue(self):
+                return target_dir
+
+            def Destroy(self):
+                return None
+
+        class FakeTreeItem:
+            def __init__(self):
+                self._ok = True
+
+            def IsOk(self):
+                return self._ok
+
+        owner = FakeOwner()
+        parent_item = FakeTreeItem()
+        with mock.patch.object(archive_helper.wx, "TextEntryDialog", return_value=FakeDialog()), \
+             mock.patch.object(archive_helper, "_extract_archive_file", return_value=target_dir) as mocked_extract, \
+             mock.patch.object(archive_helper.os, "makedirs") as mocked_makedirs, \
+             mock.patch("controls.tree_utils.find_tree_item_by_path", return_value=parent_item) as find_item, \
+             mock.patch("controls.tree_utils.refresh_tree_subtree") as refresh_subtree:
+            self.assertTrue(archive_helper._extract_selected_archive_into(owner, archive_path))
+
+        mocked_makedirs.assert_called_once_with(target_dir, exist_ok=True)
+        mocked_extract.assert_called_once_with(archive_path, target_dir)
+        self.assertEqual(owner.loaded_folder, temp_dir)
+        self.assertIsNone(owner.selected_tree_path)
+        self.assertEqual(owner.selected_list_path, target_dir)
+        refresh_subtree.assert_called_once_with(owner, parent_item, temp_dir)
+        self.assertTrue(find_item.called)
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_extract_archive_file_uses_wait_cursor_while_unpacking(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-extract-busy-")
+        archive_path = os.path.join(temp_dir, "archive.zip")
+        destination_dir = os.path.join(temp_dir, "out")
+        with open(archive_path, "wb") as handle:
+            handle.write(b"fake zip")
+
+        captured = []
+
+        class FakeRunResult:
+            stdout = ""
+            stderr = ""
+
+        def fake_run(command, **kwargs):
+            captured.append(("run", command, kwargs))
+            return FakeRunResult()
+
+        with mock.patch.object(archive_helper, "_run_command", side_effect=fake_run), \
+             mock.patch.object(archive_helper.shutil, "which", side_effect=lambda name: "powershell" if name == "powershell" else None), \
+             mock.patch.object(archive_helper.wx, "BeginBusyCursor") as begin_busy, \
+             mock.patch.object(archive_helper.wx, "EndBusyCursor") as end_busy, \
+             mock.patch.object(archive_helper.wx, "IsBusy", return_value=False):
+            archive_helper._extract_archive_file(archive_path, destination_dir)
+
+        self.assertEqual(begin_busy.call_count, 1)
+        self.assertEqual(end_busy.call_count, 1)
+        self.assertEqual(captured[0][1][0], "powershell")
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_archive_extract_form_geometry_is_saved_and_restored(self):
+        import file_operations.archive_helper as archive_helper
+
+        class FakeDialog:
+            def __init__(self):
+                self._position = (10, 20)
+                self._size = (400, 300)
+
+            def GetPosition(self):
+                return types.SimpleNamespace(x=self._position[0], y=self._position[1])
+
+            def GetSize(self):
+                return types.SimpleNamespace(x=self._size[0], y=self._size[1])
+
+            def SetSize(self, size):
+                self._size = tuple(size)
+
+            def SetPosition(self, position):
+                self._position = tuple(position)
+
+            def SetMinSize(self, size):
+                self._min_size = tuple(size)
+
+        dialog = FakeDialog()
+        archive_helper._save_archive_extract_form_geometry(dialog)
+
+        settings = archive_helper.load_settings()
+        self.assertEqual(settings["archive_extract_form_position"], [10, 20])
+        self.assertEqual(settings["archive_extract_form_size"], [400, 300])
+
+        restored = {"archive_extract_form_position": [11, 22], "archive_extract_form_size": [500, 350]}
+        dialog2 = FakeDialog()
+        archive_helper._apply_archive_extract_form_geometry(dialog2, restored)
+        self.assertEqual(dialog2._position, (11, 22))
+        self.assertEqual(dialog2._size, (500, 350))
 
     def test_delete_paths_refreshes_parent_folder_after_tree_delete(self):
         import controls.filelist as filelist

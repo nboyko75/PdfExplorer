@@ -136,7 +136,8 @@ class FileExplorer(wx.Frame):
         self.file_paste_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_paste')}\tCtrl+V")
         self.file_delete_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_delete')}\tCtrl+D")
         self.file_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_add_to_archive"))
-        self.file_extract_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive"))
+        self.file_extract_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive_here"))
+        self.file_extract_archive_into_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive_into"))
         self.file_menu.AppendSeparator()
         self.file_options_item = self.file_menu.Append(wx.ID_ANY, tr("menu_file_options"))
         self.file_quit_item = self.file_menu.Append(wx.ID_ANY, tr("exit_button"))
@@ -206,6 +207,7 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.file_delete_item, art_id=wx.ART_DELETE)
         self.icon_manager.set_menu_icon2(self.file_archive_item, "add_to_archive")
         self.icon_manager.set_menu_icon2(self.file_extract_archive_item, "extract_from_archive")
+        self.icon_manager.set_menu_icon2(self.file_extract_archive_into_item, "extract_from_archive")
         self.icon_manager.set_menu_icon2(self.file_options_item, "setup")
         self.icon_manager.set_menu_icon(self.file_quit_item, art_id=wx.ART_QUIT)
 
@@ -249,6 +251,7 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_list_delete, self.file_delete_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._archive_selected_path(self, filelist.get_selected_list_paths(self)), self.file_archive_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive(self, filelist.get_selected_list_path(self)), self.file_extract_archive_item)
+        self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive_into(self, filelist.get_selected_list_path(self)), self.file_extract_archive_into_item)
         self.Bind(wx.EVT_MENU, self.on_file_options, self.file_options_item)
         self.Bind(wx.EVT_MENU, self.on_exit, self.file_quit_item)
 
@@ -303,7 +306,9 @@ class FileExplorer(wx.Frame):
         self.file_paste_item.Enable(can_paste)
         self.file_delete_item.Enable(bool(selected_items))
         self.file_archive_item.Enable(bool(selected_items) and all(os.path.exists(path) and not filelist._is_archive_file(path) for path in selected_items))
-        self.file_extract_archive_item.Enable(len(selected_items) == 1 and os.path.exists(selected_items[0]) and filelist._is_archive_file(selected_items[0]))
+        can_extract_archive = len(selected_items) == 1 and os.path.exists(selected_items[0]) and filelist._is_archive_file(selected_items[0])
+        self.file_extract_archive_item.Enable(can_extract_archive)
+        self.file_extract_archive_into_item.Enable(can_extract_archive)
 
         self.nav_back_item.Enable(bool(getattr(self, "history", [])))
         self.nav_forward_item.Enable(bool(getattr(self, "history", [])) and self.history_index < len(self.history) - 1)

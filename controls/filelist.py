@@ -38,6 +38,7 @@ _is_archive_file = archive_helper._is_archive_file
 _build_archive_destination_path = archive_helper._build_archive_destination_path
 _archive_selected_path = archive_helper._archive_selected_path
 _extract_selected_archive = archive_helper._extract_selected_archive
+_extract_selected_archive_into = archive_helper._extract_selected_archive_into
 
 
 def save_list_view_state(owner):
@@ -433,7 +434,8 @@ def on_right_click(owner, event):
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
-    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive"))
+    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
+    extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
 
     icon_manager = getattr(owner, "icon_manager", None)
     refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
@@ -458,6 +460,7 @@ def on_right_click(owner, event):
         icon_manager.set_menu_icon(delete_item, art_id=wx.ART_DELETE)
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
+        icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
 
     selected_paths = get_selected_list_paths(owner)
     selected_path = selected_paths[0] if len(selected_paths) == 1 else None
@@ -484,6 +487,7 @@ def on_right_click(owner, event):
     delete_item.Enable(can_act_on_selection)
     add_to_archive_item.Enable(can_add_to_archive)
     extract_from_archive_item.Enable(can_extract_from_archive)
+    extract_from_archive_into_item.Enable(can_extract_from_archive)
 
     owner.Bind(wx.EVT_MENU, owner.on_list_scan, scan_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_open, open_item)
@@ -498,6 +502,7 @@ def on_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, owner.on_list_delete, delete_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _archive_selected_path(owner, valid_selected_paths), add_to_archive_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
+    owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_into(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_into_item)
 
     owner.list.PopupMenu(menu)
     menu.Destroy()

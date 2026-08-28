@@ -165,8 +165,8 @@ def _show_date_picker_popup(
         picker.Bind(picker_event, on_select)
 
     button_id = getattr(wx_module, "ID_ANY", 0)
-    ok_button = wx_module.Button(popup_panel, button_id, "OK")
-    cancel_button = wx_module.Button(popup_panel, button_id, "Cancel")
+    ok_button = wx_module.Button(popup_panel, button_id, tr("ok_button"))
+    cancel_button = wx_module.Button(popup_panel, button_id, tr("cancel_button"))
 
     def on_ok(_event=None):
         if apply_selection():
