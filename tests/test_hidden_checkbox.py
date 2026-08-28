@@ -48,6 +48,40 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.load_folder.assert_called_once_with("D:\\Projects")
         mocked_refresh_tree_subtree.assert_called_once_with(owner, item, "D:\\Projects")
 
+    def test_refresh_tree_subtree_only_recurses_expanded_children(self):
+        owner = types.SimpleNamespace(tree=mock.MagicMock())
+        root = mock.MagicMock()
+        root.IsOk.return_value = True
+        expanded_child = mock.MagicMock()
+        expanded_child.IsOk.return_value = True
+        collapsed_child = mock.MagicMock()
+        collapsed_child.IsOk.return_value = True
+        end_item = mock.MagicMock()
+        end_item.IsOk.return_value = False
+
+        owner.tree.GetFirstChild.side_effect = [
+            (expanded_child, 0),
+            (end_item, None),
+        ]
+        owner.tree.GetNextChild.side_effect = [
+            (collapsed_child, 1),
+            (end_item, None),
+        ]
+        owner.tree.GetItemData.side_effect = [
+            "D:/Projects",
+            "D:/Projects/Expanded",
+            "D:/Projects/Collapsed",
+        ]
+        owner.tree.IsExpanded.side_effect = lambda item: item is expanded_child
+
+        with mock.patch.object(main.tree_utils, "populate_tree_node") as mocked_populate, \
+             mock.patch.object(main.tree_utils.os.path, "isdir", return_value=True):
+            main.tree_utils.refresh_tree_subtree(owner, root, "D:/Projects")
+
+        self.assertEqual(mocked_populate.call_count, 2)
+        self.assertEqual(mocked_populate.call_args_list[0].args[2], "D:/Projects")
+        self.assertEqual(mocked_populate.call_args_list[1].args[2], "D:/Projects/Expanded")
+
     def test_load_folder_uses_file_extension_in_type_column(self):
         owner = types.SimpleNamespace(
             show_hidden=False,

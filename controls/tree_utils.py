@@ -236,8 +236,10 @@ def refresh_tree_subtree(owner, item, path):
     child, cookie = owner.tree.GetFirstChild(item)
     while child.IsOk():
         child_path = owner.tree.GetItemData(child)
-        if isinstance(child_path, str) and os.path.isdir(normalize_tree_path(child_path)):
-            refresh_tree_subtree(owner, child, child_path)
+        if isinstance(child_path, str):
+            normalized_child_path = normalize_tree_path(child_path)
+            if os.path.isdir(normalized_child_path) and owner.tree.IsExpanded(child):
+                refresh_tree_subtree(owner, child, normalized_child_path)
         child, cookie = owner.tree.GetNextChild(item, cookie)
 
 
