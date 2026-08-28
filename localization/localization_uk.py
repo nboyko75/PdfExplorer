@@ -133,6 +133,7 @@ TRANSLATIONS = {
     "context_copy": "Копіювати",
     "context_cut": "Вирізати",
     "context_paste": "Вставити",
+    "context_remove_to_recycle_bin": "Перемістити до кошика",
     "context_delete": "Видалити",
     "ok_button": "OK",
     "cancel_button": "Скасувати",

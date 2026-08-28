@@ -7,6 +7,7 @@ from pathlib import Path as FilePath
 
 import wx
 
+from file_operations import copy_and_paste
 from controls.window_tools import load_settings, update_settings
 from localization import tr
 
@@ -394,11 +395,19 @@ def _extract_selected_archive(owner, path):
 
     try:
         current_folder = getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")()
-        destination_dir = os.path.dirname(path) or os.getcwd()
+        default_dir = _default_extract_destination(path, current_folder)
+        destination_dir = default_dir or (os.path.dirname(path) or os.getcwd())
         if not destination_dir:
             return False
 
-        refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else destination_dir
+        if os.path.exists(destination_dir):
+            overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(owner, destination_dir)
+            if overwrite_choice is None:
+                return False
+            if overwrite_choice is False:
+                destination_dir = copy_and_paste._build_non_conflicting_path(destination_dir)
+
+        refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else os.path.dirname(destination_dir) or os.getcwd()
         _extract_archive_file(path, destination_dir)
 
         try:
@@ -434,6 +443,13 @@ def _extract_selected_archive_into(owner, path):
             return False
 
         target_dir = os.path.normpath(target_dir)
+        if os.path.exists(target_dir):
+            overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(owner, target_dir)
+            if overwrite_choice is None:
+                return False
+            if overwrite_choice is False:
+                target_dir = copy_and_paste._build_non_conflicting_path(target_dir)
+
         parent_dir = os.path.dirname(target_dir) or os.getcwd()
         refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else parent_dir
         os.makedirs(target_dir, exist_ok=True)

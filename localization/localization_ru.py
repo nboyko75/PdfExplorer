@@ -132,6 +132,7 @@ TRANSLATIONS = {
     "context_copy": "Копировать",
     "context_cut": "Вырезать",
     "context_paste": "Вставить",
+    "context_remove_to_recycle_bin": "Удалить в корзину",
     "context_delete": "Удалить",
     "ok_button": "OK",
     "cancel_button": "Отмена",

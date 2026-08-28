@@ -76,8 +76,16 @@ class FileListDropTarget(wx.DropTarget):
 
             source_name = os.path.basename(source_path.rstrip("\\/"))
             destination_path = os.path.join(target_dir, source_name)
+            overwrite_target = False
+
             if os.path.exists(destination_path):
-                destination_path = build_non_conflicting_path(destination_path)
+                overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(self.owner, destination_path)
+                if overwrite_choice is None:
+                    continue
+                if overwrite_choice is False:
+                    destination_path = build_non_conflicting_path(destination_path)
+                else:
+                    overwrite_target = True
 
             if move_files:
                 source_parent = os.path.dirname(source_path)
@@ -89,13 +97,19 @@ class FileListDropTarget(wx.DropTarget):
 
             try:
                 if move_files:
-                    if os.path.isdir(source_path):
-                        shutil.move(source_path, destination_path)
-                    else:
-                        shutil.move(source_path, destination_path)
+                    if overwrite_target and os.path.exists(destination_path):
+                        if os.path.isdir(destination_path):
+                            shutil.rmtree(destination_path)
+                        else:
+                            os.remove(destination_path)
+                    shutil.move(source_path, destination_path)
                 elif os.path.isdir(source_path):
+                    if overwrite_target and os.path.exists(destination_path):
+                        shutil.rmtree(destination_path)
                     shutil.copytree(source_path, destination_path)
                 else:
+                    if overwrite_target and os.path.exists(destination_path):
+                        os.remove(destination_path)
                     shutil.copy2(source_path, destination_path)
             except Exception as exc:
                 errors.append(f"{source_path}: {exc}")
@@ -227,8 +241,16 @@ class TreeDropTarget(wx.DropTarget):
 
             source_name = os.path.basename(source_path.rstrip("\\/"))
             destination_path = os.path.join(target_dir, source_name)
+            overwrite_target = False
+
             if os.path.exists(destination_path):
-                destination_path = build_non_conflicting_path(destination_path)
+                overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(self.owner, destination_path)
+                if overwrite_choice is None:
+                    continue
+                if overwrite_choice is False:
+                    destination_path = build_non_conflicting_path(destination_path)
+                else:
+                    overwrite_target = True
 
             if move_files:
                 source_parent = os.path.dirname(source_path)
@@ -240,10 +262,19 @@ class TreeDropTarget(wx.DropTarget):
 
             try:
                 if move_files:
+                    if overwrite_target and os.path.exists(destination_path):
+                        if os.path.isdir(destination_path):
+                            shutil.rmtree(destination_path)
+                        else:
+                            os.remove(destination_path)
                     shutil.move(source_path, destination_path)
                 elif os.path.isdir(source_path):
+                    if overwrite_target and os.path.exists(destination_path):
+                        shutil.rmtree(destination_path)
                     shutil.copytree(source_path, destination_path)
                 else:
+                    if overwrite_target and os.path.exists(destination_path):
+                        os.remove(destination_path)
                     shutil.copy2(source_path, destination_path)
             except Exception as exc:
                 errors.append(f"{source_path}: {exc}")

@@ -833,6 +833,33 @@ class SearchFilesTests(unittest.TestCase):
 
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_extract_selected_archive_prompts_on_existing_destination_folder(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-extract-conflict-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+        existing_destination = os.path.join(temp_dir, "bundle")
+        os.makedirs(existing_destination, exist_ok=True)
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+                self.loaded_folder = None
+                self.tree = object()
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+        owner = FakeOwner()
+
+        with mock.patch.object(archive_helper.copy_and_paste, "_confirm_overwrite_existing_path", return_value=True) as mocked_confirm, \
+             mock.patch.object(archive_helper, "_extract_archive_file") as mocked_extract:
+            self.assertTrue(archive_helper._extract_selected_archive(owner, archive_path))
+
+        mocked_confirm.assert_called_once_with(owner, existing_destination)
+        mocked_extract.assert_called_once_with(archive_path, existing_destination)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
     def test_extract_selected_archive_into_creates_target_folder_and_extracts(self):
         import file_operations.archive_helper as archive_helper
 
@@ -1021,6 +1048,18 @@ class SearchFilesTests(unittest.TestCase):
 
         mocked_recycle.assert_called_once_with([file_path])
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_move_to_recycle_bin_handles_user_canceled_shell_action(self):
+        import common.system as system
+
+        with mock.patch.object(system.os, "path", wraps=system.os.path), \
+             mock.patch.object(system.os.path, "exists", return_value=True), \
+             mock.patch.object(system.ctypes, "windll") as mock_windll:
+            mock_shell = mock.Mock()
+            mock_shell.SHFileOperationW.return_value = 1223
+            mock_windll.shell32 = mock_shell
+
+            self.assertFalse(system.move_to_recycle_bin(["D:/temp/example.txt"]))
 
     def test_remove_tree_item_for_path_does_not_trigger_selection_open_path(self):
         import controls.filelist as filelist

@@ -132,6 +132,7 @@ TRANSLATIONS = {
     "context_copy": "Copiar",
     "context_cut": "Recortar",
     "context_paste": "Colar",
+    "context_remove_to_recycle_bin": "Mover para a Lixeira",
     "context_delete": "Excluir",
     "ok_button": "OK",
     "cancel_button": "Cancelar",

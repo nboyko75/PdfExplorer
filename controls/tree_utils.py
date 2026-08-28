@@ -491,7 +491,8 @@ def on_tree_right_click(owner, event):
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
     rename_item = menu.Append(-1, tr("context_rename"))
-    delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
+    delete_item = menu.Append(-1, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
+    delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Delete")
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
@@ -508,6 +509,7 @@ def on_tree_right_click(owner, event):
     paste_item.Enable(can_paste)
     rename_item.Enable(can_act_on_selection)
     delete_item.Enable(can_act_on_selection)
+    delete_permanent_item.Enable(can_act_on_selection)
     add_to_archive_item.Enable(bool(path and os.path.exists(path) and not archive_helper._is_archive_file(path)))
     can_extract_from_archive = bool(path and archive_helper._is_archive_file(path))
     extract_from_archive_item.Enable(can_extract_from_archive)
@@ -532,6 +534,7 @@ def on_tree_right_click(owner, event):
     if icon_manager:
         icon_manager.set_menu_icon2(open_item, "file_view")
         icon_manager.set_menu_icon2(copy_item, "copy")
+        icon_manager.set_menu_icon2(delete_item, "recycle_bin")
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
         icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
@@ -548,9 +551,9 @@ def on_tree_right_click(owner, event):
     if rename_bmp.IsOk():
         rename_item.SetBitmap(rename_bmp)
 
-    delete_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_MENU, (16, 16))
-    if delete_bmp.IsOk():
-        delete_item.SetBitmap(delete_bmp)
+    delete_permanent_bmp = wx.ArtProvider.GetBitmap(wx.ART_DELETE, wx.ART_MENU, (16, 16))
+    if delete_permanent_bmp.IsOk():
+        delete_permanent_item.SetBitmap(delete_permanent_bmp)
     menu.AppendSeparator()
 
     optimize_item = menu.Append(-1, tr("tree_optimize_all_pdf"))
@@ -613,6 +616,9 @@ def on_tree_right_click(owner, event):
     def handle_delete(_):
         filelist.on_tree_delete(owner, path)
 
+    def handle_delete_permanent(_):
+        filelist.on_tree_delete_permanent(owner, path)
+
     def handle_add_to_archive(_):
         archive_helper._archive_selected_path(owner, path)
 
@@ -634,6 +640,7 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
     owner.Bind(wx.EVT_MENU, handle_rename, rename_item)
     owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
+    owner.Bind(wx.EVT_MENU, handle_delete_permanent, delete_permanent_item)
     owner.Bind(wx.EVT_MENU, handle_add_to_archive, add_to_archive_item)
     owner.Bind(wx.EVT_MENU, handle_extract_from_archive, extract_from_archive_item)
     owner.Bind(wx.EVT_MENU, handle_extract_from_archive_into, extract_from_archive_into_item)

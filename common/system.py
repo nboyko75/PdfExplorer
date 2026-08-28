@@ -37,6 +37,8 @@ def move_to_recycle_bin(paths):
     operation.pTo = None
     operation.fFlags = 0x0002 | 0x0004
     result = shell32.SHFileOperationW(ctypes.byref(operation))
+    if result == 1223:
+        return False
     if result != 0:
         raise OSError(f"SHFileOperationW failed with code {result}")
     return not bool(operation.fAnyOperationsAborted)

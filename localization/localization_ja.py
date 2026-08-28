@@ -108,6 +108,7 @@ TRANSLATIONS = {
     "context_copy": "コピー",
     "context_cut": "切り取り",
     "context_paste": "貼り付け",
+    "context_remove_to_recycle_bin": "ごみ箱に移動",
     "context_delete": "削除",
     "ok_button": "OK",
     "cancel_button": "キャンセル",

@@ -134,7 +134,8 @@ class FileExplorer(wx.Frame):
         self.file_copy_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_copy')}\tCtrl+C")
         self.file_cut_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_cut')}\tCtrl+X")
         self.file_paste_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_paste')}\tCtrl+V")
-        self.file_delete_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_delete')}\tCtrl+D")
+        self.file_delete_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
+        self.file_delete_permanent_item = self.file_menu.Append(wx.ID_ANY, tr("context_delete"))
         self.file_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_add_to_archive"))
         self.file_extract_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive_here"))
         self.file_extract_archive_into_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive_into"))
@@ -204,7 +205,8 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon2(self.file_copy_item, "copy")
         self.icon_manager.set_menu_icon(self.file_cut_item, art_id=wx.ART_CUT)
         self.icon_manager.set_menu_icon(self.file_paste_item, art_id=wx.ART_PASTE)
-        self.icon_manager.set_menu_icon(self.file_delete_item, art_id=wx.ART_DELETE)
+        self.icon_manager.set_menu_icon2(self.file_delete_item, "recycle_bin")
+        self.icon_manager.set_menu_icon(self.file_delete_permanent_item, art_id=wx.ART_DELETE)
         self.icon_manager.set_menu_icon2(self.file_archive_item, "add_to_archive")
         self.icon_manager.set_menu_icon2(self.file_extract_archive_item, "extract_from_archive")
         self.icon_manager.set_menu_icon2(self.file_extract_archive_into_item, "extract_from_archive")
@@ -249,6 +251,7 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_list_cut, self.file_cut_item)
         self.Bind(wx.EVT_MENU, self.on_list_paste, self.file_paste_item)
         self.Bind(wx.EVT_MENU, self.on_list_delete, self.file_delete_item)
+        self.Bind(wx.EVT_MENU, self.on_list_delete_permanent, self.file_delete_permanent_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._archive_selected_path(self, filelist.get_selected_list_paths(self)), self.file_archive_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive(self, filelist.get_selected_list_path(self)), self.file_extract_archive_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive_into(self, filelist.get_selected_list_path(self)), self.file_extract_archive_into_item)
@@ -305,6 +308,7 @@ class FileExplorer(wx.Frame):
         self.file_cut_item.Enable(bool(selected_items))
         self.file_paste_item.Enable(can_paste)
         self.file_delete_item.Enable(bool(selected_items))
+        self.file_delete_permanent_item.Enable(bool(selected_items))
         self.file_archive_item.Enable(bool(selected_items) and all(os.path.exists(path) and not filelist._is_archive_file(path) for path in selected_items))
         can_extract_archive = len(selected_items) == 1 and os.path.exists(selected_items[0]) and filelist._is_archive_file(selected_items[0])
         self.file_extract_archive_item.Enable(can_extract_archive)
@@ -537,7 +541,8 @@ class FileExplorer(wx.Frame):
             self.file_copy_item.SetItemLabel(tr("context_copy"))
             self.file_cut_item.SetItemLabel(tr("context_cut"))
             self.file_paste_item.SetItemLabel(tr("context_paste"))
-            self.file_delete_item.SetItemLabel(tr("context_delete"))
+            self.file_delete_item.SetItemLabel(tr("context_remove_to_recycle_bin"))
+            self.file_delete_permanent_item.SetItemLabel(tr("context_delete"))
             self.file_options_item.SetItemLabel(tr("menu_file_options"))
             self.file_quit_item.SetItemLabel(tr("exit_button"))
             self.nav_back_item.SetItemLabel(tr("back_button"))
@@ -596,7 +601,8 @@ class FileExplorer(wx.Frame):
         self.list_copy_btn.SetToolTip(tr("context_copy"))
         self.list_cut_btn.SetToolTip(tr("context_cut"))
         self.list_paste_btn.SetToolTip(tr("context_paste"))
-        self.list_delete_btn.SetToolTip(tr("context_delete"))
+        self.list_delete_btn.SetToolTip(tr("context_remove_to_recycle_bin"))
+        ## self.list_delete_permanent_btn.SetToolTip(tr("context_delete"))
         self.refresh_tree_placeholders()
         self.load_folder(self.path_box.GetValue())
         file_preview.show_file_preview(self, self.current_preview_path)
@@ -677,6 +683,12 @@ class FileExplorer(wx.Frame):
                     wx.MessageBox(tr("print_no_selection"), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
                     return
                 filelist.on_list_print(self, None)
+                return
+            if event.ControlDown() and key_code == ord("D"):
+                filelist.on_list_delete(self, None)
+                return
+            if event.ShiftDown() and key_code == wx.WXK_DELETE:
+                filelist.on_list_delete_permanent(self, None)
                 return
             if key_code == wx.WXK_F5:
                 tree_utils.refresh_tree_selection(self)
@@ -865,6 +877,9 @@ class FileExplorer(wx.Frame):
 
     def on_list_delete(self, _):
         filelist.on_list_delete(self, _)
+
+    def on_list_delete_permanent(self, _):
+        filelist.on_list_delete_permanent(self, _)
 
     def on_open_item(self, event):
         filelist.on_open_item(self, event)

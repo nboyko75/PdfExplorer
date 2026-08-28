@@ -37,7 +37,6 @@ _build_non_conflicting_path = copy_and_paste._build_non_conflicting_path
 
 
 _is_archive_file = archive_helper._is_archive_file
-_build_archive_destination_path = archive_helper._build_archive_destination_path
 _archive_selected_path = archive_helper._archive_selected_path
 _extract_selected_archive = archive_helper._extract_selected_archive
 _extract_selected_archive_into = archive_helper._extract_selected_archive_into
@@ -167,13 +166,21 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
-    owner.list_delete_btn = image_utils.create_bitmap_button(
+    owner.list_delete_btn = image_utils.create_bitmap_button2(
         owner.list_host_panel,
-        wx.ART_DELETE,
-        tr("context_delete"),
+        owner.icon_manager,
+        "recycle_bin",
+        tr("context_remove_to_recycle_bin"),
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    # owner.list_delete_permanent_btn = image_utils.create_bitmap_button(
+    #     owner.list_host_panel,
+    #     wx.ART_DELETE,
+    #     tr("context_delete"),
+    #     icon_size=list_btn_icon_size,
+    #     button_size=list_btn_size,
+    # )
     owner.filter_label = wx.StaticText(owner.list_host_panel, label=tr("filter_label"))
     owner.search_box = wx.TextCtrl(owner.list_host_panel, style=wx.TE_PROCESS_ENTER)
     owner.search_box.SetHint(tr("search_hint"))
@@ -188,6 +195,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.list_paste_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_rename_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_delete_btn, 0, wx.RIGHT, 3)
+    ## owner.list_toolbar.Add(owner.list_delete_permanent_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.filter_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
 
@@ -225,6 +233,7 @@ def bind_list_events(owner):
     owner.list_cut_btn.Bind(wx.EVT_BUTTON, owner.on_list_cut)
     owner.list_paste_btn.Bind(wx.EVT_BUTTON, owner.on_list_paste)
     owner.list_delete_btn.Bind(wx.EVT_BUTTON, owner.on_list_delete)
+    ## owner.list_delete_permanent_btn.Bind(wx.EVT_BUTTON, owner.on_list_delete_permanent)
 
 
 def _get_sort_header_image_index(owner, direction):
@@ -432,7 +441,8 @@ def on_right_click(owner, event):
     cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
     rename_item = menu.Append(-1, tr("context_rename"))
-    delete_item = menu.Append(-1, f"{tr('context_delete')}\tCtrl+D")
+    delete_item = menu.Append(-1, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
+    delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Delete")
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
@@ -459,13 +469,13 @@ def on_right_click(owner, event):
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon(cut_item, art_id=wx.ART_CUT)
         icon_manager.set_menu_icon(paste_item, art_id=wx.ART_PASTE)
-        icon_manager.set_menu_icon(delete_item, art_id=wx.ART_DELETE)
+        icon_manager.set_menu_icon2(delete_item, "recycle_bin")
+        icon_manager.set_menu_icon(delete_permanent_item, art_id=wx.ART_DELETE)
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
         icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
 
     selected_paths = get_selected_list_paths(owner)
-    selected_path = selected_paths[0] if len(selected_paths) == 1 else None
     valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and os.path.exists(path)]
     can_act_on_selection = bool(valid_selected_paths)
     can_act_on_single_selection = len(valid_selected_paths) == 1
@@ -487,6 +497,7 @@ def on_right_click(owner, event):
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
     delete_item.Enable(can_act_on_selection)
+    delete_permanent_item.Enable(can_act_on_selection)
     add_to_archive_item.Enable(can_add_to_archive)
     extract_from_archive_item.Enable(can_extract_from_archive)
     extract_from_archive_into_item.Enable(can_extract_from_archive)
@@ -502,6 +513,7 @@ def on_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, owner.on_list_cut, cut_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_paste, paste_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_delete, delete_item)
+    owner.Bind(wx.EVT_MENU, owner.on_list_delete_permanent, delete_permanent_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _archive_selected_path(owner, valid_selected_paths), add_to_archive_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_into(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_into_item)
@@ -907,31 +919,39 @@ def on_list_print(owner, _):
 
 def on_list_delete(owner, _):
     paths = get_selected_list_paths(owner)
-    delete_paths(owner, paths)
+    delete_paths(owner, paths, permanent=False)
 
 
-def delete_paths(owner, paths):
+def on_list_delete_permanent(owner, _):
+    paths = get_selected_list_paths(owner)
+    delete_paths(owner, paths, permanent=True)
+
+
+def delete_paths(owner, paths, permanent=False):
     unique_paths = _unique_preserving_order(paths)
     unique_paths = [path for path in unique_paths if os.path.exists(path)]
     if not unique_paths:
         return
 
-    if len(unique_paths) == 1:
-        confirm_target = unique_paths[0]
+    if permanent:
+        if len(unique_paths) == 1:
+            confirm_target = unique_paths[0]
+        else:
+            confirm_target = f"{len(unique_paths)} item(s)"
+
+        dialog = wx.MessageDialog(
+            owner,
+            tr("confirm_delete", path=confirm_target),
+            tr("context_delete"),
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+        )
+        should_delete = dialog.ShowModal() == wx.ID_YES
+        dialog.Destroy()
+
+        if not should_delete:
+            return
     else:
-        confirm_target = f"{len(unique_paths)} item(s)"
-
-    dialog = wx.MessageDialog(
-        owner,
-        tr("confirm_delete", path=confirm_target),
-        tr("context_delete"),
-        wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-    )
-    should_delete = dialog.ShowModal() == wx.ID_YES
-    dialog.Destroy()
-
-    if not should_delete:
-        return
+        should_delete = True
 
     errors = []
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
@@ -944,7 +964,13 @@ def delete_paths(owner, paths):
                 if is_pdf_file(path):
                     discard_pdf_changes(path)
 
-                if move_to_recycle_bin([path]):
+                if not permanent and move_to_recycle_bin([path]):
+                    _remove_tree_item_for_path(owner, path)
+                elif permanent:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
                     _remove_tree_item_for_path(owner, path)
                 elif os.path.isdir(path):
                     shutil.rmtree(path)
@@ -1026,7 +1052,14 @@ def on_tree_delete(owner, path=None):
     tree_path = path or _resolve_tree_selection_path(owner)
     if not tree_path or not os.path.exists(tree_path):
         return
-    delete_paths(owner, [tree_path])
+    delete_paths(owner, [tree_path], permanent=False)
+
+
+def on_tree_delete_permanent(owner, path=None):
+    tree_path = path or _resolve_tree_selection_path(owner)
+    if not tree_path or not os.path.exists(tree_path):
+        return
+    delete_paths(owner, [tree_path], permanent=True)
 
 
 def handle_file_ops_shortcut(owner, event):
@@ -1044,6 +1077,15 @@ def handle_file_ops_shortcut(owner, event):
         key_code -= 32
 
     ctrl_pressed = bool(getattr(event, "ControlDown", lambda: False)())
+    shift_pressed = bool(getattr(event, "ShiftDown", lambda: False)())
+
+    if key_code == wx.WXK_DELETE and shift_pressed:
+        if list_has_focus:
+            on_list_delete_permanent(owner, None)
+        else:
+            on_tree_delete_permanent(owner)
+        return True
+
     if key_code == wx.WXK_DELETE:
         if list_has_focus:
             on_list_delete(owner, None)

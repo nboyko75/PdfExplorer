@@ -731,6 +731,26 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
         mocked_refresh.assert_called_once_with(owner, affected_dirs=[os.path.join("C:/current", "folder")])
 
+    def test_drop_targets_prompt_before_overwriting_existing_file(self):
+        drag_and_drop = __import__("controls.drag_and_drop", fromlist=["FileListDropTarget"])
+        owner = types.SimpleNamespace(path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"), list=mock.MagicMock())
+        owner.list.HitTest.return_value = (wx.NOT_FOUND, 0)
+
+        with mock.patch.object(drag_and_drop.copy_and_paste, "_confirm_overwrite_existing_path", return_value=True) as mocked_confirm, \
+             mock.patch.object(drag_and_drop, "_build_non_conflicting_path", side_effect=lambda path: path), \
+             mock.patch.object(drag_and_drop.shutil, "copy2") as mocked_copy, \
+             mock.patch.object(drag_and_drop, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(drag_and_drop.os.path, "isdir", side_effect=lambda path: os.path.normpath(path) == os.path.normpath("C:/current")), \
+             mock.patch.object(drag_and_drop.os.path, "exists", side_effect=lambda path: os.path.normpath(path) in {os.path.normpath("C:/current"), os.path.normpath("C:/drop.txt"), os.path.normpath(os.path.join("C:/current", "drop.txt"))}):
+            drop_target = drag_and_drop.FileListDropTarget(owner)
+            result = drop_target.OnDropFiles(10, 20, ["C:/drop.txt"])
+
+        expected_destination = os.path.join("C:/current", "drop.txt")
+        self.assertTrue(result)
+        mocked_confirm.assert_called_once_with(owner, expected_destination)
+        mocked_copy.assert_called_once_with("C:/drop.txt", expected_destination)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=["C:/current"])
+
     def test_tree_pane_drag_move_refreshes_source_and_target_folders(self):
         filelist = __import__("controls.filelist", fromlist=["_refresh_after_fs_change"])
         drag_and_drop = __import__("controls.drag_and_drop", fromlist=["TreeDropTarget"])
@@ -793,6 +813,24 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertTrue(result)
         mocked_list_delete.assert_called_once_with(owner, None)
         mocked_tree_delete.assert_not_called()
+
+    def test_handle_file_ops_shortcut_supports_shift_delete_key(self):
+        filelist = __import__("controls.filelist", fromlist=["handle_file_ops_shortcut", "on_list_delete_permanent", "on_tree_delete_permanent"])
+        owner = types.SimpleNamespace(
+            list=object(),
+            tree=object(),
+        )
+        focus = types.SimpleNamespace(GetParent=lambda: owner.list)
+        event = types.SimpleNamespace(ControlDown=mock.MagicMock(return_value=False), ShiftDown=mock.MagicMock(return_value=True), GetKeyCode=mock.MagicMock(return_value=ord("D")))
+
+        with mock.patch.object(filelist.wx.Window, "FindFocus", return_value=focus), \
+             mock.patch.object(filelist, "on_list_delete_permanent") as mocked_delete_permanent, \
+             mock.patch.object(filelist, "on_tree_delete_permanent") as mocked_tree_delete_permanent:
+            result = filelist.handle_file_ops_shortcut(owner, event)
+
+        self.assertTrue(result)
+        mocked_delete_permanent.assert_called_once_with(owner, None)
+        mocked_tree_delete_permanent.assert_not_called()
 
     def test_handle_file_ops_shortcut_supports_print_key(self):
         filelist = __import__("controls.filelist", fromlist=["handle_file_ops_shortcut", "on_list_print", "on_tree_delete"])
