@@ -101,6 +101,8 @@ TRANSLATIONS = {
     "context_open": "打开",
     "context_rename": "重命名",
     "context_new_folder": "新建文件夹",
+    "restart_required_title": "需要重启",
+    "restart_required_message": "语言设置已更改。请重启应用以应用新语言。",
     "context_refresh": "刷新",
     "context_print": "打印",
     "context_copy": "复制",

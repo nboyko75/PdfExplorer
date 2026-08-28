@@ -101,6 +101,8 @@ TRANSLATIONS = {
     "context_open": "열기",
     "context_rename": "이름 바꾸기",
     "context_new_folder": "새 폴더",
+    "restart_required_title": "재시작 필요",
+    "restart_required_message": "언어 설정이 변경되었습니다. 새 언어를 적용하려면 애플리케이션을 다시 시작하세요.",
     "context_refresh": "새로 고침",
     "context_print": "인쇄",
     "context_copy": "복사",

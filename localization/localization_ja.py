@@ -101,6 +101,8 @@ TRANSLATIONS = {
     "context_open": "開く",
     "context_rename": "名前変更",
     "context_new_folder": "新しいフォルダー",
+    "restart_required_title": "再起動が必要です",
+    "restart_required_message": "言語設定が変更されました。新しい言語を適用するにはアプリケーションを再起動してください。",
     "context_refresh": "更新",
     "context_print": "印刷",
     "context_copy": "コピー",

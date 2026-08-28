@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 
 import wx
 
@@ -327,28 +330,65 @@ def show_options_form(owner):
         "options_form_position": [int(position.x), int(position.y)],
         "options_form_size": [int(size.x), int(size.y)],
     }
-    if changes:
-        update_settings({**changes, **saved_geometry})
-    else:
-        update_settings(saved_geometry)
 
-    if owner is not None:
-        for key, value in changes.items():
-            if hasattr(owner, key):
-                setattr(owner, key, value)
-        if "ui_locale" in changes and hasattr(owner, "current_locale"):
-            locale_code = str(changes["ui_locale"]).strip().lower().replace("-", "_")
-            if locale_code == "ua":
-                locale_code = "uk"
-            owner.current_locale = locale_code if locale_code in {"en", "uk", "de", "fr", "es", "it", "pt_br", "ja", "ko", "zh_cn", "ru"} else "uk"
-            try:
-                from localization import load_locale
+    if owner is not None and "ui_locale" in changes and hasattr(owner, "current_locale"):
+        old_locale = owner.current_locale
+        locale_code = str(changes["ui_locale"]).strip().lower().replace("-", "_")
+        if locale_code == "ua":
+            locale_code = "uk"
+        new_locale = locale_code if locale_code in {"en", "uk", "de", "fr", "es", "it", "pt_br", "ja", "ko", "zh_cn", "ru"} else "uk"
+
+        try:
+            from localization import load_locale
+            confirmation_dialog = wx.MessageDialog(
+                owner,
+                tr("restart_required_message"),
+                tr("restart_required_title"),
+                style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+            )
+            confirmation_dialog.SetYesNoLabels(tr("confirm_yes"), tr("confirm_no"))
+            result = confirmation_dialog.ShowModal()
+            confirmation_dialog.Destroy()
+
+            if result == wx.ID_YES:
+                update_settings({**changes, **saved_geometry})
+                owner.current_locale = new_locale
                 load_locale(owner.current_locale)
-            except Exception:
-                pass
-            if hasattr(owner, "refresh_locale"):
-                owner.refresh_locale()
-        elif hasattr(owner, "refresh"):
-            owner.refresh()
+                if hasattr(owner, "refresh_locale"):
+                    owner.refresh_locale()
+
+                try:
+                    app_executable = sys.executable
+                    restart_args = [app_executable, *sys.argv[1:]]
+                    subprocess.Popen(restart_args, cwd=os.getcwd())
+                    owner.Hide()
+                    owner.Destroy()
+                    if hasattr(wx, "GetApp") and wx.GetApp() is not None:
+                        wx.GetApp().ExitMainLoop()
+                    sys.exit(0)
+                except Exception:
+                    pass
+            else:
+                changes_without_locale = dict(changes)
+                changes_without_locale.pop("ui_locale", None)
+                update_settings({**changes_without_locale, **saved_geometry})
+                owner.current_locale = old_locale
+                load_locale(owner.current_locale)
+                if hasattr(owner, "refresh_locale"):
+                    owner.refresh_locale()
+        except Exception:
+            pass
+    else:
+        if changes:
+            update_settings({**changes, **saved_geometry})
+        else:
+            update_settings(saved_geometry)
+
+        if owner is not None:
+            for key, value in changes.items():
+                if hasattr(owner, key):
+                    setattr(owner, key, value)
+            if hasattr(owner, "refresh"):
+                owner.refresh()
 
     dialog.Destroy()
