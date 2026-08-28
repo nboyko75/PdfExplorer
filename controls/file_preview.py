@@ -520,19 +520,7 @@ def can_preview_text_file(path):
     if not isinstance(path, str) or not os.path.isfile(path):
         return False
     _, ext = os.path.splitext(path)
-    return ext.lower() in {
-        ".txt",
-        ".log",
-        ".ini",
-        ".cfg",
-        ".conf",
-        ".csv",
-        ".json",
-        ".xml",
-        ".yaml",
-        ".yml",
-        ".md",
-    }
+    return ext.lower() in TEXT_FILE_EXTENSIONS
 
 
 def _is_preview_page_limit_active(path, owner=None):

@@ -331,7 +331,7 @@ def refresh_list_item_size(owner, path):
 
 
 def select_list_item_by_path(owner, path):
-    if not isinstance(path, str) or not os.path.isfile(path):
+    if not isinstance(path, str) or not (os.path.isfile(path) or os.path.isdir(path)):
         return False
 
     current_folder = os.path.normpath(owner.path_box.GetValue())
@@ -591,10 +591,23 @@ def _find_tree_item_without_expanding(owner, target_path):
             if os.path.normcase(os.path.normpath(item_path)) == normalized_target:
                 return item
 
-        child, cookie = owner.tree.GetFirstChild(item)
+        try:
+            first_child = owner.tree.GetFirstChild(item)
+            if not isinstance(first_child, tuple) or len(first_child) != 2:
+                continue
+            child, cookie = first_child
+        except Exception:
+            continue
+
         while child.IsOk():
             stack.append(child)
-            child, cookie = owner.tree.GetNextChild(item, cookie)
+            try:
+                next_child = owner.tree.GetNextChild(item, cookie)
+                if not isinstance(next_child, tuple) or len(next_child) != 2:
+                    break
+                child, cookie = next_child
+            except Exception:
+                break
 
     return None
 
@@ -653,14 +666,87 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
                 if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(os.path.normpath(folder)):
                     _refresh_tree_node(owner, folder)
 
-    if preferred_preview_path and os.path.isfile(preferred_preview_path):
-        file_preview.show_file_preview(owner, preferred_preview_path)
+    if preferred_preview_path and (os.path.isfile(preferred_preview_path) or os.path.isdir(preferred_preview_path)):
+        if os.path.isfile(preferred_preview_path):
+            file_preview.show_file_preview(owner, preferred_preview_path)
         select_list_item_by_path(owner, preferred_preview_path)
+        if os.path.isdir(preferred_preview_path) and hasattr(owner, "select_tree_item_by_path"):
+            owner.select_tree_item_by_path(preferred_preview_path)
         return
 
     current_preview_path = getattr(owner, "current_preview_path", None)
     if current_preview_path and not os.path.exists(current_preview_path):
         file_preview.show_file_preview(owner, None)
+
+
+def _prompt_rename_name(owner, current_name):
+    dialog = wx.TextEntryDialog(owner, tr("context_rename"), tr("context_rename"), value=current_name)
+    result = dialog.ShowModal()
+    new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
+    dialog.Destroy()
+    return result, new_name
+
+
+def _handle_rename_refresh(owner, old_path, new_path):
+    _refresh_renamed_list_item(owner, old_path, new_path)
+    _refresh_renamed_tree_item(owner, old_path, new_path)
+
+    if hasattr(owner, "select_tree_item_by_path"):
+        owner.select_tree_item_by_path(new_path)
+
+    if hasattr(owner, "path_box") and hasattr(owner.path_box, "GetValue"):
+        current_folder = owner.path_box.GetValue()
+        if isinstance(current_folder, str) and os.path.normpath(os.path.dirname(new_path)) == os.path.normpath(current_folder):
+            select_list_item_by_path(owner, new_path)
+
+    current_preview_path = getattr(owner, "current_preview_path", None)
+    if current_preview_path and os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(os.path.normpath(old_path)):
+        owner.current_preview_path = new_path
+
+
+def _refresh_renamed_list_item(owner, old_path, new_path):
+    if not isinstance(old_path, str) or not isinstance(new_path, str):
+        return False
+
+    if not hasattr(owner, "list") or owner.list is None:
+        return False
+
+    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+    if not isinstance(current_folder, str):
+        return False
+
+    if os.path.normpath(os.path.dirname(old_path)) != os.path.normpath(current_folder):
+        return False
+
+    old_name = os.path.basename(old_path)
+    new_name = os.path.basename(new_path)
+
+    for index in range(owner.list.GetItemCount()):
+        if owner.list.GetItemText(index) != old_name:
+            continue
+        owner.list.SetItem(index, 0, new_name)
+        return True
+
+    return False
+
+
+def _refresh_renamed_tree_item(owner, old_path, new_path):
+    if not isinstance(old_path, str) or not isinstance(new_path, str):
+        return False
+
+    if not hasattr(owner, "tree") or owner.tree is None:
+        return False
+
+    item = _find_tree_item_without_expanding(owner, old_path)
+    if item is None or not item.IsOk():
+        return False
+
+    try:
+        owner.tree.SetItemText(item, os.path.basename(new_path))
+        owner.tree.SetItemData(item, new_path)
+        return True
+    except Exception:
+        return False
 
 
 def on_list_copy(owner, _):
@@ -721,18 +807,14 @@ def on_list_rename(owner, _):
         return
 
     current_name = os.path.basename(path)
-    dialog = wx.TextEntryDialog(owner, tr("context_rename"), tr("context_rename"), value=current_name)
-    result = dialog.ShowModal()
-    new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
-    dialog.Destroy()
-
+    result, new_name = _prompt_rename_name(owner, current_name)
     if result != wx.ID_OK or not new_name or new_name == current_name:
         return
 
     new_path = os.path.join(os.path.dirname(path), new_name)
     try:
         os.rename(path, new_path)
-        _refresh_after_fs_change(owner, affected_dirs=[os.path.dirname(path)])
+        _handle_rename_refresh(owner, path, new_path)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 
@@ -918,18 +1000,14 @@ def on_tree_rename(owner, path=None):
         return
 
     current_name = os.path.basename(tree_path)
-    dialog = wx.TextEntryDialog(owner, tr("context_rename"), tr("context_rename"), value=current_name)
-    result = dialog.ShowModal()
-    new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
-    dialog.Destroy()
-
+    result, new_name = _prompt_rename_name(owner, current_name)
     if result != wx.ID_OK or not new_name or new_name == current_name:
         return
 
     new_path = os.path.join(os.path.dirname(tree_path), new_name)
     try:
         os.rename(tree_path, new_path)
-        _refresh_after_fs_change(owner, affected_dirs=[os.path.dirname(tree_path)])
+        _handle_rename_refresh(owner, tree_path, new_path)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 
