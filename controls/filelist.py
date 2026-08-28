@@ -4,6 +4,8 @@ import shutil
 
 import wx
 
+from common.system import move_to_recycle_bin
+
 if not hasattr(wx, "DATADOBJECT_PREFERRED"):
     wx.DATADOBJECT_PREFERRED = 0
 
@@ -939,14 +941,17 @@ def delete_paths(owner, paths):
     try:
         for path in unique_paths:
             try:
-                if os.path.isdir(path):
-                    shutil.rmtree(path)
-                else:
-                    if is_pdf_file(path):
-                        discard_pdf_changes(path)
-                    os.remove(path)
+                if is_pdf_file(path):
+                    discard_pdf_changes(path)
 
-                _remove_tree_item_for_path(owner, path)
+                if move_to_recycle_bin([path]):
+                    _remove_tree_item_for_path(owner, path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+                    _remove_tree_item_for_path(owner, path)
+                else:
+                    os.remove(path)
+                    _remove_tree_item_for_path(owner, path)
 
                 current_preview_path = getattr(owner, "current_preview_path", None)
                 if current_preview_path and os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(os.path.normpath(path)):

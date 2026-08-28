@@ -992,6 +992,36 @@ class SearchFilesTests(unittest.TestCase):
         self.assertEqual(mocked_refresh.call_args.kwargs["affected_dirs"], [temp_dir])
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_delete_paths_uses_recycle_bin(self):
+        import controls.filelist as filelist
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-delete-recycle-")
+        file_path = os.path.join(temp_dir, "child.txt")
+        with open(file_path, "w", encoding="utf-8") as handle:
+            handle.write("x")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+                self.current_preview_path = None
+                self.tree = object()
+                self._syncing_tree_from_path = False
+
+        owner = FakeOwner()
+
+        with mock.patch.object(filelist, "_remove_tree_item_for_path"), \
+             mock.patch.object(filelist, "_refresh_after_fs_change"), \
+             mock.patch.object(filelist, "_unique_preserving_order", return_value=[file_path]), \
+             mock.patch.object(filelist, "move_to_recycle_bin") as mocked_recycle, \
+             mock.patch.object(filelist, "wx") as mock_wx:
+            mock_wx.ID_YES = wx.ID_YES
+            mock_wx.MessageDialog.return_value.ShowModal.return_value = wx.ID_YES
+            mock_wx.MessageDialog.return_value.Destroy.return_value = None
+            filelist.delete_paths(owner, [file_path])
+
+        mocked_recycle.assert_called_once_with([file_path])
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
     def test_remove_tree_item_for_path_does_not_trigger_selection_open_path(self):
         import controls.filelist as filelist
 

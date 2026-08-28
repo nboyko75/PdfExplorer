@@ -2,6 +2,8 @@ import os
 from contextlib import nullcontext
 import wx
 
+from common.system import move_to_recycle_bin
+
 try:
     import wx.html2 as wx_html2
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -1565,7 +1567,7 @@ def on_preview_delete(event):
     if dialog.ShowModal() == wx.ID_YES:
         try:
             discard_pdf_changes(owner.current_preview_path)
-            os.remove(owner.current_preview_path)
+            move_to_recycle_bin([owner.current_preview_path])
             show_file_preview(owner, None)
             owner.load_folder(owner.path_box.GetValue())
         except Exception as exc:
