@@ -254,7 +254,7 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_list_delete, self.file_delete_item)
         self.Bind(wx.EVT_MENU, self.on_list_delete_permanent, self.file_delete_permanent_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._archive_selected_path(self, filelist.get_selected_list_paths(self)), self.file_archive_item)
-        self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive(self, filelist.get_selected_list_path(self)), self.file_extract_archive_item)
+        self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive_here(self, filelist.get_selected_list_path(self)), self.file_extract_archive_item)
         self.Bind(wx.EVT_MENU, lambda event: filelist._extract_selected_archive_into(self, filelist.get_selected_list_path(self)), self.file_extract_archive_into_item)
         self.Bind(wx.EVT_MENU, self.on_file_options, self.file_options_item)
         self.Bind(wx.EVT_MENU, self.on_exit, self.file_quit_item)

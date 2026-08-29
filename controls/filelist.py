@@ -38,7 +38,7 @@ _build_non_conflicting_path = copy_and_paste._build_non_conflicting_path
 
 _is_archive_file = archive_helper._is_archive_file
 _archive_selected_path = archive_helper._archive_selected_path
-_extract_selected_archive = archive_helper._extract_selected_archive
+_extract_selected_archive_here = archive_helper._extract_selected_archive_here
 _extract_selected_archive_into = archive_helper._extract_selected_archive_into
 
 
@@ -515,7 +515,7 @@ def on_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, owner.on_list_delete, delete_item)
     owner.Bind(wx.EVT_MENU, owner.on_list_delete_permanent, delete_permanent_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _archive_selected_path(owner, valid_selected_paths), add_to_archive_item)
-    owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
+    owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_here(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_into(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_into_item)
 
     owner.list.PopupMenu(menu)
@@ -931,6 +931,24 @@ def delete_paths(owner, paths, permanent=False):
     unique_paths = _unique_preserving_order(paths)
     unique_paths = [path for path in unique_paths if os.path.exists(path)]
     if not unique_paths:
+        return
+
+    action_title = tr("context_remove_to_recycle_bin") if not permanent else tr("context_delete")
+    if len(unique_paths) == 1:
+        action_target = unique_paths[0]
+    else:
+        action_target = ", ".join(os.path.basename(path) for path in unique_paths)
+
+    confirmation_dialog = wx.MessageDialog(
+        owner,
+        tr("confirm_delete", path=action_target),
+        action_title,
+        wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+    )
+    confirmation_dialog.SetYesNoLabels(tr("confirm_yes"), tr("confirm_no"))
+    confirmation_result = confirmation_dialog.ShowModal()
+    confirmation_dialog.Destroy()
+    if confirmation_result != wx.ID_YES:
         return
 
     errors = []

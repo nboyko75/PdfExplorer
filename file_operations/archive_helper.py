@@ -404,7 +404,7 @@ def _show_extract_archive_into_dialog(owner, default_path):
         dialog.Destroy()
 
 
-def _extract_selected_archive(owner, path):
+def _extract_selected_archive_here(owner, path):
     if not _is_archive_file(path):
         return False
 
@@ -414,13 +414,6 @@ def _extract_selected_archive(owner, path):
         destination_dir = default_dir or (os.path.dirname(path) or os.getcwd())
         if not destination_dir:
             return False
-
-        if os.path.exists(destination_dir):
-            overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(owner, destination_dir)
-            if overwrite_choice is None:
-                return False
-            if overwrite_choice is False:
-                destination_dir = copy_and_paste._build_non_conflicting_path(destination_dir)
 
         refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else os.path.dirname(destination_dir) or os.getcwd()
         _extract_archive_file(path, destination_dir)

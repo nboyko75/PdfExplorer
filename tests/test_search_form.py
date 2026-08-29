@@ -843,7 +843,7 @@ class SearchFilesTests(unittest.TestCase):
         with mock.patch.object(archive_helper, "_extract_archive_file", return_value=temp_dir) as mocked_extract, \
              mock.patch("controls.tree_utils.find_tree_item_by_path", return_value=parent_item) as find_item, \
              mock.patch("controls.tree_utils.refresh_tree_subtree") as refresh_subtree:
-            self.assertTrue(archive_helper._extract_selected_archive(owner, archive_path))
+            self.assertTrue(archive_helper._extract_selected_archive_here(owner, archive_path))
 
         mocked_extract.assert_called_once_with(archive_path, temp_dir)
         self.assertEqual(owner.loaded_folder, temp_dir)
@@ -873,7 +873,7 @@ class SearchFilesTests(unittest.TestCase):
 
         with mock.patch.object(archive_helper.copy_and_paste, "_confirm_overwrite_existing_path", return_value=True) as mocked_confirm, \
              mock.patch.object(archive_helper, "_extract_archive_file") as mocked_extract:
-            self.assertTrue(archive_helper._extract_selected_archive(owner, archive_path))
+            self.assertTrue(archive_helper._extract_selected_archive_here(owner, archive_path))
 
         mocked_confirm.assert_called_once_with(owner, existing_destination)
         mocked_extract.assert_called_once_with(archive_path, existing_destination)
@@ -1020,7 +1020,7 @@ class SearchFilesTests(unittest.TestCase):
 
         class FakeOwner:
             def __init__(self):
-                self.path_box = types.SimpleNamespace(GetValue=lambda: file_path)
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
                 self.current_preview_path = None
                 self.tree = object()
                 self._syncing_tree_from_path = False
@@ -1031,6 +1031,7 @@ class SearchFilesTests(unittest.TestCase):
              mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
              mock.patch.object(filelist, "_unique_preserving_order", return_value=[file_path]), \
              mock.patch.object(filelist, "wx") as mock_wx:
+            mock_wx.ID_YES = wx.ID_YES
             mock_wx.MessageDialog.return_value.ShowModal.return_value = wx.ID_YES
             mock_wx.MessageDialog.return_value.Destroy.return_value = None
             filelist.delete_paths(owner, [file_path])
@@ -1066,6 +1067,39 @@ class SearchFilesTests(unittest.TestCase):
             filelist.delete_paths(owner, [file_path])
 
         mocked_recycle.assert_called_once_with([file_path])
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_delete_paths_requires_confirmation_before_recycle_or_permanent_delete(self):
+        import controls.filelist as filelist
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-delete-confirm-")
+        file_path = os.path.join(temp_dir, "child.txt")
+        with open(file_path, "w", encoding="utf-8") as handle:
+            handle.write("x")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+                self.current_preview_path = None
+                self.tree = object()
+                self._syncing_tree_from_path = False
+
+        owner = FakeOwner()
+
+        with mock.patch.object(filelist, "_remove_tree_item_for_path"), \
+             mock.patch.object(filelist, "_refresh_after_fs_change"), \
+             mock.patch.object(filelist, "_unique_preserving_order", return_value=[file_path]), \
+             mock.patch.object(filelist, "move_to_recycle_bin") as mocked_recycle, \
+             mock.patch.object(filelist, "wx") as mock_wx:
+            mock_wx.ID_YES = wx.ID_YES
+            mock_wx.MessageDialog.return_value.ShowModal.return_value = wx.ID_YES
+            mock_wx.MessageDialog.return_value.Destroy.return_value = None
+
+            filelist.delete_paths(owner, [file_path], permanent=False)
+            filelist.delete_paths(owner, [file_path], permanent=True)
+
+        self.assertEqual(mock_wx.MessageDialog.call_count, 2)
+        self.assertEqual(mocked_recycle.call_count, 1)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_move_to_recycle_bin_handles_user_canceled_shell_action(self):
