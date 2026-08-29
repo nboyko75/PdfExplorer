@@ -492,7 +492,7 @@ def on_tree_right_click(owner, event):
     paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
     rename_item = menu.Append(-1, tr("context_rename"))
     delete_item = menu.Append(-1, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
-    delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Delete")
+    delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Del")
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
