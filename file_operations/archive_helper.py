@@ -1,7 +1,10 @@
 import os
 import shutil
 import subprocess
+import tarfile
+import tempfile
 from contextlib import nullcontext
+import zipfile
 from zipfile import Path
 from pathlib import Path as FilePath
 
@@ -299,6 +302,124 @@ def _default_extract_destination(path, current_folder=None):
     return base_folder
 
 
+def _normalize_archive_member_name(member_name):
+    if not isinstance(member_name, str):
+        return ""
+
+    normalized_name = member_name.replace("\\", "/").strip()
+    if not normalized_name or normalized_name in (".", "/"):
+        return ""
+
+    parts = []
+    for part in normalized_name.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            continue
+        parts.append(part)
+
+    if not parts:
+        return ""
+
+    return os.path.join(*parts)
+
+
+def _get_archive_member_conflicts(archive_path, destination_dir):
+    if not isinstance(archive_path, str) or not isinstance(destination_dir, str) or not archive_path or not destination_dir:
+        return []
+
+    if not os.path.exists(archive_path):
+        return []
+
+    member_names = []
+    lower_name = archive_path.lower()
+
+    try:
+        if lower_name.endswith(".zip"):
+            with zipfile.ZipFile(archive_path, "r") as archive:
+                member_names = [member.filename for member in archive.infolist() if not member.is_dir()]
+        elif tarfile.is_tarfile(archive_path):
+            with tarfile.open(archive_path, "r:*") as archive:
+                member_names = [member.name for member in archive.getmembers() if member.isfile()]
+    except Exception:
+        return []
+
+    conflicts = []
+    for member_name in member_names:
+        normalized_name = _normalize_archive_member_name(member_name)
+        if not normalized_name:
+            continue
+
+        target_path = os.path.normpath(os.path.join(destination_dir, normalized_name))
+        if os.path.exists(target_path):
+            conflicts.append(os.path.basename(target_path))
+
+    return sorted(set(conflicts))
+
+
+def _confirm_archive_extract_conflicts(owner, archive_path, destination_dir):
+    conflicts = _get_archive_member_conflicts(archive_path, destination_dir)
+    if not conflicts:
+        return "override"
+
+    names = "\n".join(f"- {name}" for name in conflicts[:10])
+    if len(conflicts) > 10:
+        names += "\n- ..."
+
+    message = tr(
+        "archive_extract_conflict_message",
+        path=destination_dir,
+        names=names,
+    )
+    dialog = wx.MessageDialog(
+        owner,
+        message,
+        tr("context_extract_from_archive"),
+        wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
+    )
+    dialog.SetYesNoCancelLabels(
+        tr("archive_extract_override"),
+        tr("archive_extract_rename"),
+        tr("cancel_button"),
+    )
+    try:
+        result = dialog.ShowModal()
+    finally:
+        dialog.Destroy()
+
+    if result == wx.ID_YES:
+        return "override"
+    if result == wx.ID_NO:
+        return "rename"
+    return "cancel"
+
+
+def _extract_archive_file_renamed(archive_path, destination_dir):
+    if not isinstance(archive_path, str) or not os.path.exists(archive_path):
+        raise FileNotFoundError(archive_path)
+
+    os.makedirs(destination_dir, exist_ok=True)
+    staging_dir = os.path.join(
+        os.path.dirname(destination_dir) or os.getcwd(),
+        f".{os.path.basename(destination_dir)}_extract_{os.urandom(4).hex()}",
+    )
+    os.makedirs(staging_dir, exist_ok=True)
+
+    try:
+        _extract_archive_file(archive_path, staging_dir)
+        for root, _, files in os.walk(staging_dir):
+            for file_name in files:
+                source_path = os.path.join(root, file_name)
+                relative_path = os.path.relpath(source_path, staging_dir)
+                target_path = os.path.normpath(os.path.join(destination_dir, relative_path))
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                if os.path.exists(target_path):
+                    target_path = copy_and_paste._build_non_conflicting_path(target_path)
+                shutil.move(source_path, target_path)
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+
+
 def _save_archive_extract_form_geometry(dialog):
     position = dialog.GetPosition()
     size = dialog.GetSize()
@@ -415,8 +536,15 @@ def _extract_selected_archive_here(owner, path):
         if not destination_dir:
             return False
 
+        conflict_action = _confirm_archive_extract_conflicts(owner, path, destination_dir)
+        if conflict_action == "cancel":
+            return False
+        if conflict_action == "rename":
+            _extract_archive_file_renamed(path, destination_dir)
+        else:
+            _extract_archive_file(path, destination_dir)
+
         refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else os.path.dirname(destination_dir) or os.getcwd()
-        _extract_archive_file(path, destination_dir)
 
         try:
             if hasattr(owner, "load_folder"):
@@ -461,7 +589,14 @@ def _extract_selected_archive_into(owner, path):
         parent_dir = os.path.dirname(target_dir) or os.getcwd()
         refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else parent_dir
         os.makedirs(target_dir, exist_ok=True)
-        _extract_archive_file(path, target_dir)
+
+        conflict_action = _confirm_archive_extract_conflicts(owner, path, target_dir)
+        if conflict_action == "cancel":
+            return False
+        if conflict_action == "rename":
+            _extract_archive_file_renamed(path, target_dir)
+        else:
+            _extract_archive_file(path, target_dir)
 
         try:
             if hasattr(owner, "load_folder"):

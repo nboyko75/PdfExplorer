@@ -879,6 +879,46 @@ class SearchFilesTests(unittest.TestCase):
         mocked_extract.assert_called_once_with(archive_path, existing_destination)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_extract_selected_archive_prompts_with_override_rename_and_cancel_buttons(self):
+        import file_operations.archive_helper as archive_helper
+
+        temp_dir = tempfile.mkdtemp(prefix="docexplorer-extract-conflict-buttons-")
+        archive_path = os.path.join(temp_dir, "bundle.zip")
+        existing_destination = os.path.join(temp_dir, "bundle")
+        os.makedirs(existing_destination, exist_ok=True)
+        conflict_path = os.path.join(existing_destination, "existing.txt")
+        with open(conflict_path, "w", encoding="utf-8") as handle:
+            handle.write("x")
+
+        class FakeOwner:
+            def __init__(self):
+                self.path_box = types.SimpleNamespace(GetValue=lambda: temp_dir)
+                self.loaded_folder = None
+                self.tree = object()
+
+            def load_folder(self, folder):
+                self.loaded_folder = folder
+
+        owner = FakeOwner()
+
+        with mock.patch.object(archive_helper, "_get_archive_member_conflicts", return_value=["existing.txt"]), \
+             mock.patch.object(archive_helper.wx, "MessageDialog") as mock_dialog, \
+             mock.patch.object(archive_helper, "_extract_archive_file") as mocked_extract, \
+             mock.patch.object(archive_helper, "_extract_archive_file_renamed") as mocked_renamed_extract:
+            mock_dialog.return_value.ShowModal.return_value = wx.ID_NO
+            mock_dialog.return_value.Destroy.return_value = None
+            self.assertTrue(archive_helper._extract_selected_archive_here(owner, archive_path))
+
+        mock_dialog.assert_called_once()
+        mock_dialog.return_value.SetYesNoCancelLabels.assert_called_once_with(
+            archive_helper.tr("archive_extract_override"),
+            archive_helper.tr("archive_extract_rename"),
+            archive_helper.tr("cancel_button"),
+        )
+        mocked_renamed_extract.assert_called_once_with(archive_path, existing_destination)
+        mocked_extract.assert_not_called()
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
     def test_extract_selected_archive_into_creates_target_folder_and_extracts(self):
         import file_operations.archive_helper as archive_helper
 

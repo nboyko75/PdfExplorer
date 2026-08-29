@@ -193,35 +193,38 @@ def select_tree_item_by_path(owner, path):
 
 
 def populate_tree_node(owner, item, path):
-    path = normalize_tree_path(path)
-    if not path or not os.path.isdir(path):
-        return
-
-    owner.tree.DeleteChildren(item)
-
+    owner.updating_tree = True
     try:
-        entries = os.listdir(path)
-    except (PermissionError, FileNotFoundError):
-        return
+        path = normalize_tree_path(path)
+        if not path or not os.path.isdir(path):
+            return
 
-    entries.sort(key=lambda name: (not os.path.isdir(os.path.join(path, name)), name.lower()))
+        owner.tree.DeleteChildren(item)
 
-    for name in entries:
-        full_path = normalize_tree_path(os.path.join(path, name))
+        try:
+            entries = os.listdir(path)
+        except (PermissionError, FileNotFoundError):
+            return
 
-        if not owner.show_hidden and is_hidden(full_path):
-            continue
+        entries.sort(key=lambda name: (not os.path.isdir(os.path.join(path, name)), name.lower()))
 
-        child = owner.tree.AppendItem(item, name)
-        owner.tree.SetItemData(child, full_path)
+        for name in entries:
+            full_path = normalize_tree_path(os.path.join(path, name))
 
-        is_item_hidden = bool(is_hidden(full_path))
-        if os.path.isdir(full_path):
-            owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=True, is_hidden_item=is_item_hidden))
-            owner.tree.AppendItem(child, tr("tree_expand_placeholder"))
-        else:
-            owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=False, is_hidden_item=is_item_hidden))
+            if not owner.show_hidden and is_hidden(full_path):
+                continue
 
+            child = owner.tree.AppendItem(item, name)
+            owner.tree.SetItemData(child, full_path)
+
+            is_item_hidden = bool(is_hidden(full_path))
+            if os.path.isdir(full_path):
+                owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=True, is_hidden_item=is_item_hidden))
+                owner.tree.AppendItem(child, tr("tree_expand_placeholder"))
+            else:
+                owner.tree.SetItemImage(child, get_tree_icon_index(owner, full_path, is_dir=False, is_hidden_item=is_item_hidden))
+    finally:
+        owner.updating_tree = False
 
 def refresh_tree_subtree(owner, item, path):
     if not item or not item.IsOk():
@@ -352,6 +355,9 @@ def on_tree_expand(owner, event):
 
 
 def on_tree_select(owner, event):
+    if owner.updating_tree:
+        return
+    
     item = event.GetItem()
     path = normalize_tree_path(owner.tree.GetItemData(item))
 

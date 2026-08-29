@@ -80,6 +80,7 @@ class FileExplorer(wx.Frame):
             self.pdf_page_view_selected_mode = saved_page_view_mode
         else:
             self.pdf_page_view_selected_mode = file_preview.PAGE_VIEW_MODE_1_TALL
+        self.updating_tree = False
 
         load_locale(self.current_locale)
         self.build_ui()
