@@ -115,6 +115,14 @@ def _create_zip_archive(source_path, destination_path):
     raise RuntimeError("No system zip utility is available.")
 
 
+def _get_7z_executable():
+    for executable_name in ("7z", "7za", "7zr"):
+        candidate = shutil.which(executable_name)
+        if candidate:
+            return candidate
+    return None
+
+
 def _extract_archive_file(archive_path, destination_dir):
     if not isinstance(archive_path, str) or not os.path.isfile(archive_path):
         raise FileNotFoundError(archive_path)
@@ -129,6 +137,18 @@ def _extract_archive_file(archive_path, destination_dir):
         cursor_started = True
 
     try:
+        if archive_path.lower().endswith(".7z"):
+            seven_zip_executable = _get_7z_executable()
+            if seven_zip_executable:
+                _run_command([
+                    seven_zip_executable,
+                    "x",
+                    "-y",
+                    "-o" + destination_dir,
+                    archive_path,
+                ])
+                return destination_dir
+
         powershell = shutil.which("powershell")
         if powershell:
             quoted_archive = archive_path.replace('"', '""')

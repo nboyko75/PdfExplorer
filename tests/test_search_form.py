@@ -660,6 +660,25 @@ class SearchFilesTests(unittest.TestCase):
         self.assertIn("creationflags", captured["kwargs"])
         self.assertEqual(captured["kwargs"]["creationflags"], getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
+    def test_extract_archive_uses_7z_when_available(self):
+        import file_operations.archive_helper as archive_helper
+
+        archive_path = os.path.join(tempfile.mkdtemp(prefix="docexplorer-7z-"), "sample.7z")
+        destination_dir = os.path.join(os.path.dirname(archive_path), "out")
+
+        with mock.patch.object(archive_helper.os.path, "isfile", return_value=True), \
+             mock.patch.object(archive_helper.shutil, "which", side_effect=lambda name: "C:/Program Files/7-Zip/7z.exe" if name in {"7z", "7za", "7zr"} else None), \
+             mock.patch.object(archive_helper, "_run_command") as mocked_run:
+            archive_helper._extract_archive_file(archive_path, destination_dir)
+
+        mocked_run.assert_called_once_with([
+            "C:/Program Files/7-Zip/7z.exe",
+            "x",
+            "-y",
+            "-o" + destination_dir,
+            archive_path,
+        ])
+
     def test_archive_refresh_only_reloads_archive_parent_folder(self):
         import file_operations.archive_helper as archive_helper
 

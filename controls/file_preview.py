@@ -28,8 +28,35 @@ FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW
 VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
 HTML_EXTENSIONS = {".html", ".htm"}
-TEXT_FILE_EXTENSIONS = {".txt", ".log", ".ini", ".cfg", ".conf", ".csv", ".json", ".xml", ".yaml", ".yml", ".md"}
 OFFICE_EXTENSIONS = {".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm", ".ppt", ".pptx", ".pptm"}
+TEXT_FILE_EXTENSIONS = {
+    # Text
+    ".txt", ".text", ".log", ".md", ".markdown", ".rst", ".csv", ".tsv",
+
+    # Python
+    ".py", ".pyw", ".pyx",
+
+    # C/C++
+    ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp",
+
+    # .NET
+    ".cs", ".vb", ".fs", ".fsx",
+
+    # Java / JVM
+    ".java", ".kt", ".kts", ".scala",
+
+    # Other languages
+    ".go", ".rs", ".swift", ".php", ".rb", ".pl", ".pm", ".lua", ".r", ".dart",
+
+    # Data / configuration
+    ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".config", ".properties", ".env", ".reg",
+
+    # Scripts
+    ".bat", ".cmd", ".ps1", ".psm1", ".sh", ".bash", ".zsh", ".fish", ".vbs", ".vbe",
+
+    # Database
+    ".sql", ".ddl", ".dml",
+}
 
 def _get_preview_tab_label(path):
     if not path:
