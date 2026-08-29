@@ -296,12 +296,7 @@ def _default_extract_destination(path, current_folder=None):
         return ""
 
     base_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else os.path.dirname(path) or os.getcwd()
-    archive_name = os.path.splitext(os.path.basename(path))[0]
-    if not archive_name:
-        archive_name = "archive"
-    else:
-        archive_name = FilePath(archive_name).stem  # Remove additional extensions like .tar, .gz, etc.
-    return os.path.normpath(os.path.join(base_folder, archive_name))
+    return base_folder
 
 
 def _save_archive_extract_form_geometry(dialog):
