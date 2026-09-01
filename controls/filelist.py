@@ -671,7 +671,7 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
             if isinstance(item_path, str) and item_path:
                 selected_tree_path = os.path.normpath(item_path)
 
-    if current_folder and os.path.isdir(current_folder):
+    if current_folder and os.path.isdir(current_folder) and hasattr(owner, "load_folder"):
         owner.load_folder(current_folder)
         _refresh_tree_node(owner, current_folder)
 
@@ -684,6 +684,8 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
             if isinstance(folder, str) and folder and os.path.isdir(folder):
                 if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(os.path.normpath(folder)):
                     _refresh_tree_node(owner, folder)
+
+    file_preview._prune_deleted_preview_tabs(owner)
 
     if preferred_preview_path and (os.path.isfile(preferred_preview_path) or os.path.isdir(preferred_preview_path)):
         if os.path.isfile(preferred_preview_path):
@@ -931,6 +933,7 @@ def delete_paths(owner, paths, permanent=False):
     unique_paths = _unique_preserving_order(paths)
     unique_paths = [path for path in unique_paths if os.path.exists(path)]
     if not unique_paths:
+        file_preview._prune_deleted_preview_tabs(owner)
         return
 
     action_title = tr("context_remove_to_recycle_bin") if not permanent else tr("context_delete")
@@ -986,6 +989,8 @@ def delete_paths(owner, paths, permanent=False):
         _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
         if removed_current_preview:
             file_preview.show_file_preview(owner, None)
+        else:
+            file_preview._prune_deleted_preview_tabs(owner)
     except Exception as exc:
         errors.append(str(exc))
 

@@ -390,6 +390,107 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf"])
         self.assertEqual(owner.preview_active_tab_index, 0)
 
+    def test_show_file_preview_removes_tabs_for_deleted_files(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            current_preview_path="deleted.pdf",
+            preview_tabs=[
+                {"path": "keep.pdf", "pinned": False, "caption": "keep.pdf", "hint": "keep.pdf"},
+                {"path": "deleted.pdf", "pinned": False, "caption": "deleted.pdf", "hint": "deleted.pdf"},
+            ],
+            preview_active_tab_index=1,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/folder"),
+            load_folder=mock.MagicMock(),
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", side_effect=lambda path: path == "keep.pdf"), \
+             mock.patch("controls.file_preview.os.path.isfile", side_effect=lambda path: path == "keep.pdf"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False):
+            file_preview.show_file_preview(owner, None)
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["keep.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 0)
+        self.assertIsNone(owner.current_preview_path)
+
+    def test_show_file_preview_removes_first_deleted_tab_and_keeps_next_one(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            current_preview_path="deleted.pdf",
+            preview_tabs=[
+                {"path": "deleted.pdf", "pinned": False, "caption": "deleted.pdf", "hint": "deleted.pdf"},
+                {"path": "keep.pdf", "pinned": False, "caption": "keep.pdf", "hint": "keep.pdf"},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/folder"),
+            load_folder=mock.MagicMock(),
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", side_effect=lambda path: path == "keep.pdf"), \
+             mock.patch("controls.file_preview.os.path.isfile", side_effect=lambda path: path == "keep.pdf"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False):
+            file_preview.show_file_preview(owner, "deleted.pdf")
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["keep.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 0)
+        self.assertIsNone(owner.current_preview_path)
+
+    def test_refresh_after_fs_change_prunes_deleted_preview_tabs(self):
+        filelist = __import__("controls.filelist", fromlist=["_refresh_after_fs_change"])
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/folder"),
+            tree=mock.MagicMock(),
+            current_preview_path="deleted.pdf",
+            preview_tabs=[
+                {"path": "keep.pdf", "pinned": False},
+                {"path": "deleted.pdf", "pinned": False},
+            ],
+            preview_active_tab_index=1,
+        )
+
+        with mock.patch.object(filelist.file_preview, "_prune_deleted_preview_tabs") as mocked_prune, \
+             mock.patch.object(filelist.file_preview, "show_file_preview") as mocked_show, \
+             mock.patch.object(filelist, "_refresh_tree_node"), \
+             mock.patch.object(filelist.os.path, "exists", side_effect=lambda path: path == "keep.pdf"), \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: path == "C:/folder"):
+            filelist._refresh_after_fs_change(owner)
+
+        mocked_prune.assert_called_once_with(owner)
+        mocked_show.assert_called_once_with(owner, None)
+
     def test_unavailable_zoom_action_does_not_show_message_box(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

@@ -259,6 +259,29 @@ def _is_previewable_path(owner, path):
     return False
 
 
+def _prune_deleted_preview_tabs(owner):
+    _ensure_preview_tab_state(owner)
+    valid_tabs = []
+    for tab in getattr(owner, "preview_tabs", []):
+        tab_path = tab.get("path")
+        if not tab_path:
+            continue
+        if os.path.exists(tab_path):
+            valid_tabs.append(tab)
+    owner.preview_tabs = valid_tabs
+
+    if not owner.preview_tabs:
+        owner.preview_active_tab_index = None
+        return
+
+    active_index = getattr(owner, "preview_active_tab_index", 0)
+    if active_index is None or active_index < 0:
+        active_index = 0
+    owner.preview_active_tab_index = max(0, min(active_index, len(owner.preview_tabs) - 1))
+    _normalize_preview_tabs(owner)
+    _render_preview_tab_bar(owner)
+
+
 def _sync_preview_tab_for_path(owner, path):
     _ensure_preview_tab_state(owner)
     if not path:
@@ -1438,7 +1461,12 @@ def on_office_preview_checkbox_toggle(event):
 
 def show_file_preview(owner, path):
     _ensure_preview_tab_state(owner)
-    if path:
+
+    if path is not None and not os.path.exists(path):
+        path = None
+
+    _prune_deleted_preview_tabs(owner)
+    if path is not None:
         _sync_preview_tab_for_path(owner, path)
 
     if not getattr(owner, "preview_enabled", True):
