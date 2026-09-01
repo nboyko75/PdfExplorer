@@ -134,6 +134,7 @@ def _confirm_overwrite_existing_path(owner, target_path):
         tr("context_paste"),
         style=wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
     )
+    dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
     try:
         result = dialog.ShowModal()
     finally:

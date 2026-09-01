@@ -479,6 +479,7 @@ def confirm_preview_change(owner, next_path):
         tr("app_title"),
         wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
     )
+    dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
     result = dialog.ShowModal()
     dialog.Destroy()
 
@@ -1795,8 +1796,8 @@ def _show_import_pdf_dialog(owner, page_count):
     source_row.Add(source_text, 1, wx.RIGHT, 8)
     source_row.Add(browse_btn, 0)
 
-    ok_btn = wx.Button(panel, wx.ID_OK)
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
+    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
     ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
     if ok_bmp.IsOk():
         ok_btn.SetBitmap(ok_bmp)
@@ -1923,8 +1924,8 @@ def _show_export_pages_dialog(owner, page_count):
 
     browse_btn.Bind(wx.EVT_BUTTON, browse_for_output)
 
-    ok_btn = wx.Button(panel, wx.ID_OK)
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
+    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
     ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
     if ok_bmp.IsOk():
         ok_btn.SetBitmap(ok_bmp)
@@ -2027,8 +2028,8 @@ def _show_import_from_scanner_dialog(owner, page_count):
     destination_sizer.Add(after_page_sizer, 0, wx.TOP, 3)
     destination_sizer.Add(at_end_radio, 0)
 
-    ok_btn = wx.Button(panel, wx.ID_OK)
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("preview_cancel_button"))
+    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
     ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
     if ok_bmp.IsOk():
         ok_btn.SetBitmap(ok_bmp)
@@ -2483,8 +2484,8 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no):
     fields.Add(destination_page_spin, 1, wx.EXPAND)
     fields.AddGrowableCol(1, 1)
 
-    ok_btn = wx.Button(panel, wx.ID_OK)
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
+    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
     button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)

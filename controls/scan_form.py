@@ -214,6 +214,7 @@ def _resolve_output_path_before_save(owner, output_path, file_type_index):
         tr("scan"),
         style=wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
     )
+    dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
     try:
         result = dialog.ShowModal()
     finally:

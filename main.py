@@ -490,6 +490,7 @@ class FileExplorer(wx.Frame):
                 tr("app_title"),
                 wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
             )
+            dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
             result = dialog.ShowModal()
             dialog.Destroy()
 
