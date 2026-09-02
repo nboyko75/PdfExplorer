@@ -356,6 +356,7 @@ class FileExplorer(wx.Frame):
         current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
         if current_folder and os.path.isdir(current_folder):
             self.load_folder(current_folder)
+            tree_utils.refresh_tree_selection_and_filelist(self)
         else:
             self.refresh_tree_placeholders()
 
@@ -694,7 +695,10 @@ class FileExplorer(wx.Frame):
                 filelist.on_list_delete_permanent(self, None)
                 return
             if key_code == wx.WXK_F5:
-                tree_utils.refresh_tree_selection(self)
+                current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
+                if current_folder and os.path.isdir(current_folder):
+                    self.load_folder(current_folder)
+                tree_utils.refresh_tree_selection_and_filelist(self)
                 return
             if filelist.handle_file_ops_shortcut(self, event):
                 return

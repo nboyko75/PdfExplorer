@@ -48,6 +48,32 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.load_folder.assert_called_once_with("D:\\Projects")
         mocked_refresh_tree_subtree.assert_called_once_with(owner, item, "D:\\Projects")
 
+    def test_f5_refresh_reloads_active_folder_in_list_pane(self):
+        owner = types.SimpleNamespace(
+            tree=mock.MagicMock(),
+            path_box=types.SimpleNamespace(GetValue=lambda: "D:/Projects"),
+            load_folder=mock.MagicMock(),
+            show_file_preview=mock.MagicMock(),
+            current_preview_path="D:/Projects/old.txt",
+        )
+        item = mock.MagicMock()
+        item.IsOk.return_value = True
+        owner.tree.GetSelection.return_value = item
+        owner.tree.GetItemData.return_value = "D:/Projects"
+
+        event = types.SimpleNamespace(
+            GetKeyCode=lambda: wx.WXK_F5,
+            ControlDown=lambda: False,
+            ShiftDown=lambda: False,
+            Skip=lambda: None,
+        )
+
+        with mock.patch.object(main.tree_utils, "refresh_tree_selection_and_filelist") as mocked_refresh_list:
+            main.FileExplorer.on_key(owner, event)
+
+        owner.load_folder.assert_called_once_with("D:/Projects")
+        mocked_refresh_list.assert_called_once_with(owner)
+
     def test_refresh_tree_subtree_only_recurses_expanded_children(self):
         owner = types.SimpleNamespace(tree=mock.MagicMock())
         root = mock.MagicMock()
@@ -68,7 +94,6 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             (end_item, None),
         ]
         owner.tree.GetItemData.side_effect = [
-            "D:/Projects",
             "D:/Projects/Expanded",
             "D:/Projects/Collapsed",
         ]
@@ -79,8 +104,8 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             main.tree_utils.refresh_tree_subtree(owner, root, "D:/Projects")
 
         self.assertEqual(mocked_populate.call_count, 2)
-        self.assertEqual(mocked_populate.call_args_list[0].args[2], "D:/Projects")
-        self.assertEqual(mocked_populate.call_args_list[1].args[2], "D:/Projects/Expanded")
+        self.assertEqual(mocked_populate.call_args_list[0].args[2], os.path.normpath("D:/Projects"))
+        self.assertEqual(mocked_populate.call_args_list[1].args[2], os.path.normpath("D:/Projects/Expanded"))
 
     def test_load_folder_uses_file_extension_in_type_column(self):
         owner = types.SimpleNamespace(
