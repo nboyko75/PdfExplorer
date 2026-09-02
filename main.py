@@ -10,6 +10,7 @@ from controls.window_tools import load_settings, update_settings, save_window_ge
 from controls.options_form import show_options_form
 import controls.tree_utils as tree_utils
 import controls.drag_and_drop as drag_and_drop
+import controls.favorite_panel as favorite_panel
 import file_operations.image_utils as image_utils
 import controls.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
@@ -72,6 +73,16 @@ class FileExplorer(wx.Frame):
         self.current_locale = saved_locale if saved_locale in SUPPORTED_LOCALES else "uk"
         self.pdf_preview_zoom = 1.0
         self.main_splitter = None
+        self.favorite_splitter = None
+        self.favorite_panel = None
+        self.favorite_list = None
+        self.favorite_panel_above_tree = bool(settings.get("favorite_panel_above_tree", False))
+        self.favorite_paths = []
+        for favorite_path in settings.get("favorite_paths", []):
+            if isinstance(favorite_path, str) and os.path.isdir(favorite_path):
+                normalized = os.path.normpath(favorite_path)
+                if normalized not in self.favorite_paths:
+                    self.favorite_paths.append(normalized)
         saved_page_view_mode = str(settings.get("pdf_page_view_mode", "1_page_wide"))
         if saved_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
             saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_TALL
@@ -150,8 +161,11 @@ class FileExplorer(wx.Frame):
         self.nav_back_item = self.navigation_menu.Append(wx.ID_ANY, tr("back_button"))
         self.nav_forward_item = self.navigation_menu.Append(wx.ID_ANY, tr("forward_button"))
         self.nav_up_item = self.navigation_menu.Append(wx.ID_ANY, tr("folder_up_button"))
-        self.nav_search_item = self.navigation_menu.Append(wx.ID_ANY, tr("search_in_files_button"))
         self.navigation_menu.AppendSeparator()
+        self.nav_add_to_favourite_item = self.navigation_menu.Append(wx.ID_ANY, tr("favorite_add_menu_item"))
+        self.nav_remove_from_favourite_item = self.navigation_menu.Append(wx.ID_ANY, tr("favorite_remove_menu_item"))
+        self.navigation_menu.AppendSeparator()
+        self.nav_search_item = self.navigation_menu.Append(wx.ID_ANY, tr("search_in_files_button"))
         self.menu_bar.Append(self.navigation_menu, tr("menu_navigation"))
 
         self.document_menu = wx.Menu()
@@ -218,6 +232,8 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.nav_back_item, art_id=wx.ART_GO_BACK)
         self.icon_manager.set_menu_icon(self.nav_forward_item, art_id=wx.ART_GO_FORWARD)
         self.icon_manager.set_menu_icon(self.nav_up_item, art_id=wx.ART_GO_UP)
+        self.icon_manager.set_menu_icon2(self.nav_add_to_favourite_item, "add_to_favorites")
+        self.icon_manager.set_menu_icon2(self.nav_remove_from_favourite_item, "remove_from_favorites")
         self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
@@ -263,6 +279,8 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.go_back, self.nav_back_item)
         self.Bind(wx.EVT_MENU, self.go_forward, self.nav_forward_item)
         self.Bind(wx.EVT_MENU, self.on_folder_up, self.nav_up_item)
+        self.Bind(wx.EVT_MENU, self.on_nav_add_to_favourite, self.nav_add_to_favourite_item)
+        self.Bind(wx.EVT_MENU, self.on_nav_remove_from_favourite, self.nav_remove_from_favourite_item)
         self.Bind(wx.EVT_MENU, self.on_search_in_files, self.nav_search_item)
 
         self.Bind(wx.EVT_MENU, file_preview.on_preview_import_from_file, self.doc_import_item)
@@ -320,6 +338,11 @@ class FileExplorer(wx.Frame):
         self.nav_forward_item.Enable(bool(getattr(self, "history", [])) and self.history_index < len(self.history) - 1)
         parent_folder = ntpath.dirname(current_path) if current_path else ""
         self.nav_up_item.Enable(bool(current_path and os.path.isdir(current_path) and parent_folder and ntpath.normpath(parent_folder) != ntpath.normpath(current_path)))
+        if hasattr(self, "nav_add_to_favourite_item") and hasattr(self, "nav_remove_from_favourite_item"):
+            has_folder = bool(current_path and os.path.isdir(current_path))
+            is_favourite = has_folder and self._is_favorite_path(current_path)
+            self.nav_add_to_favourite_item.Enable(has_folder and not is_favourite)
+            self.nav_remove_from_favourite_item.Enable(has_folder and is_favourite)
         self.nav_search_item.Enable(True)
 
         is_pdf_preview = bool(current_preview and is_pdf_file(current_preview))
@@ -402,10 +425,19 @@ class FileExplorer(wx.Frame):
         # ===== Split view =====
         self.main_splitter = wx.SplitterWindow(panel)
 
-        self.tree = wx.TreeCtrl(self.main_splitter, style=wx.TR_HAS_BUTTONS)
+        self.favorite_splitter = wx.SplitterWindow(self.main_splitter)
+        self.tree = wx.TreeCtrl(self.favorite_splitter, style=wx.TR_HAS_BUTTONS)
         self.init_tree_images()
         self.filePanel = wx.Panel(self.main_splitter)
-        self.main_splitter.SplitVertically(self.tree, self.filePanel, 320)
+
+        favorite_panel.build_favorite_panel(self, self.favorite_splitter)
+
+        self.favorite_splitter.SplitHorizontally(self.tree, self.favorite_panel, 180)
+        if self.favorite_panel_above_tree:
+            self.favorite_splitter.Unsplit(self.tree)
+            self.favorite_splitter.SplitHorizontally(self.favorite_panel, self.tree, 180)
+        self._apply_favorite_panel_position()
+        self.main_splitter.SplitVertically(self.favorite_splitter, self.filePanel, 320)
 
         self.fileSplitter = wx.SplitterWindow(self.filePanel)
 
@@ -427,6 +459,116 @@ class FileExplorer(wx.Frame):
     def init_tree_images(self):
         return tree_utils.init_tree_images(self)
 
+    def _normalize_favorite_path(self, path):
+        if not isinstance(path, str):
+            return ""
+        normalized = os.path.normpath(path)
+        return normalized or ""
+
+    def _is_favorite_path(self, path):
+        normalized = self._normalize_favorite_path(path)
+        if not normalized:
+            return False
+        normalized_case = os.path.normcase(normalized)
+        return any(os.path.normcase(self._normalize_favorite_path(favorite_path)) == normalized_case for favorite_path in self.favorite_paths)
+
+    def _add_favorite_path(self, path):
+        if not isinstance(path, str) or not os.path.isdir(path):
+            return False
+        normalized = self._normalize_favorite_path(path)
+        if not normalized:
+            return False
+        if any(os.path.normcase(self._normalize_favorite_path(existing)) == os.path.normcase(normalized) for existing in self.favorite_paths):
+            return False
+        self.favorite_paths.append(normalized)
+        self._refresh_favorite_list()
+        self.save_splitter_positions()
+        return True
+
+    def _remove_favorite_path(self, path):
+        if not isinstance(path, str):
+            return False
+        normalized = self._normalize_favorite_path(path)
+        original_count = len(self.favorite_paths)
+        self.favorite_paths = [favorite_path for favorite_path in self.favorite_paths if os.path.normcase(self._normalize_favorite_path(favorite_path)) != os.path.normcase(normalized)]
+        if len(self.favorite_paths) == original_count:
+            return False
+        self._refresh_favorite_list()
+        self.save_splitter_positions()
+        return True
+
+    def _reorder_favorite_paths(self, from_index, to_index):
+        if not isinstance(from_index, int) or not isinstance(to_index, int):
+            return False
+        if not self.favorite_paths or not (0 <= from_index < len(self.favorite_paths)):
+            return False
+        if to_index < 0:
+            to_index = 0
+        if to_index >= len(self.favorite_paths):
+            to_index = len(self.favorite_paths) - 1
+        if from_index == to_index:
+            return False
+
+        moved_path = self.favorite_paths.pop(from_index)
+        self.favorite_paths.insert(to_index, moved_path)
+        self._refresh_favorite_list()
+        self.save_splitter_positions()
+        return True
+
+    def _apply_favorite_list_layout(self):
+        favorite_panel._apply_favorite_list_layout(self)
+
+    def _refresh_favorite_list(self):
+        favorite_panel.refresh_favorite_list(self)
+
+    def _apply_favorite_panel_position(self, sash_position=None):
+        favorite_panel.apply_favorite_panel_position(self, sash_position=sash_position)
+
+    def _toggle_favorite_panel_position(self, panel_above_tree):
+        favorite_panel.toggle_favorite_panel_position(self, panel_above_tree)
+
+    def on_move_favorite_up(self, _):
+        self._toggle_favorite_panel_position(True)
+
+    def on_move_favorite_down(self, _):
+        self._toggle_favorite_panel_position(False)
+
+    def on_favorite_list_select(self, event):
+        index = event.GetIndex()
+        if not (0 <= index < len(self.favorite_paths)):
+            return
+        selected_path = self.favorite_paths[index]
+        if os.path.isdir(selected_path):
+            self.open_path(selected_path, add_history=True)
+            self.select_tree_item_by_path(selected_path)
+
+    def on_favorite_list_activate(self, event):
+        self.on_favorite_list_select(event)
+
+    def on_favorite_begin_drag(self, event):
+        favorite_panel.on_favorite_begin_drag(self, event)
+
+    def on_favorite_end_drag(self, event):
+        favorite_panel.on_favorite_end_drag(self, event)
+
+    def on_favorite_right_click(self, event):
+        favorite_panel.on_favorite_right_click(self, event)
+
+    def on_remove_favorite_from_context(self, _):
+        favorite_panel.on_remove_favorite_from_context(self, _)
+
+    def on_nav_add_to_favourite(self, _):
+        current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
+        if current_folder and os.path.isdir(current_folder):
+            self._add_favorite_path(current_folder)
+            self._update_main_menu_state()
+
+    def on_nav_remove_from_favourite(self, _):
+        current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
+        if current_folder and os.path.isdir(current_folder):
+            self._remove_favorite_path(current_folder)
+            self._update_main_menu_state()
+
     def refresh_tree_placeholders(self):
         return tree_utils.refresh_tree_placeholders(self)
 
@@ -445,12 +587,16 @@ class FileExplorer(wx.Frame):
     def save_splitter_positions(self):
         main_sash = None
         preview_sash = None
+        favorite_sash = None
 
         if self.main_splitter is not None and self.main_splitter.IsSplit():
             main_sash = int(self.main_splitter.GetSashPosition())
 
         if self.fileSplitter is not None and self.fileSplitter.IsSplit():
             preview_sash = int(self.fileSplitter.GetSashPosition())
+
+        if self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
+            favorite_sash = int(self.favorite_splitter.GetSashPosition())
 
         persisted_page_view_mode = self.pdf_page_view_mode
         if persisted_page_view_mode == file_preview.PAGE_VIEW_MODE_MANUAL:
@@ -466,6 +612,9 @@ class FileExplorer(wx.Frame):
             {
                 "main_splitter_sash": main_sash,
                 "preview_splitter_sash": preview_sash,
+                "favorite_splitter_sash": favorite_sash,
+                "favorite_panel_above_tree": bool(self.favorite_panel_above_tree),
+                "favorite_paths": list(self.favorite_paths),
                 "pdf_page_view_mode": persisted_page_view_mode,
             }
         )
@@ -481,6 +630,15 @@ class FileExplorer(wx.Frame):
         preview_sash = settings.get("preview_splitter_sash")
         if isinstance(preview_sash, int) and self.fileSplitter is not None and self.fileSplitter.IsSplit():
             self.fileSplitter.SetSashPosition(max(100, preview_sash))
+
+        favorite_sash = settings.get("favorite_splitter_sash")
+        favorite_above_tree = bool(settings.get("favorite_panel_above_tree", False))
+        if favorite_sash is not None and self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
+            self.favorite_panel_above_tree = favorite_above_tree
+            self._apply_favorite_panel_position(sash_position=int(favorite_sash))
+        elif self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
+            self.favorite_panel_above_tree = favorite_above_tree
+            self._apply_favorite_panel_position()
 
     def on_close(self, event):
         unsaved_pdf_paths = get_unsaved_pdf_paths()

@@ -37,6 +37,16 @@ class ImageUtilsFallbackTests(unittest.TestCase):
 
         fallback_reader.assert_called_once_with("sample.png")
 
+    def test_icon_manager_accepts_favorite_icon_aliases(self):
+        image_utils = _import_image_utils_with_mocked_wx()
+        with mock.patch("file_operations.image_utils.os.path.isfile", return_value=True):
+            manager = image_utils.IconManager(images_dir="/tmp/icons")
+
+        self.assertIn("add_to_favorites", manager.icon_files)
+        self.assertIn("remove_from_favorites", manager.icon_files)
+        self.assertEqual(manager.icon_files["add_to_favorites"], os.path.join("/tmp/icons", "add_to_favorite.bmp"))
+        self.assertEqual(manager.icon_files["remove_from_favorites"], os.path.join("/tmp/icons", "remove_from_favorite.bmp"))
+
 
 if __name__ == "__main__":
     unittest.main()

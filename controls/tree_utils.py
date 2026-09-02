@@ -483,7 +483,7 @@ def on_tree_right_click(owner, event):
     can_create_new_folder = create_target is not None and not is_root_node
     paste_target = path if path else getattr(owner.path_box, "GetValue", lambda: "")()
     can_paste = filelist._can_paste_into_directory(owner, filelist._resolve_paste_target_directory(paste_target))
-    icon_manager = getattr(owner, "icon_manager", None)
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
 
     menu = wx.Menu()
     open_item = menu.Append(-1, tr("context_open"))
@@ -491,6 +491,9 @@ def on_tree_right_click(owner, event):
     new_folder_item = menu.Append(-1, tr("context_new_folder"))
     refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
     print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
+    menu.AppendSeparator()
+    favorite_add_item = menu.Append(-1, tr("favorite_add_menu_item"))
+    favorite_remove_item = menu.Append(-1, tr("favorite_remove_menu_item"))
     menu.AppendSeparator()
 
     copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
@@ -510,6 +513,10 @@ def on_tree_right_click(owner, event):
     new_folder_item.Enable(can_create_new_folder)
     refresh_item.Enable(True)
     print_item.Enable(bool(path and os.path.isfile(path)))
+    can_manage_favorite = bool(path and os.path.isdir(path))
+    is_favorite_folder = bool(can_manage_favorite and getattr(owner, "_is_favorite_path", lambda _path: False)(path))
+    favorite_add_item.Enable(can_manage_favorite and not is_favorite_folder)
+    favorite_remove_item.Enable(can_manage_favorite and is_favorite_folder)
     copy_item.Enable(can_act_on_selection)
     cut_item.Enable(can_act_on_selection)
     paste_item.Enable(can_paste)
@@ -541,6 +548,8 @@ def on_tree_right_click(owner, event):
         icon_manager.set_menu_icon2(open_item, "file_view")
         icon_manager.set_menu_icon2(copy_item, "copy")
         icon_manager.set_menu_icon2(delete_item, "recycle_bin")
+        icon_manager.set_menu_icon2(favorite_add_item, "add_to_favorites")
+        icon_manager.set_menu_icon2(favorite_remove_item, "remove_from_favorites")
         icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
         icon_manager.set_menu_icon2(extract_from_archive_item_here, "extract_from_archive")
         icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
@@ -607,6 +616,16 @@ def on_tree_right_click(owner, event):
             import controls.print_form as print_form
             print_form.show_print_form(owner, path)
 
+    def handle_add_to_favorite(_):
+        if path and os.path.isdir(path) and hasattr(owner, "_add_favorite_path"):
+            owner._add_favorite_path(path)
+            owner._update_main_menu_state()
+
+    def handle_remove_from_favorite(_):
+        if path and os.path.isdir(path) and hasattr(owner, "_remove_favorite_path"):
+            owner._remove_favorite_path(path)
+            owner._update_main_menu_state()
+
     def handle_copy(_):
         filelist.on_tree_copy(owner, path)
 
@@ -641,6 +660,8 @@ def on_tree_right_click(owner, event):
     owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
     owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
     owner.Bind(wx.EVT_MENU, handle_print, print_item)
+    owner.Bind(wx.EVT_MENU, handle_add_to_favorite, favorite_add_item)
+    owner.Bind(wx.EVT_MENU, handle_remove_from_favorite, favorite_remove_item)
     owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
     owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
     owner.Bind(wx.EVT_MENU, handle_paste, paste_item)

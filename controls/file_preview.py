@@ -830,7 +830,7 @@ def on_preview_page_view_mode_menu(event):
 
 
 def build_save_menu(owner, menu):
-    icon_manager = getattr(owner, "icon_manager", None)
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
 
     save_item = menu.Append(-1, tr("preview_save_button"))
     save_as_item = menu.Append(-1, tr("preview_save_as_button"))
@@ -912,7 +912,7 @@ def build_rotation_menu(owner, menu):
 
 
 def build_import_menu(owner, menu):
-    icon_manager = getattr(owner, "icon_manager", None)
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
 
     import_item = menu.Append(-1, tr("preview_import_from_file_button"))
     import_bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_MENU, (16, 16))
@@ -2634,7 +2634,7 @@ def on_preview_right_click(event):
     if not owner:
         return
 
-    icon_manager = getattr(owner, "icon_manager", None)
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
     menu = wx.Menu()
 
     _build_import_export_menu(owner, menu)

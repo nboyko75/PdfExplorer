@@ -1,6 +1,8 @@
 import json
 import os
 import sys
+import ctypes
+from ctypes import wintypes
 
 import wx
 
@@ -205,3 +207,49 @@ def restore_window_geometry(frame, settings=None):
     if isinstance(position, list) and len(position) == 2:
         x, y = int(position[0]), int(position[1])
         frame.SetPosition((x, y))
+
+
+def set_column_image_on_left(list_ctrl, column_index):
+    """Force a wx.ListCtrl header image to appear before its text on Windows."""
+    if wx.Platform != "__WXMSW__":
+        return
+
+    LVM_GETHEADER = 0x101F
+    HDM_FIRST = 0x1200
+    HDM_GETITEMW = HDM_FIRST + 11
+    HDM_SETITEMW = HDM_FIRST + 12
+
+    HDI_FORMAT = 0x0004
+    HDF_BITMAP_ON_RIGHT = 0x1000
+
+    class HDITEMW(ctypes.Structure):
+        _fields_ = [
+            ("mask", wintypes.UINT),
+            ("cxy", ctypes.c_int),
+            ("pszText", wintypes.LPWSTR),
+            ("hbm", wintypes.HBITMAP),
+            ("cchTextMax", ctypes.c_int),
+            ("fmt", ctypes.c_int),
+            ("lParam", wintypes.LPARAM),
+            ("iImage", ctypes.c_int),
+            ("iOrder", ctypes.c_int),
+            ("type", wintypes.UINT),
+            ("pvFilter", ctypes.c_void_p),
+            ("state", wintypes.UINT),
+        ]
+
+    send_message = ctypes.windll.user32.SendMessageW
+    send_message.restype = wintypes.LPARAM
+
+    list_hwnd = list_ctrl.GetHandle()
+    header_hwnd = send_message(list_hwnd, LVM_GETHEADER, 0, 0)
+
+    if not header_hwnd:
+        return
+
+    item = HDITEMW()
+    item.mask = HDI_FORMAT
+
+    if send_message(header_hwnd, HDM_GETITEMW, column_index, ctypes.byref(item)):
+        item.fmt &= ~HDF_BITMAP_ON_RIGHT
+        send_message(header_hwnd, HDM_SETITEMW, column_index, ctypes.byref(item))

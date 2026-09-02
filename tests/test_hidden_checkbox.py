@@ -11,7 +11,9 @@ sys.path.insert(0, PROJECT_ROOT)
 
 import wx
 
+import controls.favorite_panel as favorite_panel
 import controls.filelist as filelist
+import file_operations.image_utils as image_utils
 import main
 
 
@@ -30,6 +32,117 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertTrue(owner.show_hidden)
         owner.refresh.assert_called_once_with()
         mocked_refresh_tree.assert_called_once_with(owner)
+
+    def test_favorite_context_menu_remove_is_disabled_without_selection(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = ["C:/Temp/favorites"]
+        owner.favorite_list = mock.MagicMock()
+        owner.favorite_list.GetFirstSelected.return_value = wx.NOT_FOUND
+        owner.favorite_list.HitTest.return_value = (wx.NOT_FOUND, wx.DefaultPosition)
+        owner.favorite_list.PopupMenu = mock.Mock()
+        owner.Bind = mock.Mock()
+
+        remove_item = mock.Mock()
+        fake_menu = mock.MagicMock()
+        fake_menu.Append.return_value = remove_item
+
+        with mock.patch.object(wx, "Menu", return_value=fake_menu):
+            owner.on_favorite_right_click(mock.MagicMock())
+
+        remove_item.Enable.assert_called_with(False)
+
+    def test_favorite_delete_key_removes_selected_item(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = ["C:/Temp/one", "C:/Temp/two"]
+        owner.favorite_list = mock.MagicMock()
+        owner.favorite_list.GetFirstSelected.return_value = 1
+        owner._remove_favorite_path = mock.Mock()
+
+        event = mock.MagicMock()
+        event.GetKeyCode.return_value = wx.WXK_DELETE
+
+        favorite_panel.on_favorite_key_down(owner, event)
+
+        owner._remove_favorite_path.assert_called_once_with("C:/Temp/two")
+
+    def test_favorite_list_layout_stretches_to_panel(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_list = mock.MagicMock()
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 400, GetHeight=lambda: 300)
+
+        owner._apply_favorite_list_layout()
+
+        owner.favorite_list.SetColumnWidth.assert_called_with(0, 384)
+        owner.favorite_list.Layout.assert_called_once()
+
+    def test_favorite_drag_move_reorders_paths(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = ["C:/Temp/a", "C:/Temp/b", "C:/Temp/c"]
+        owner._refresh_favorite_list = mock.Mock()
+        owner.save_splitter_positions = mock.Mock()
+
+        owner._reorder_favorite_paths(0, 2)
+
+        self.assertEqual(owner.favorite_paths, ["C:/Temp/b", "C:/Temp/c", "C:/Temp/a"])
+        owner.save_splitter_positions.assert_called_once_with()
+
+    def test_favorite_header_uses_favorites_icon(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = []
+        owner.favorite_list = None
+        owner.favorite_panel = None
+        owner.favorite_move_up_btn = None
+        owner.favorite_move_down_btn = None
+        owner.on_favorite_list_select = mock.Mock()
+        owner.on_favorite_list_activate = mock.Mock()
+        owner.on_favorite_begin_drag = mock.Mock()
+        owner.on_favorite_end_drag = mock.Mock()
+        owner.on_favorite_right_click = mock.Mock()
+        owner.on_move_favorite_up = mock.Mock()
+        owner.on_move_favorite_down = mock.Mock()
+
+        parent = mock.MagicMock()
+        fake_button = mock.MagicMock()
+        fake_panel = mock.MagicMock()
+        fake_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
+        fake_image_list = mock.MagicMock()
+        fake_image_list.Add.side_effect = [5, 6]
+        fake_bitmap = mock.MagicMock()
+        fake_bitmap.IsOk.return_value = True
+        with mock.patch.object(image_utils, "create_bitmap_button", return_value=fake_button), \
+             mock.patch.object(wx, "Panel", return_value=fake_panel), \
+             mock.patch.object(wx, "ListCtrl", return_value=mock.MagicMock()), \
+             mock.patch.object(wx, "ImageList", return_value=fake_image_list), \
+             mock.patch.object(wx, "BoxSizer", return_value=mock.MagicMock()), \
+             mock.patch.object(wx, "ArtProvider") as art_provider, \
+             mock.patch.object(image_utils.IconManager, "get_bitmap", return_value=fake_bitmap):
+            art_provider.GetBitmap.return_value = mock.MagicMock(IsOk=lambda: True)
+            favorite_panel.build_favorite_panel(owner, parent)
+
+        owner.favorite_list.SetColumnImage.assert_called_once_with(0, 5)
+
+    def test_favorite_panel_preserves_sash_size_when_toggling_position(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_splitter = mock.MagicMock()
+        owner.favorite_splitter.IsSplit.return_value = True
+        owner.favorite_splitter.GetSashPosition.return_value = 440
+        owner.favorite_splitter.GetSize.return_value = types.SimpleNamespace(GetHeight=lambda: 600)
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
+        owner.favorite_panel_above_tree = False
+        owner.favorite_list = mock.MagicMock()
+        owner.favorite_list.GetItemCount.return_value = 0
+        owner.favorite_list.Layout = mock.Mock()
+        owner.tree = mock.MagicMock()
+        owner.save_splitter_positions = mock.Mock()
+        owner.favorite_move_up_btn = mock.MagicMock()
+        owner.favorite_move_down_btn = mock.MagicMock()
+
+        favorite_panel.toggle_favorite_panel_position(owner, True)
+
+        self.assertEqual(owner.favorite_panel_above_tree, True)
+        owner.favorite_splitter.SetSashPosition.assert_called_with(160)
 
     def test_tree_refresh_menu_refreshes_filelist_for_current_folder(self):
         owner = types.SimpleNamespace(

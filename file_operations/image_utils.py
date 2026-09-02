@@ -22,6 +22,9 @@ class IconManager:
         "extract_from_archive": "extract_from_archive.bmp",
         "setup": "setup.bmp",
         "recycle_bin": "recycle_bin.bmp",
+        "favorite": "favorite.bmp",
+        "add_to_favorites": "add_to_favorite.bmp",
+        "remove_from_favorites": "remove_from_favorite.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):
@@ -92,6 +95,22 @@ class IconManager:
         bitmap = self._load_bitmap(icon_path, normalized_size)
         self._bitmap_cache[cache_key] = bitmap
         return bitmap
+
+
+def ensure_owner_icon_manager(owner):
+    """Return the owner's icon manager, creating and caching it when missing."""
+    if owner is None:
+        return None
+
+    icon_manager = getattr(owner, "icon_manager", None)
+    if icon_manager is None or not hasattr(icon_manager, "set_menu_icon2"):
+        try:
+            icon_manager = IconManager()
+        except (AttributeError, FileNotFoundError, OSError, RuntimeError, TypeError):
+            return None
+        owner.icon_manager = icon_manager
+
+    return icon_manager
 
 
 def can_preview_image(path):
@@ -477,59 +496,64 @@ def create_extension_icon_bitmap(ext):
     Tries to fetch the real Windows shell icon first; falls back to
     a coloured square with a two-letter abbreviation.
     """
-    size = 16
-    SHGFI_ICON              = 0x000000100
-    SHGFI_SMALLICON         = 0x000000001
-    SHGFI_USEFILEATTRIBUTES = 0x000000010
-    FILE_ATTRIBUTE_NORMAL   = 0x00000080
-
-    class SHFILEINFOW(ctypes.Structure):
-        _fields_ = [
-            ("hIcon",         ctypes.c_void_p),
-            ("iIcon",         ctypes.c_int),
-            ("dwAttributes",  ctypes.c_uint),
-            ("szDisplayName", ctypes.c_wchar * 260),
-            ("szTypeName",    ctypes.c_wchar * 80),
-        ]
-
     try:
-        shfi = SHFILEINFOW()
-        fake_path = "file" + ext  # e.g. "file.pdf"
-        flags = SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES
-        ret = ctypes.windll.shell32.SHGetFileInfoW(
-            fake_path, FILE_ATTRIBUTE_NORMAL,
-            ctypes.byref(shfi), ctypes.sizeof(shfi), flags
-        )
-        if ret and shfi.hIcon:
-            bmp = hicon_to_bitmap(shfi.hIcon, size)
-            ctypes.windll.user32.DestroyIcon(ctypes.c_void_p(shfi.hIcon))
-            if bmp and bmp.IsOk():
-                return bmp
+        size = 16
+        SHGFI_ICON = 0x000000100
+        SHGFI_SMALLICON = 0x000000001
+        SHGFI_USEFILEATTRIBUTES = 0x000000010
+        FILE_ATTRIBUTE_NORMAL = 0x00000080
+
+        class SHFILEINFOW(ctypes.Structure):
+            _fields_ = [
+                ("hIcon", ctypes.c_void_p),
+                ("iIcon", ctypes.c_int),
+                ("dwAttributes", ctypes.c_uint),
+                ("szDisplayName", ctypes.c_wchar * 260),
+                ("szTypeName", ctypes.c_wchar * 80),
+            ]
+
+        try:
+            shfi = SHFILEINFOW()
+            fake_path = "file" + ext  # e.g. "file.pdf"
+            flags = SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES
+            ret = ctypes.windll.shell32.SHGetFileInfoW(
+                fake_path,
+                FILE_ATTRIBUTE_NORMAL,
+                ctypes.byref(shfi),
+                ctypes.sizeof(shfi),
+                flags,
+            )
+            if ret and shfi.hIcon:
+                bmp = hicon_to_bitmap(shfi.hIcon, size)
+                ctypes.windll.user32.DestroyIcon(ctypes.c_void_p(shfi.hIcon))
+                if bmp and bmp.IsOk():
+                    return bmp
+        except Exception:
+            pass
+
+        bmp = wx.Bitmap(size, size, depth=32)
+        bmp.UseAlpha()
+
+        dc = wx.MemoryDC(bmp)
+        dc.SetBackground(wx.Brush(wx.Colour(0, 0, 0, 0)))
+        dc.Clear()
+
+        color = get_extension_color(ext)
+        dc.SetBrush(wx.Brush(color))
+        dc.SetPen(wx.Pen(color))
+        dc.DrawRoundedRectangle(0, 0, size, size, 3)
+
+        text = (ext[1:3] if ext.startswith(".") else ext[:2]).upper() or "?"
+        font = wx.Font(7, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        dc.SetFont(font)
+        dc.SetTextForeground(wx.Colour(255, 255, 255))
+        tw, th = dc.GetTextExtent(text)
+        dc.DrawText(text, max(0, (size - tw) // 2), max(0, (size - th) // 2))
+
+        dc.SelectObject(wx.NullBitmap)
+        return bmp
     except Exception:
-        pass
-
-    # --- fallback: coloured square with two-letter abbreviation ---
-    bmp = wx.Bitmap(size, size, depth=32)
-    bmp.UseAlpha()
-
-    dc = wx.MemoryDC(bmp)
-    dc.SetBackground(wx.Brush(wx.Colour(0, 0, 0, 0)))
-    dc.Clear()
-
-    color = get_extension_color(ext)
-    dc.SetBrush(wx.Brush(color))
-    dc.SetPen(wx.Pen(color))
-    dc.DrawRoundedRectangle(0, 0, size, size, 3)
-
-    text = (ext[1:3] if ext.startswith(".") else ext[:2]).upper() or "?"
-    font = wx.Font(7, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-    dc.SetFont(font)
-    dc.SetTextForeground(wx.Colour(255, 255, 255))
-    tw, th = dc.GetTextExtent(text)
-    dc.DrawText(text, max(0, (size - tw) // 2), max(0, (size - th) // 2))
-
-    dc.SelectObject(wx.NullBitmap)
-    return bmp
+        return None
 
 
 def init_list_images(owner):
@@ -556,7 +580,28 @@ def init_list_images(owner):
     owner.list.SetImageList(owner.list_images, wx.IMAGE_LIST_SMALL)
 
 
+def _ensure_list_image_cache(owner):
+    if not hasattr(owner, "list_icon_cache") or owner.list_icon_cache is None:
+        owner.list_icon_cache = {}
+    if not hasattr(owner, "list_images") or owner.list_images is None:
+        try:
+            owner.list_images = wx.ImageList(16, 16)
+            if hasattr(owner, "list") and owner.list is not None:
+                owner.list.SetImageList(owner.list_images, wx.IMAGE_LIST_SMALL)
+        except Exception:
+            owner.list_images = None
+
+
 def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
+    _ensure_list_image_cache(owner)
+
+    def _add_bitmap_to_cache(cache_key, bmp):
+        if owner.list_images is None:
+            owner.list_icon_cache[cache_key] = 0
+            return 0
+        owner.list_icon_cache[cache_key] = owner.list_images.Add(bmp)
+        return owner.list_icon_cache[cache_key]
+
     if is_dir:
         cache_key = "__folder__|hidden" if is_hidden_item else "__folder__"
         cached = owner.list_icon_cache.get(cache_key)
@@ -568,10 +613,11 @@ def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
             folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
         if not folder_bmp.IsOk():
             folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_TOOLBAR, (16, 16))
-        if is_hidden_item:
+        if is_hidden_item and folder_bmp is not None:
             folder_bmp = Hidden_Image(folder_bmp.ConvertToImage()).ConvertToBitmap()
-        owner.list_icon_cache[cache_key] = owner.list_images.Add(folder_bmp)
-        return owner.list_icon_cache[cache_key]
+        if folder_bmp is None:
+            return 0
+        return _add_bitmap_to_cache(cache_key, folder_bmp)
 
     ext = os.path.splitext(path)[1].lower()
     if not ext:
@@ -585,10 +631,11 @@ def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
             file_bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
         if not file_bmp.IsOk():
             file_bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_TOOLBAR, (16, 16))
-        if is_hidden_item:
+        if is_hidden_item and file_bmp is not None:
             file_bmp = Hidden_Image(file_bmp.ConvertToImage()).ConvertToBitmap()
-        owner.list_icon_cache[cache_key] = owner.list_images.Add(file_bmp)
-        return owner.list_icon_cache[cache_key]
+        if file_bmp is None:
+            return 0
+        return _add_bitmap_to_cache(cache_key, file_bmp)
 
     cache_key = f"{ext}|hidden" if is_hidden_item else ext
     cached = owner.list_icon_cache.get(cache_key)
@@ -596,7 +643,8 @@ def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
         return cached
 
     bmp = create_extension_icon_bitmap(ext)
+    if bmp is None:
+        return 0
     if is_hidden_item:
         bmp = Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap()
-    owner.list_icon_cache[cache_key] = owner.list_images.Add(bmp)
-    return owner.list_icon_cache[cache_key]
+    return _add_bitmap_to_cache(cache_key, bmp)

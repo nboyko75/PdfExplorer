@@ -449,7 +449,7 @@ def on_right_click(owner, event):
     extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
     extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
 
-    icon_manager = getattr(owner, "icon_manager", None)
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
     refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
     if refresh_bmp.IsOk():
         refresh_item.SetBitmap(refresh_bmp)
