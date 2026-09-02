@@ -25,6 +25,9 @@ class IconManager:
         "favorite": "favorite.bmp",
         "add_to_favorites": "add_to_favorite.bmp",
         "remove_from_favorites": "remove_from_favorite.bmp",
+        "remove_from_favorite": "remove_from_favorite.bmp",
+        "double_up": "double_up.bmp",
+        "double_down": "double_down.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):
@@ -54,10 +57,13 @@ class IconManager:
             item.SetBitmap(bitmap)
 
     def set_menu_icon2(self, item, icon_name, bitmap=None):
-        if bitmap is None:
-            bitmap = self.get_bitmap(icon_name, size=(16, 16))
-        if bitmap.IsOk():
-            item.SetBitmap(bitmap)  
+        try:
+            if bitmap is None:
+                bitmap = self.get_bitmap(icon_name, size=(16, 16))
+            if bitmap is not None and bitmap.IsOk():
+                item.SetBitmap(bitmap)
+        except (KeyError, AttributeError, RuntimeError, TypeError, OSError):
+            pass
 
     @staticmethod
     def _normalize_size(size):

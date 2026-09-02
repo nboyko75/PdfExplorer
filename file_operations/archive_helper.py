@@ -248,6 +248,8 @@ def _archive_selected_paths(owner, paths):
         tr("context_add_to_archive"),
         value=default_value,
     )
+    if hasattr(dialog, "SetOKCancelLabels"):
+        dialog.SetOKCancelLabels(tr("ok_button"), tr("cancel_button"))
     if dialog.ShowModal() != wx.ID_OK:
         dialog.Destroy()
         return False

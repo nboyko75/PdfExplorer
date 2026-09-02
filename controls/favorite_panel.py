@@ -7,17 +7,21 @@ import file_operations.image_utils as image_utils
 
 
 def build_favorite_panel(owner, parent):
+    owner.icon_manager = image_utils.ensure_owner_icon_manager(owner)
+
     owner.favorite_panel = wx.Panel(parent)
-    owner.favorite_move_up_btn = image_utils.create_bitmap_button(
+    owner.favorite_move_up_btn = image_utils.create_bitmap_button2(
         owner.favorite_panel,
-        wx.ART_GO_UP,
+        owner.icon_manager,
+        "double_up",
         tr("favorite_move_up_button"),
         icon_size=(16, 16),
         button_size=(24, 24),
     )
-    owner.favorite_move_down_btn = image_utils.create_bitmap_button(
+    owner.favorite_move_down_btn = image_utils.create_bitmap_button2(
         owner.favorite_panel,
-        wx.ART_GO_DOWN,
+        owner.icon_manager,
+        "double_down",
         tr("favorite_move_down_button"),
         icon_size=(16, 16),
         button_size=(24, 24),
@@ -26,7 +30,30 @@ def build_favorite_panel(owner, parent):
     owner.favorite_list.SetMinSize((0, 0))
     owner.favorite_image_list = wx.ImageList(16, 16)
 
-    favorite_header_bitmap = owner.icon_manager.get_bitmap("favorite")
+    owner.favorite_row_move_up_btn = image_utils.create_bitmap_button(
+        owner.favorite_panel,
+        wx.ART_GO_UP,
+        "",
+        icon_size=(16, 16),
+        button_size=(24, 24),
+    )
+    owner.favorite_row_move_down_btn = image_utils.create_bitmap_button(
+        owner.favorite_panel,
+        wx.ART_GO_DOWN,
+        "",
+        icon_size=(16, 16),
+        button_size=(24, 24),
+    )
+    owner.favorite_row_move_up_btn.Hide()
+    owner.favorite_row_move_down_btn.Hide()
+
+    owner.icon_manager = image_utils.ensure_owner_icon_manager(owner)
+    favorite_header_bitmap = None
+    if owner.icon_manager is not None:
+        try:
+            favorite_header_bitmap = owner.icon_manager.get_bitmap("favorite")
+        except (KeyError, AttributeError):
+            favorite_header_bitmap = None
     if favorite_header_bitmap is not None:
         owner.favorite_header_icon_index = owner.favorite_image_list.Add(favorite_header_bitmap)
     else:
@@ -42,17 +69,30 @@ def build_favorite_panel(owner, parent):
     owner.favorite_list.InsertColumn(0, tr("favorite_column_header"), width=200)
     if getattr(owner, "favorite_header_icon_index", -1) >= 0:
         owner.favorite_list.SetColumnImage(0, owner.favorite_header_icon_index)
-    wx.CallAfter(set_column_image_on_left, owner.favorite_list, 0)
-    
+    try:
+        if wx.GetApp() is not None:
+            wx.CallAfter(set_column_image_on_left, owner.favorite_list, 0)
+    except Exception:
+        pass
+
     owner.favorite_list.Bind(wx.EVT_LIST_ITEM_SELECTED, owner.on_favorite_list_select)
     owner.favorite_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, owner.on_favorite_list_activate)
     owner.favorite_list.Bind(wx.EVT_LIST_BEGIN_DRAG, owner.on_favorite_begin_drag)
     owner.favorite_list.Bind(wx.EVT_LEFT_UP, owner.on_favorite_end_drag)
     owner.favorite_list.Bind(wx.EVT_RIGHT_DOWN, owner.on_favorite_right_click)
+    owner.favorite_list.Bind(wx.EVT_LIST_ITEM_SELECTED, lambda event: sync_favorite_row_action_buttons(owner))
+    owner.favorite_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, lambda event: sync_favorite_row_action_buttons(owner))
+
+    favorite_panel_resize_handler = getattr(owner, "on_favorite_panel_resize", None)
+    if favorite_panel_resize_handler is None:
+        favorite_panel_resize_handler = lambda event: on_favorite_panel_resize(owner, event)
+    owner.favorite_panel.Bind(wx.EVT_SIZE, favorite_panel_resize_handler)
 
     favorite_header = wx.BoxSizer(wx.HORIZONTAL)
     favorite_header.Add(owner.favorite_move_up_btn, 0, wx.RIGHT, 3)
     favorite_header.Add(owner.favorite_move_down_btn, 0, wx.RIGHT, 3)
+    favorite_header.Add(owner.favorite_row_move_up_btn, 0, wx.RIGHT, 3)
+    favorite_header.Add(owner.favorite_row_move_down_btn, 0, wx.RIGHT, 3)
 
     favorite_sizer = wx.BoxSizer(wx.VERTICAL)
     favorite_sizer.Add(favorite_header, 0, wx.EXPAND | wx.ALL, 4)
@@ -62,8 +102,48 @@ def build_favorite_panel(owner, parent):
     owner.favorite_move_up_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_up)
     owner.favorite_move_down_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_down)
 
+    row_move_up_handler = getattr(owner, "on_favorite_row_move_up", None)
+    if row_move_up_handler is None:
+        row_move_up_handler = lambda event: on_favorite_row_move_up(owner, event)
+    row_move_down_handler = getattr(owner, "on_favorite_row_move_down", None)
+    if row_move_down_handler is None:
+        row_move_down_handler = lambda event: on_favorite_row_move_down(owner, event)
+    owner.favorite_row_move_up_btn.Bind(wx.EVT_BUTTON, row_move_up_handler)
+    owner.favorite_row_move_down_btn.Bind(wx.EVT_BUTTON, row_move_down_handler)
+
     refresh_favorite_list(owner)
     return owner.favorite_panel
+
+
+def sync_favorite_row_action_buttons(owner):
+    if owner.favorite_list is None:
+        return
+    up_btn = getattr(owner, "favorite_row_move_up_btn", None)
+    down_btn = getattr(owner, "favorite_row_move_down_btn", None)
+    if up_btn is None or down_btn is None:
+        return
+
+    selected_index = owner.favorite_list.GetFirstSelected()
+    if selected_index == wx.NOT_FOUND:
+        up_btn.Hide()
+        down_btn.Hide()
+        return
+
+    try:
+        raw_item_count = owner.favorite_list.GetItemCount()
+        if isinstance(raw_item_count, int):
+            item_count = raw_item_count
+        else:
+            raise TypeError
+    except (AttributeError, TypeError, ValueError):
+        item_count = len(getattr(owner, "favorite_paths", []))
+    if item_count <= 0:
+        item_count = max(selected_index + 1, 1)
+
+    up_btn.Show(selected_index > 0)
+    down_btn.Show(selected_index < item_count - 1)
+    if hasattr(owner.favorite_panel, "GetSizer"):
+        owner.favorite_panel.GetSizer().Layout()
 
 
 def _apply_favorite_list_layout(owner):
@@ -75,6 +155,16 @@ def _apply_favorite_list_layout(owner):
         owner.favorite_list.SetColumnWidth(0, max(80, panel_width - 16))
     if hasattr(owner.favorite_list, "Layout"):
         owner.favorite_list.Layout()
+
+
+def on_favorite_panel_resize(owner, event):
+    _apply_favorite_list_layout(owner)
+    sync_favorite_row_action_buttons(owner)
+    if event is not None:
+        try:
+            event.Skip()
+        except Exception:
+            pass
 
 
 def refresh_favorite_list(owner):
@@ -176,6 +266,66 @@ def on_favorite_end_drag(owner, event):
         del owner._favorite_drag_source_index
 
 
+def on_favorite_key_down(owner, event):
+    if owner.favorite_list is None or event is None:
+        return
+
+    key_code = event.GetKeyCode()
+    if key_code != wx.WXK_DELETE:
+        return
+
+    selected_index = owner.favorite_list.GetFirstSelected() if owner.favorite_list is not None else wx.NOT_FOUND
+    if selected_index == wx.NOT_FOUND or not (0 <= selected_index < len(owner.favorite_paths)):
+        return
+
+    owner._remove_favorite_path(owner.favorite_paths[selected_index])
+    event.Skip()
+
+
+def on_favorite_row_move_up(owner, _):
+    if owner.favorite_list is None:
+        return
+    selected_index = owner.favorite_list.GetFirstSelected()
+    if selected_index == wx.NOT_FOUND or selected_index <= 0:
+        return
+    try:
+        raw_item_count = owner.favorite_list.GetItemCount()
+        if isinstance(raw_item_count, int):
+            item_count = raw_item_count
+        else:
+            raise TypeError
+    except (AttributeError, TypeError, ValueError):
+        item_count = len(getattr(owner, "favorite_paths", []))
+    if item_count <= 0:
+        item_count = selected_index + 1
+    if selected_index >= item_count:
+        return
+    owner._reorder_favorite_paths(selected_index, selected_index - 1)
+    sync_favorite_row_action_buttons(owner)
+
+
+def on_favorite_row_move_down(owner, _):
+    if owner.favorite_list is None:
+        return
+    selected_index = owner.favorite_list.GetFirstSelected()
+    if selected_index == wx.NOT_FOUND:
+        return
+    try:
+        raw_item_count = owner.favorite_list.GetItemCount()
+        if isinstance(raw_item_count, int):
+            item_count = raw_item_count
+        else:
+            raise TypeError
+    except (AttributeError, TypeError, ValueError):
+        item_count = len(getattr(owner, "favorite_paths", []))
+    if item_count <= 0:
+        item_count = selected_index + 1
+    if selected_index >= item_count - 1:
+        return
+    owner._reorder_favorite_paths(selected_index, selected_index + 1)
+    sync_favorite_row_action_buttons(owner)
+
+
 def on_favorite_right_click(owner, event):
     if owner.favorite_list is None:
         return
@@ -187,7 +337,9 @@ def on_favorite_right_click(owner, event):
         pass
     menu = wx.Menu()
     remove_item = menu.Append(-1, f"{tr('favorite_remove_menu_item')}\tDel")
-    owner.icon_manager.set_menu_icon2(remove_item, "remove_from_favorites")
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
+    if icon_manager is not None:
+        icon_manager.set_menu_icon2(remove_item, "remove_from_favorite")
     remove_item.Enable(owner.favorite_list.GetFirstSelected() != wx.NOT_FOUND)
     owner.Bind(wx.EVT_MENU, owner.on_remove_favorite_from_context, remove_item)
     owner.favorite_list.PopupMenu(menu)

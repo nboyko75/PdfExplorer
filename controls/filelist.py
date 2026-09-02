@@ -702,6 +702,8 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
 
 def _prompt_rename_name(owner, current_name):
     dialog = wx.TextEntryDialog(owner, tr("context_rename"), tr("context_rename"), value=current_name)
+    if hasattr(dialog, "SetOKCancelLabels"):
+        dialog.SetOKCancelLabels(tr("ok_button"), tr("cancel_button"))
     result = dialog.ShowModal()
     new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
     dialog.Destroy()
@@ -870,6 +872,8 @@ def create_new_folder(owner, target_path=None):
 
     default_name = _build_new_folder_name(target_dir, tr("context_new_folder"))
     dialog = wx.TextEntryDialog(owner, tr("context_new_folder"), tr("context_new_folder"), value=default_name)
+    if hasattr(dialog, "SetOKCancelLabels"):
+        dialog.SetOKCancelLabels(tr("ok_button"), tr("cancel_button"))
     result = dialog.ShowModal()
     folder_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
     dialog.Destroy()

@@ -1078,6 +1078,31 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_refresh.assert_not_called()
         mocked_select_list.assert_called_once_with(owner, expected_new)
 
+    def test_rename_dialog_uses_localized_ok_and_cancel_labels(self):
+        filelist = __import__("controls.filelist", fromlist=["_prompt_rename_name", "create_new_folder"])
+        owner = types.SimpleNamespace()
+
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = filelist.wx.ID_OK
+        dialog.GetValue.return_value = "new_name"
+
+        with mock.patch.object(filelist.wx, "TextEntryDialog", return_value=dialog) as mocked_dialog:
+            filelist._prompt_rename_name(owner, "old_name")
+
+        mocked_dialog.assert_called_once()
+        dialog.SetOKCancelLabels.assert_called_once_with(filelist.tr("ok_button"), filelist.tr("cancel_button"))
+
+        dialog2 = mock.MagicMock()
+        dialog2.ShowModal.return_value = filelist.wx.ID_OK
+        dialog2.GetValue.return_value = "new_folder"
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "C:/current")
+
+        with mock.patch.object(filelist.wx, "TextEntryDialog", return_value=dialog2) as mocked_dialog2:
+            filelist.create_new_folder(owner)
+
+        mocked_dialog2.assert_called_once()
+        dialog2.SetOKCancelLabels.assert_called_once_with(filelist.tr("ok_button"), filelist.tr("cancel_button"))
+
     def test_tree_rename_uses_selected_tree_path_without_parent_refresh(self):
         filelist = __import__("controls.filelist", fromlist=["on_tree_rename", "_refresh_after_fs_change"])
         owner = types.SimpleNamespace(tree=mock.MagicMock())

@@ -512,6 +512,12 @@ class FileExplorer(wx.Frame):
         moved_path = self.favorite_paths.pop(from_index)
         self.favorite_paths.insert(to_index, moved_path)
         self._refresh_favorite_list()
+        if getattr(self, "favorite_list", None) is not None:
+            try:
+                self.favorite_list.Select(to_index)
+                self.favorite_list.EnsureVisible(to_index)
+            except Exception:
+                pass
         self.save_splitter_positions()
         return True
 
@@ -532,6 +538,12 @@ class FileExplorer(wx.Frame):
 
     def on_move_favorite_down(self, _):
         self._toggle_favorite_panel_position(False)
+
+    def on_favorite_row_move_up(self, _):
+        favorite_panel.on_favorite_row_move_up(self, _)
+
+    def on_favorite_row_move_down(self, _):
+        favorite_panel.on_favorite_row_move_down(self, _)
 
     def on_favorite_list_select(self, event):
         index = event.GetIndex()

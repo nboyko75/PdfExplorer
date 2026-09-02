@@ -1690,6 +1690,8 @@ def _prompt_preview_save_as_path(owner):
 
     current_name = os.path.basename(current_path)
     dialog = wx.TextEntryDialog(owner, "Enter new file name:", tr("preview_save_as_button"), value=current_name)
+    if hasattr(dialog, "SetOKCancelLabels"):
+        dialog.SetOKCancelLabels(tr("ok_button"), tr("cancel_button"))
     result = dialog.ShowModal()
     new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
     dialog.Destroy()

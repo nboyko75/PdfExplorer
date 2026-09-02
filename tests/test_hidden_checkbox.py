@@ -76,15 +76,42 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.favorite_list.SetColumnWidth.assert_called_with(0, 384)
         owner.favorite_list.Layout.assert_called_once()
 
+    def test_favorite_panel_resize_updates_column_width(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_list = mock.MagicMock()
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 320, GetHeight=lambda: 200)
+
+        favorite_panel.on_favorite_panel_resize(owner, mock.MagicMock())
+
+        owner.favorite_list.SetColumnWidth.assert_called_with(0, 304)
+
+    def test_favorite_row_move_controls_reorder_selected_item(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = ["C:/Temp/a", "C:/Temp/b", "C:/Temp/c"]
+        owner.favorite_list = mock.MagicMock()
+        owner.favorite_list.GetFirstSelected.return_value = 1
+        owner._reorder_favorite_paths = mock.Mock(return_value=True)
+
+        favorite_panel.on_favorite_row_move_down(owner, None)
+        owner._reorder_favorite_paths.assert_called_once_with(1, 2)
+
+        owner._reorder_favorite_paths.reset_mock()
+        favorite_panel.on_favorite_row_move_up(owner, None)
+        owner._reorder_favorite_paths.assert_called_once_with(1, 0)
+
     def test_favorite_drag_move_reorders_paths(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.favorite_paths = ["C:/Temp/a", "C:/Temp/b", "C:/Temp/c"]
+        owner.favorite_list = mock.MagicMock()
         owner._refresh_favorite_list = mock.Mock()
         owner.save_splitter_positions = mock.Mock()
 
         owner._reorder_favorite_paths(0, 2)
 
         self.assertEqual(owner.favorite_paths, ["C:/Temp/b", "C:/Temp/c", "C:/Temp/a"])
+        owner.favorite_list.Select.assert_called_once_with(2)
+        owner.favorite_list.EnsureVisible.assert_called_once_with(2)
         owner.save_splitter_positions.assert_called_once_with()
 
     def test_favorite_header_uses_favorites_icon(self):
@@ -111,6 +138,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_bitmap = mock.MagicMock()
         fake_bitmap.IsOk.return_value = True
         with mock.patch.object(image_utils, "create_bitmap_button", return_value=fake_button), \
+             mock.patch.object(image_utils, "create_bitmap_button2", return_value=fake_button), \
              mock.patch.object(wx, "Panel", return_value=fake_panel), \
              mock.patch.object(wx, "ListCtrl", return_value=mock.MagicMock()), \
              mock.patch.object(wx, "ImageList", return_value=fake_image_list), \
