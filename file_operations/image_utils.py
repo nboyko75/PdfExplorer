@@ -23,6 +23,8 @@ class IconManager:
         "setup": "setup.bmp",
         "recycle_bin": "recycle_bin.bmp",
         "favorite": "favorite.bmp",
+        "standard_shortcuts": "standard_shortcuts.bmp",
+        "standard_shortcuts_pressed": "standard_shortcuts_pressed.bmp",
         "add_to_favorites": "add_to_favorite.bmp",
         "remove_from_favorites": "remove_from_favorite.bmp",
         "remove_from_favorite": "remove_from_favorite.bmp",

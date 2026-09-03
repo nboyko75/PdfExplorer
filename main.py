@@ -76,6 +76,8 @@ class FileExplorer(wx.Frame):
         self.favorite_splitter = None
         self.favorite_panel = None
         self.favorite_list = None
+        self.favorite_content_splitter = None
+        self.favorite_standard_shortcuts_splitter_sash = int(settings.get("favorite_standard_shortcuts_splitter_sash", 120))
         self.favorite_panel_above_tree = bool(settings.get("favorite_panel_above_tree", False))
         self.favorite_paths = []
         for favorite_path in settings.get("favorite_paths", []):
@@ -83,6 +85,21 @@ class FileExplorer(wx.Frame):
                 normalized = os.path.normpath(favorite_path)
                 if normalized not in self.favorite_paths:
                     self.favorite_paths.append(normalized)
+        self.standard_shortcuts_visible = bool(settings.get("standard_shortcuts_visible", False))
+        self.standard_shortcuts_visibility = {
+            "desktop": True,
+            "documents": True,
+            "download": False,
+            "images": False,
+            "music": False,
+            "video": False,
+            "recycle_bin": True,
+        }
+        saved_shortcuts = settings.get("standard_shortcuts_visibility")
+        if isinstance(saved_shortcuts, dict):
+            for key, value in saved_shortcuts.items():
+                if key in self.standard_shortcuts_visibility:
+                    self.standard_shortcuts_visibility[key] = bool(value)
         saved_page_view_mode = str(settings.get("pdf_page_view_mode", "1_page_wide"))
         if saved_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
             saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_TALL
@@ -527,6 +544,9 @@ class FileExplorer(wx.Frame):
     def _refresh_favorite_list(self):
         favorite_panel.refresh_favorite_list(self)
 
+    def _refresh_standard_shortcuts_list(self):
+        favorite_panel.refresh_standard_shortcuts_list(self)
+
     def _apply_favorite_panel_position(self, sash_position=None):
         favorite_panel.apply_favorite_panel_position(self, sash_position=sash_position)
 
@@ -565,6 +585,15 @@ class FileExplorer(wx.Frame):
 
     def on_favorite_right_click(self, event):
         favorite_panel.on_favorite_right_click(self, event)
+
+    def on_standard_shortcut_right_click(self, event):
+        favorite_panel.on_standard_shortcut_right_click(self, event)
+
+    def on_standard_shortcut_list_activate(self, event):
+        favorite_panel.on_standard_shortcut_list_activate(self, event)
+
+    def on_toggle_standard_shortcuts(self, _):
+        favorite_panel.toggle_standard_shortcuts_panel(self)
 
     def on_remove_favorite_from_context(self, _):
         favorite_panel.on_remove_favorite_from_context(self, _)
@@ -610,6 +639,11 @@ class FileExplorer(wx.Frame):
         if self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
             favorite_sash = int(self.favorite_splitter.GetSashPosition())
 
+        if self.favorite_content_splitter is not None and self.favorite_content_splitter.IsSplit():
+            favorite_standard_shortcuts_sash = int(self.favorite_content_splitter.GetSashPosition())
+        else:
+            favorite_standard_shortcuts_sash = self.favorite_standard_shortcuts_splitter_sash
+
         persisted_page_view_mode = self.pdf_page_view_mode
         if persisted_page_view_mode == file_preview.PAGE_VIEW_MODE_MANUAL:
             persisted_page_view_mode = getattr(
@@ -625,8 +659,11 @@ class FileExplorer(wx.Frame):
                 "main_splitter_sash": main_sash,
                 "preview_splitter_sash": preview_sash,
                 "favorite_splitter_sash": favorite_sash,
+                "favorite_standard_shortcuts_splitter_sash": int(favorite_standard_shortcuts_sash),
                 "favorite_panel_above_tree": bool(self.favorite_panel_above_tree),
                 "favorite_paths": list(self.favorite_paths),
+                "standard_shortcuts_visible": bool(self.standard_shortcuts_visible),
+                "standard_shortcuts_visibility": dict(self.standard_shortcuts_visibility),
                 "pdf_page_view_mode": persisted_page_view_mode,
             }
         )
@@ -645,12 +682,20 @@ class FileExplorer(wx.Frame):
 
         favorite_sash = settings.get("favorite_splitter_sash")
         favorite_above_tree = bool(settings.get("favorite_panel_above_tree", False))
+        favorite_standard_shortcuts_sash = settings.get("favorite_standard_shortcuts_splitter_sash")
+        if isinstance(favorite_standard_shortcuts_sash, (int, float)):
+            self.favorite_standard_shortcuts_splitter_sash = int(favorite_standard_shortcuts_sash)
+        saved_standard_shortcuts_visible = settings.get("standard_shortcuts_visible", False)
+        if hasattr(self, "standard_shortcuts_visible"):
+            self.standard_shortcuts_visible = bool(saved_standard_shortcuts_visible)
         if favorite_sash is not None and self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
             self.favorite_panel_above_tree = favorite_above_tree
             self._apply_favorite_panel_position(sash_position=int(favorite_sash))
         elif self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
             self.favorite_panel_above_tree = favorite_above_tree
             self._apply_favorite_panel_position()
+        if self.favorite_content_splitter is not None and self.favorite_content_splitter.IsSplit():
+            self.favorite_content_splitter.SetSashPosition(max(40, int(self.favorite_standard_shortcuts_splitter_sash)))
 
     def on_close(self, event):
         unsaved_pdf_paths = get_unsaved_pdf_paths()

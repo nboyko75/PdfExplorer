@@ -86,6 +86,18 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
         owner.favorite_list.SetColumnWidth.assert_called_with(0, 304)
 
+    def test_standard_shortcuts_column_stretches_to_full_panel_width(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_panel = mock.MagicMock()
+        owner.standard_shortcuts_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 320, GetHeight=lambda: 200)
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSizer.return_value = mock.MagicMock()
+
+        favorite_panel._apply_standard_shortcuts_layout(owner)
+
+        owner.standard_shortcuts_list.SetColumnWidth.assert_called_with(0, 304)
+
     def test_favorite_row_move_controls_reorder_selected_item(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.favorite_paths = ["C:/Temp/a", "C:/Temp/b", "C:/Temp/c"]
@@ -134,12 +146,13 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_panel = mock.MagicMock()
         fake_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
         fake_image_list = mock.MagicMock()
-        fake_image_list.Add.side_effect = [5, 6]
+        fake_image_list.Add.side_effect = [5, 6, 7]
         fake_bitmap = mock.MagicMock()
         fake_bitmap.IsOk.return_value = True
         with mock.patch.object(image_utils, "create_bitmap_button", return_value=fake_button), \
              mock.patch.object(image_utils, "create_bitmap_button2", return_value=fake_button), \
              mock.patch.object(wx, "Panel", return_value=fake_panel), \
+             mock.patch.object(wx, "SplitterWindow", return_value=mock.MagicMock()), \
              mock.patch.object(wx, "ListCtrl", return_value=mock.MagicMock()), \
              mock.patch.object(wx, "ImageList", return_value=fake_image_list), \
              mock.patch.object(wx, "BoxSizer", return_value=mock.MagicMock()), \
@@ -148,7 +161,9 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             art_provider.GetBitmap.return_value = mock.MagicMock(IsOk=lambda: True)
             favorite_panel.build_favorite_panel(owner, parent)
 
-        owner.favorite_list.SetColumnImage.assert_called_once_with(0, 5)
+        header_calls = owner.favorite_list.SetColumnImage.call_args_list
+        self.assertEqual(header_calls[0], mock.call(0, 5))
+        self.assertEqual(header_calls[1], mock.call(0, 6))
 
     def test_favorite_panel_preserves_sash_size_when_toggling_position(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
@@ -171,6 +186,224 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
         self.assertEqual(owner.favorite_panel_above_tree, True)
         owner.favorite_splitter.SetSashPosition.assert_called_with(160)
+
+    def test_standard_shortcuts_toggle_uses_visible_state_on_first_press(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visible = False
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_toggle_btn = mock.MagicMock()
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSizer.return_value = mock.MagicMock()
+        owner.favorite_content_splitter = mock.MagicMock()
+        owner.favorite_content_splitter.IsSplit.return_value = True
+        owner.favorite_content_splitter.GetSashPosition.return_value = 120
+        owner.save_splitter_positions = mock.Mock()
+
+        favorite_panel.toggle_standard_shortcuts_panel(owner)
+
+        self.assertTrue(owner.standard_shortcuts_visible)
+        owner.standard_shortcuts_list.Show.assert_called_once_with(True)
+
+    def test_standard_shortcuts_toggle_hides_list_when_visible(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visible = True
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_toggle_btn = mock.MagicMock()
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSizer.return_value = mock.MagicMock()
+        owner.favorite_content_splitter = mock.MagicMock()
+        owner.favorite_content_splitter.IsSplit.return_value = True
+        owner.favorite_content_splitter.GetSashPosition.return_value = 120
+        owner.save_splitter_positions = mock.Mock()
+
+        favorite_panel.toggle_standard_shortcuts_panel(owner)
+
+        self.assertFalse(owner.standard_shortcuts_visible)
+        owner.standard_shortcuts_list.Hide.assert_called_once_with()
+        owner.standard_shortcuts_list.Disable.assert_called_once_with()
+        owner.favorite_content_splitter.Unsplit.assert_called_once_with(owner.standard_shortcuts_list)
+
+    def test_favorite_content_splitter_owns_its_list_panels(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = []
+        owner.on_favorite_list_select = mock.Mock()
+        owner.on_favorite_list_activate = mock.Mock()
+        owner.on_favorite_begin_drag = mock.Mock()
+        owner.on_favorite_end_drag = mock.Mock()
+        owner.on_favorite_right_click = mock.Mock()
+        owner.on_move_favorite_up = mock.Mock()
+        owner.on_move_favorite_down = mock.Mock()
+        owner.on_standard_shortcut_list_activate = mock.Mock()
+        owner.on_standard_shortcut_right_click = mock.Mock()
+        panel_mock = mock.MagicMock()
+        panel_mock.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
+        panel_mock.GetSizer.return_value = mock.MagicMock()
+        panel_mock.Bind = mock.Mock()
+        owner.favorite_panel = panel_mock
+        owner.favorite_move_up_btn = mock.MagicMock()
+        owner.favorite_move_down_btn = mock.MagicMock()
+        owner.favorite_row_move_up_btn = mock.MagicMock()
+        owner.favorite_row_move_down_btn = mock.MagicMock()
+        owner.standard_shortcuts_toggle_btn = mock.MagicMock()
+        owner.icon_manager = None
+        owner.save_splitter_positions = mock.Mock()
+        owner.standard_shortcuts_visible = False
+
+        splitter = mock.MagicMock()
+        list_ctrls = [mock.MagicMock(), mock.MagicMock()]
+        list_ctrl_factory = mock.Mock(side_effect=list_ctrls)
+        fake_image_list = mock.MagicMock()
+        fake_image_list.Add.side_effect = [5, 6]
+        with mock.patch.object(image_utils, "ensure_owner_icon_manager", return_value=mock.MagicMock()), \
+             mock.patch.object(wx, "Panel", return_value=panel_mock), \
+             mock.patch.object(wx, "SplitterWindow", return_value=splitter), \
+             mock.patch.object(wx, "ListCtrl", list_ctrl_factory), \
+             mock.patch.object(wx, "ImageList", return_value=fake_image_list), \
+             mock.patch.object(wx, "ArtProvider") as art_provider, \
+             mock.patch.object(wx, "BoxSizer", return_value=mock.MagicMock()), \
+             mock.patch.object(image_utils, "create_bitmap_button2", return_value=mock.MagicMock()), \
+             mock.patch.object(image_utils, "create_bitmap_button", return_value=mock.MagicMock()):
+            art_provider.GetBitmap.return_value = mock.MagicMock(IsOk=lambda: False)
+            favorite_panel.build_favorite_panel(owner, mock.MagicMock())
+
+        self.assertEqual(list_ctrl_factory.call_args_list[0].args[0], splitter)
+        self.assertEqual(list_ctrl_factory.call_args_list[1].args[0], panel_mock)
+
+    def test_standard_shortcuts_list_uses_its_own_image_list(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_paths = []
+        owner.on_favorite_list_select = mock.Mock()
+        owner.on_favorite_list_activate = mock.Mock()
+        owner.on_favorite_begin_drag = mock.Mock()
+        owner.on_favorite_end_drag = mock.Mock()
+        owner.on_favorite_right_click = mock.Mock()
+        owner.on_move_favorite_up = mock.Mock()
+        owner.on_move_favorite_down = mock.Mock()
+        owner.on_standard_shortcut_list_activate = mock.Mock()
+        owner.on_standard_shortcut_right_click = mock.Mock()
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
+        owner.favorite_panel.GetSizer.return_value = mock.MagicMock()
+        owner.favorite_move_up_btn = mock.MagicMock()
+        owner.favorite_move_down_btn = mock.MagicMock()
+        owner.favorite_row_move_up_btn = mock.MagicMock()
+        owner.favorite_row_move_down_btn = mock.MagicMock()
+        owner.standard_shortcuts_toggle_btn = mock.MagicMock()
+        owner.icon_manager = mock.MagicMock()
+        owner.icon_manager.get_bitmap.return_value = mock.MagicMock(IsOk=lambda: True)
+        owner.standard_shortcuts_visible = False
+        owner.standard_shortcuts_visibility = {}
+        owner.save_splitter_positions = mock.Mock()
+
+        splitter = mock.MagicMock()
+        favorite_list = mock.MagicMock()
+        shortcut_list = mock.MagicMock()
+        image_list = mock.MagicMock()
+        image_list.Add.side_effect = [11, 12, 13]
+        fake_panel = mock.MagicMock()
+        fake_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
+
+        with mock.patch.object(image_utils, "ensure_owner_icon_manager", return_value=owner.icon_manager), \
+             mock.patch.object(wx, "Panel", return_value=fake_panel), \
+             mock.patch.object(wx, "SplitterWindow", return_value=splitter), \
+             mock.patch.object(wx, "ListCtrl", side_effect=[favorite_list, shortcut_list]), \
+             mock.patch.object(wx, "ImageList", return_value=image_list), \
+             mock.patch.object(wx, "ArtProvider") as art_provider, \
+             mock.patch.object(wx, "BoxSizer", return_value=mock.MagicMock()), \
+             mock.patch.object(image_utils, "create_bitmap_button2", return_value=mock.MagicMock()), \
+             mock.patch.object(image_utils, "create_bitmap_button", return_value=mock.MagicMock()):
+            art_provider.GetBitmap.return_value = mock.MagicMock(IsOk=lambda: False)
+            owner.favorite_panel = favorite_panel.build_favorite_panel(owner, mock.MagicMock())
+
+        self.assertIs(owner.standard_shortcuts_image_list, image_list)
+        shortcut_list.SetImageList.assert_called_with(image_list, wx.IMAGE_LIST_SMALL)
+
+    def test_standard_shortcuts_splitter_sash_is_saved_to_config(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_content_splitter = mock.MagicMock()
+        owner.favorite_content_splitter.GetSashPosition.return_value = 156
+        owner.save_splitter_positions = mock.Mock()
+
+        favorite_panel.on_favorite_content_splitter_sash_changed(owner, mock.MagicMock())
+
+        self.assertEqual(owner.favorite_standard_shortcuts_splitter_sash, 156)
+        owner.save_splitter_positions.assert_called_once_with()
+
+    def test_standard_shortcuts_default_visible_items_are_loaded(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visibility = {
+            "desktop": True,
+            "documents": True,
+            "download": False,
+            "images": False,
+            "music": False,
+            "video": False,
+            "recycle_bin": True,
+        }
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_image_list = mock.MagicMock()
+        owner.standard_shortcuts_panel = mock.MagicMock()
+
+        favorite_panel.refresh_standard_shortcuts_list(owner)
+
+        owner.standard_shortcuts_list.DeleteAllItems.assert_called_once_with()
+        self.assertTrue(any(call.args[1] == "Desktop" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+        self.assertTrue(any(call.args[1] == "Documents" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+        self.assertTrue(any(call.args[1] == "Recycle Bin" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+        self.assertFalse(any(call.args[1] == "Downloads" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+
+    def test_standard_shortcuts_rows_use_shell_icons_instead_of_folder_icon(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visibility = {
+            "desktop": True,
+            "documents": True,
+            "download": False,
+            "images": False,
+            "music": False,
+            "video": False,
+            "recycle_bin": True,
+        }
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.favorite_image_list = mock.MagicMock()
+        owner.favorite_image_list.Add.side_effect = [10, 11]
+        owner.standard_shortcuts_image_list = owner.favorite_image_list
+        owner.favorite_folder_icon_index = 99
+
+        fake_bitmap = mock.MagicMock()
+        fake_bitmap.IsOk.return_value = True
+        with mock.patch.object(image_utils, "get_shell_bitmap", return_value=fake_bitmap) as mocked_get_shell_bitmap:
+            favorite_panel.refresh_standard_shortcuts_list(owner)
+
+        self.assertGreaterEqual(mocked_get_shell_bitmap.call_count, 2)
+        self.assertTrue(any(call.args[1] != 99 for call in owner.standard_shortcuts_list.SetItemImage.call_args_list))
+
+    def test_standard_shortcut_context_menu_toggle_keeps_visibility_state(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visibility = {
+            "desktop": True,
+            "documents": True,
+            "download": False,
+            "images": False,
+            "music": False,
+            "video": False,
+            "recycle_bin": True,
+        }
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_list.GetFirstSelected.return_value = 1
+        owner.standard_shortcuts_panel = mock.MagicMock()
+        owner.Bind = mock.Mock()
+        owner.refresh_standard_shortcuts_list = mock.Mock()
+        owner.save_splitter_positions = mock.Mock()
+        fake_menu = mock.MagicMock()
+        fake_item = mock.MagicMock()
+        fake_menu.AppendCheckItem.return_value = fake_item
+
+        with mock.patch.object(wx, "Menu", return_value=fake_menu):
+            favorite_panel.on_standard_shortcut_right_click(owner, mock.MagicMock())
+
+        self.assertTrue(fake_menu.AppendCheckItem.called)
+        self.assertIn("Documents", "".join(str(call.args[1]) for call in fake_menu.AppendCheckItem.call_args_list))
+        self.assertIn("Desktop", "".join(str(call.args[1]) for call in fake_menu.AppendCheckItem.call_args_list))
 
     def test_tree_refresh_menu_refreshes_filelist_for_current_folder(self):
         owner = types.SimpleNamespace(
