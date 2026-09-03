@@ -702,8 +702,16 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
 
 def _prompt_rename_name(owner, current_name):
     dialog = wx.TextEntryDialog(owner, tr("context_rename"), tr("context_rename"), value=current_name)
-    if hasattr(dialog, "SetOKCancelLabels"):
-        dialog.SetOKCancelLabels(tr("ok_button"), tr("cancel_button"))
+
+    ok_button = dialog.FindWindow(wx.ID_OK)
+    if ok_button:
+        ok_button.SetLabel(tr("ok_button"))
+
+    cancel_button = dialog.FindWindow(wx.ID_CANCEL)
+    if cancel_button:
+        cancel_button.SetLabel(tr("cancel_button"))
+
+    dialog.Layout()
     result = dialog.ShowModal()
     new_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
     dialog.Destroy()

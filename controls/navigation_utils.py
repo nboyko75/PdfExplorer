@@ -27,19 +27,30 @@ def open_path(owner, path, add_history=True):
 
     owner.path_box.ChangeValue(path)
     owner.load_folder(path)
+
+    if hasattr(owner, "select_tree_item_by_path"):
+        previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
+        owner._syncing_tree_from_path = True
+        try:
+            owner.select_tree_item_by_path(path)
+        finally:
+            owner._syncing_tree_from_path = previous_syncing
+
     return True
 
 
 def go_back(owner, _):
     if owner.history_index > 0:
+        target_path = owner.history[owner.history_index - 1]
         owner.history_index -= 1
-        owner.open_path(owner.history[owner.history_index], add_history=False)
+        owner.open_path(target_path, add_history=False)
 
 
 def go_forward(owner, _):
     if owner.history_index < len(owner.history) - 1:
+        target_path = owner.history[owner.history_index + 1]
         owner.history_index += 1
-        owner.open_path(owner.history[owner.history_index], add_history=False)
+        owner.open_path(target_path, add_history=False)
 
 
 def load_folder(owner, path):

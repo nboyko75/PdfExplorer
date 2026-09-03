@@ -52,6 +52,8 @@ TRANSLATIONS = {
     "context_cut": "잘라내기",
     "context_paste": "붙여넣기",
     "context_delete": "삭제",
+    "ok_button": "확인",
+    "cancel_button": "취소",
     "scan": "스캔",
     "scan_dialog_title": "문서 스캔",
     "scan_scanner_label": "스캐너",

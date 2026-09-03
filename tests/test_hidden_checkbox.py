@@ -429,6 +429,48 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.open_path.assert_called_once_with(r"D:\Projects\Current", add_history=True)
         owner.select_tree_item_by_path.assert_called_once_with(r"D:\Projects\Current")
 
+    def test_history_navigation_selects_tree_folder_for_back_and_forward(self):
+        nav = __import__("controls.navigation_utils", fromlist=["go_back", "go_forward", "open_path"])
+
+        owner = types.SimpleNamespace(
+            history=[r"C:\\A", r"C:\\B", r"C:\\C"],
+            history_index=2,
+            path_box=types.SimpleNamespace(GetValue=lambda: r"C:\\C", ChangeValue=mock.MagicMock()),
+            load_folder=mock.MagicMock(),
+            confirm_preview_change=mock.MagicMock(return_value=True),
+            select_tree_item_by_path=mock.MagicMock(),
+        )
+
+        nav.go_back(owner, None)
+        owner.select_tree_item_by_path.assert_called_once_with(r"C:\\B")
+        owner.load_folder.assert_called_once_with(r"C:\\B")
+
+        owner.history_index = 0
+        owner.load_folder.reset_mock()
+        owner.select_tree_item_by_path.reset_mock()
+
+        nav.go_forward(owner, None)
+        owner.select_tree_item_by_path.assert_called_once_with(r"C:\\B")
+        owner.load_folder.assert_called_once_with(r"C:\\B")
+
+    def test_open_path_syncs_tree_selection_when_directory_changes(self):
+        nav = __import__("controls.navigation_utils", fromlist=["open_path"])
+
+        owner = types.SimpleNamespace(
+            history=[],
+            history_index=-1,
+            path_box=types.SimpleNamespace(ChangeValue=mock.MagicMock()),
+            load_folder=mock.MagicMock(),
+            confirm_preview_change=mock.MagicMock(return_value=True),
+            select_tree_item_by_path=mock.MagicMock(),
+        )
+
+        result = nav.open_path(owner, r"C:\\Folder", add_history=True)
+
+        self.assertTrue(result)
+        owner.select_tree_item_by_path.assert_called_once_with(r"C:\\Folder")
+        owner.load_folder.assert_called_once_with(r"C:\\Folder")
+
     def test_double_click_expands_selected_folder_in_tree_and_list(self):
         tree = mock.MagicMock()
         tree.IsExpanded.return_value = False

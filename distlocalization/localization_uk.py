@@ -52,6 +52,8 @@ TRANSLATIONS = {
     "context_cut": "Вирізати",
     "context_paste": "Вставити",
     "context_delete": "Видалити назавжди",
+    "ok_button": "OK",
+    "cancel_button": "Скасувати",
     "scan": "Сканувати",
     "scan_dialog_title": "Сканування документів",
     "scan_scanner_label": "Сканер",
