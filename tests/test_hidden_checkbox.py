@@ -372,6 +372,38 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertTrue(any(call.args[1] == "Recycle Bin" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
         self.assertFalse(any(call.args[1] == "Downloads" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
 
+    def test_recycle_bin_standard_shortcut_uses_virtual_shell_path(self):
+        self.assertEqual(favorite_panel._standard_shortcut_path_for_key("recycle_bin"), "shell:RecycleBinFolder")
+
+    def test_load_folder_handles_virtual_recycle_bin_path(self):
+        owner = types.SimpleNamespace(
+            list=mock.MagicMock(),
+            search_box=types.SimpleNamespace(GetValue=lambda: ""),
+            show_hidden=True,
+            list_sort_column=None,
+            list_sort_direction=0,
+            update_list_sort_header_icons=mock.Mock(),
+            update_list_toolbar_buttons=mock.Mock(),
+        )
+        owner.list.GetItemCount.return_value = 0
+        owner.list.InsertItem.side_effect = [0]
+
+        recycled_items = [{
+            "name": "Deleted file.txt",
+            "original_path": "C:/Temp/Deleted file.txt",
+            "recycled_path": "shell:RecycleBinFolder",
+            "deleted_from": "C:/Temp",
+            "deleted_date": None,
+            "size": 2048,
+            "is_dir": False,
+        }]
+
+        with mock.patch("controls.navigation_utils.get_recycle_bin_items", return_value=recycled_items), \
+             mock.patch("controls.navigation_utils.os.listdir", side_effect=AssertionError("shell folder should not use os.listdir")):
+            main.navigation_utils.load_folder(owner, "shell:RecycleBinFolder")
+
+        owner.list.InsertItem.assert_called_once_with(0, "Deleted file.txt", mock.ANY)
+
     def test_standard_shortcuts_rows_use_shell_icons_instead_of_folder_icon(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.standard_shortcuts_visibility = {

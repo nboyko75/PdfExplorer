@@ -3,6 +3,7 @@ from datetime import datetime
 
 import file_operations.image_utils as image_utils
 from common.system import is_hidden
+from file_operations.recycle_bin import RECYCLE_BIN_PATH, get_recycle_bin_items, is_virtual_shell_path
 from localization import tr
 from controls.window_tools import update_settings
 
@@ -18,6 +19,8 @@ def _path_is_directory_like(path):
         return False
     if os.path.isdir(path):
         return True
+    if is_virtual_shell_path(path):
+        return path.lower() == RECYCLE_BIN_PATH.lower() or path.lower().startswith("shell:")
     normalized = os.path.normpath(path)
     return bool(normalized) and (os.path.isabs(path) or normalized.startswith("\\\\") or bool(__import__("re").match(r"^[A-Za-z]:[\\/]", path)))
 
@@ -85,6 +88,99 @@ def go_forward(owner, _):
 def load_folder(owner, path):
     owner.list.DeleteAllItems()
 
+    if is_virtual_shell_path(path):
+        if path.lower() == RECYCLE_BIN_PATH.lower():
+            items = get_recycle_bin_items()
+        else:
+            items = []
+
+        filter_text = owner.search_box.GetValue().lower()
+        row_data = []
+
+        for original_index, item in enumerate(items):
+            name = str(item.get("name") or "")
+            if not name:
+                continue
+            if filter_text and filter_text not in name.lower():
+                continue
+
+            is_dir = bool(item.get("is_dir"))
+            size_value = item.get("size")
+            try:
+                size_kb = int(size_value or 0) // 1024
+            except (TypeError, ValueError):
+                size_kb = None
+            size = f"{size_kb} {tr('file_size_unit_kb')}" if size_kb is not None else ""
+
+            deleted_date = item.get("deleted_date")
+            modified = deleted_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(deleted_date, datetime) else ""
+            modified_ts = deleted_date.timestamp() if isinstance(deleted_date, datetime) else None
+            original_path = item.get("original_path") or item.get("recycled_path") or name
+
+            row_data.append(
+                {
+                    "original_index": original_index,
+                    "name": name,
+                    "name_ci": name.casefold(),
+                    "type": tr("file_type_folder") if is_dir else tr("file_type_file"),
+                    "type_ci": (tr("file_type_folder") if is_dir else tr("file_type_file")).casefold(),
+                    "size": size,
+                    "size_kb": size_kb,
+                    "modified": modified,
+                    "modified_ts": modified_ts,
+                    "is_dir": is_dir,
+                    "image_index": 0,
+                    "full_path": original_path,
+                }
+            )
+
+        sort_column = getattr(owner, "list_sort_column", None)
+        sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
+
+        def _row_sort_key(row):
+            if sort_column == 0:
+                return (row["name_ci"], row["original_index"])
+            if sort_column == 1:
+                return (row["type_ci"], row["name_ci"], row["original_index"])
+            if sort_column == 2:
+                return (
+                    row["size_kb"] is None,
+                    row["size_kb"] if row["size_kb"] is not None else -1,
+                    row["name_ci"],
+                    row["original_index"],
+                )
+            if sort_column == 3:
+                return (
+                    row["modified_ts"] is None,
+                    row["modified_ts"] if row["modified_ts"] is not None else -1,
+                    row["name_ci"],
+                    row["original_index"],
+                )
+            return row["original_index"]
+
+        folders = [row for row in row_data if row["is_dir"]]
+        files = [row for row in row_data if not row["is_dir"]]
+
+        if sort_column is not None and sort_direction in (-1, 1):
+            reverse = sort_direction < 0
+            folders = sorted(folders, key=_row_sort_key, reverse=reverse)
+            files = sorted(files, key=_row_sort_key, reverse=reverse)
+
+        row_data = folders + files
+
+        for row in row_data:
+            item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
+            owner.list.SetItemData(item_index, row["full_path"])
+            owner.list.SetItem(item_index, 1, row["type"])
+            owner.list.SetItem(item_index, 2, row["size"])
+            owner.list.SetItem(item_index, 3, row["modified"])
+
+        if hasattr(owner, "update_list_sort_header_icons"):
+            owner.update_list_sort_header_icons()
+        if hasattr(owner, "update_list_toolbar_buttons"):
+            owner.update_list_toolbar_buttons()
+        return
+
     try:
         items = os.listdir(path)
     except PermissionError:
@@ -142,6 +238,7 @@ def load_folder(owner, path):
                 "modified_ts": modified_ts,
                 "is_dir": is_dir,
                 "image_index": image_index,
+                "full_path": full_path,
             }
         )
 
@@ -181,6 +278,7 @@ def load_folder(owner, path):
 
     for row in row_data:
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
+        owner.list.SetItemData(item_index, row.get("full_path") or os.path.join(path, row["name"]))
         owner.list.SetItem(item_index, 1, row["type"])
         owner.list.SetItem(item_index, 2, row["size"])
         owner.list.SetItem(item_index, 3, row["modified"])

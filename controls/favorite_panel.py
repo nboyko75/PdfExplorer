@@ -4,6 +4,7 @@ import wx
 from controls.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
 from controls.window_tools import set_column_image_on_left, get_windows_special_folder
+from file_operations.recycle_bin import RECYCLE_BIN_PATH
 from localization import tr
 import file_operations.image_utils as image_utils
 
@@ -35,7 +36,7 @@ def _standard_shortcut_path_for_key(key):
         return get_windows_special_folder(folder_key)
 
     if key == "recycle_bin":
-        return ""
+        return RECYCLE_BIN_PATH
 
     return ""
 

@@ -935,6 +935,9 @@ class FileExplorer(wx.Frame):
         if not isinstance(path, str) or not path:
             return False
 
+        if navigation_utils.is_virtual_shell_path(path):
+            return self.open_path(path, add_history=add_history)
+
         normalized_path = os.path.abspath(path)
         if os.path.isdir(normalized_path):
             return self.open_path(normalized_path, add_history=add_history)
