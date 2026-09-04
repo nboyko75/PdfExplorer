@@ -9,3 +9,4 @@ pdf/
 .todo.txt
 *.zip
 pytest_print_check.txt
+failure_output.txt

@@ -271,7 +271,6 @@ def build_favorite_panel(owner, parent):
     owner.favorite_list.Bind(wx.EVT_LIST_ITEM_SELECTED, lambda event: sync_favorite_row_action_buttons(owner))
     owner.favorite_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, lambda event: sync_favorite_row_action_buttons(owner))
     owner.favorite_content_splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, lambda event: on_favorite_content_splitter_sash_changed(owner, event))
-    owner.favorite_content_splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGING, lambda event: on_favorite_content_splitter_sash_changed(owner, event))
 
     favorite_panel_resize_handler = getattr(owner, "on_favorite_panel_resize", None)
     if favorite_panel_resize_handler is None:
@@ -296,7 +295,11 @@ def build_favorite_panel(owner, parent):
     standard_shortcuts_sizer.Add(owner.standard_shortcuts_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
     owner.standard_shortcuts_panel.SetSizer(standard_shortcuts_sizer)
 
-    owner.favorite_content_splitter.SplitHorizontally(owner.favorite_list, owner.standard_shortcuts_panel, getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120))
+    owner.favorite_content_splitter.SplitHorizontally(
+        owner.favorite_list,
+        owner.standard_shortcuts_panel,
+        max(40, min(int(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120)), 400)),
+    )
     if hasattr(owner, "favorite_standard_shortcuts_splitter_sash"):
         owner.favorite_content_splitter.SetSashPosition(max(40, min(int(owner.favorite_standard_shortcuts_splitter_sash), 400)))
     if not owner.standard_shortcuts_visible:
@@ -378,17 +381,10 @@ def _apply_favorite_list_layout(owner):
 def on_favorite_panel_resize(owner, event):
     _apply_favorite_list_layout(owner)
     _apply_standard_shortcuts_layout(owner)
-    if getattr(owner, "favorite_content_splitter", None) is not None and owner.favorite_content_splitter.IsSplit():
-        try:
-            owner.favorite_standard_shortcuts_splitter_sash = int(owner.favorite_content_splitter.GetSashPosition())
-        except Exception:
-            pass
     sync_favorite_row_action_buttons(owner)
+
     if event is not None:
-        try:
-            event.Skip()
-        except Exception:
-            pass
+        event.Skip()
 
 
 def refresh_favorite_list(owner):
@@ -483,17 +479,16 @@ def on_favorite_content_splitter_sash_changed(owner, event):
     splitter = getattr(owner, "favorite_content_splitter", None)
     if splitter is None:
         return
-    try:
-        owner.favorite_standard_shortcuts_splitter_sash = int(splitter.GetSashPosition())
-    except Exception:
-        return
+
+    owner.favorite_standard_shortcuts_splitter_sash = int(
+        splitter.GetSashPosition()
+    )
+
     if hasattr(owner, "save_splitter_positions"):
         owner.save_splitter_positions()
+
     if event is not None:
-        try:
-            event.Skip()
-        except Exception:
-            pass
+        event.Skip()
 
 
 def toggle_standard_shortcuts_panel(owner):
@@ -588,8 +583,6 @@ def _toggle_standard_shortcut_visibility(owner, key):
     visibility[key] = not current
     owner.standard_shortcuts_visibility = visibility
     refresh_standard_shortcuts_list(owner)
-    if hasattr(owner, "save_splitter_positions"):
-        owner.save_splitter_positions()
 
 
 def apply_favorite_panel_position(owner, sash_position=None):
@@ -600,15 +593,15 @@ def apply_favorite_panel_position(owner, sash_position=None):
 
     if sash_position is None:
         try:
-            current_sash = owner.favorite_splitter.GetSashPosition()
+            current_sash = int(owner.favorite_splitter.GetSashPosition())
         except Exception:
             current_sash = 180
         sash_position = current_sash
 
     if owner.favorite_panel_above_tree:
-        owner.favorite_splitter.SplitHorizontally(owner.favorite_panel, owner.tree, sash_position)
+        owner.favorite_splitter.SplitHorizontally(owner.favorite_panel, owner.tree, int(sash_position))
     else:
-        owner.favorite_splitter.SplitHorizontally(owner.tree, owner.favorite_panel, sash_position)
+        owner.favorite_splitter.SplitHorizontally(owner.tree, owner.favorite_panel, int(sash_position))
 
     if owner.favorite_panel is not None:
         owner.favorite_move_up_btn.Show(not owner.favorite_panel_above_tree)
@@ -618,7 +611,7 @@ def apply_favorite_panel_position(owner, sash_position=None):
         _apply_favorite_list_layout(owner)
 
     if owner.favorite_splitter is not None:
-        owner.favorite_splitter.SetSashPosition(sash_position)
+        owner.favorite_splitter.SetSashPosition(int(sash_position))
 
 
 def toggle_favorite_panel_position(owner, panel_above_tree):
@@ -636,15 +629,17 @@ def toggle_favorite_panel_position(owner, panel_above_tree):
     target_above_tree = bool(panel_above_tree)
     if previous_above_tree != target_above_tree:
         try:
-            splitter_height = int(owner.favorite_splitter.GetSize().GetHeight())
+            splitter_size = owner.favorite_splitter.GetSize()
+            splitter_height = splitter_size.GetHeight() if hasattr(splitter_size, "GetHeight") else 0
         except Exception:
             splitter_height = 0
         if splitter_height > 0:
-            target_sash = max(0, splitter_height - current_sash)
+            target_sash = max(40, min(splitter_height - current_sash, splitter_height - 40))
 
     owner.favorite_panel_above_tree = target_above_tree
     apply_favorite_panel_position(owner, sash_position=target_sash)
-    owner.save_splitter_positions()
+    if hasattr(owner, "save_splitter_positions"):
+        owner.save_splitter_positions()
 
 
 def on_favorite_begin_drag(owner, event):

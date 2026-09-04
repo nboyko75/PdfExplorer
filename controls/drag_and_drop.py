@@ -4,23 +4,25 @@ import sys
 
 import wx
 
-if not hasattr(wx, "DATADOBJECT_PREFERRED"):
-    wx.DATADOBJECT_PREFERRED = 0
-
 from localization import tr
 from file_operations.pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_page
+import file_operations.copy_and_paste as copy_and_paste
+
+if not hasattr(wx, "DATADOBJECT_PREFERRED"):
+    wx.DATADOBJECT_PREFERRED = 0
 
 INTERNAL_DRAG_MARKER = "pdfexplorer_internal_move"
 
 
-class FileListDropTarget(wx.DropTarget):
+class BaseFileSystemDropTarget(wx.DropTarget):
     def __init__(self, owner):
         super().__init__()
         self.owner = owner
         self.file_data = wx.FileDataObject()
         self.text_data = wx.TextDataObject()
         self.data_object = None
-        if hasattr(wx, "DataObjectComposite") and hasattr(self.file_data, "AddFile") and hasattr(self.text_data, "SetText"):
+
+        if hasattr(wx, "DataObjectComposite"):
             self.data_object = wx.DataObjectComposite()
             if hasattr(wx, "DATADOBJECT_PREFERRED"):
                 self.data_object.Add(self.text_data, wx.DATADOBJECT_PREFERRED)
@@ -41,6 +43,130 @@ class FileListDropTarget(wx.DropTarget):
             refresh_helper = _refresh_after_fs_change
         return build_helper, refresh_helper
 
+    def _resolve_drop_target_dir(self, x, y):
+        raise NotImplementedError
+
+    def _apply_drop(self, target_dir, filenames, move_files):
+        build_non_conflicting_path, refresh_after_fs_change = self._resolve_drop_helpers()
+        errors = []
+        affected_dirs = [target_dir]
+        seen_dirs = {os.path.normcase(os.path.normpath(target_dir))} if isinstance(target_dir, str) and target_dir else set()
+
+        for source_path in filenames:
+            if not isinstance(source_path, str) or not source_path:
+                continue
+
+            source_name = os.path.basename(source_path.rstrip("\\/"))
+            destination_path = os.path.join(target_dir, source_name)
+            overwrite_target = False
+
+            if os.path.exists(destination_path):
+                overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(self.owner, destination_path)
+                if overwrite_choice is None:
+                    continue
+                if overwrite_choice is False:
+                    destination_path = build_non_conflicting_path(destination_path)
+                else:
+                    overwrite_target = True
+
+            if move_files:
+                source_parent = os.path.dirname(source_path)
+                if isinstance(source_parent, str) and source_parent and os.path.isdir(source_parent):
+                    normalized = os.path.normcase(os.path.normpath(source_parent))
+                    if normalized not in seen_dirs:
+                        affected_dirs.append(source_parent)
+                        seen_dirs.add(normalized)
+
+            try:
+                if move_files:
+                    if overwrite_target and os.path.exists(destination_path):
+                        if os.path.isdir(destination_path):
+                            shutil.rmtree(destination_path)
+                        else:
+                            os.remove(destination_path)
+                    shutil.move(source_path, destination_path)
+                elif os.path.isdir(source_path):
+                    if overwrite_target and os.path.exists(destination_path):
+                        shutil.rmtree(destination_path)
+                    shutil.copytree(source_path, destination_path)
+                else:
+                    if overwrite_target and os.path.exists(destination_path):
+                        os.remove(destination_path)
+                    shutil.copy2(source_path, destination_path)
+            except Exception as exc:
+                errors.append(f"{source_path}: {exc}")
+
+        if errors:
+            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+        else:
+            refresh_after_fs_change(self.owner, affected_dirs=affected_dirs)
+
+        return True
+
+    def _read_drag_payload(self):
+        internal_marker = None
+        filenames = []
+
+        if hasattr(self, "text_data"):
+            try:
+                payload = self.text_data.GetText()
+            except Exception:
+                payload = ""
+            if isinstance(payload, str) and payload.startswith(INTERNAL_DRAG_MARKER + "\n"):
+                parts = payload.split("\n", 1)
+                if len(parts) == 2:
+                    internal_marker = parts[0]
+                    filenames = [item for item in parts[1].split("\n") if item]
+
+        if not filenames and hasattr(self.file_data, "GetFilenames"):
+            filenames = list(self.file_data.GetFilenames())
+
+        return internal_marker, filenames
+
+    def OnDrop(self, x, y):
+        if not self.GetData():
+            return False
+
+        internal_marker, filenames = self._read_drag_payload()
+        if not filenames:
+            return False
+
+        target_dir = self._resolve_drop_target_dir(x, y)
+        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
+            return False
+
+        move_files = internal_marker == INTERNAL_DRAG_MARKER
+        self._apply_drop(target_dir, filenames, move_files)
+        return True
+
+    def OnData(self, x, y, default):
+        if not self.GetData():
+            return default
+
+        internal_marker, filenames = self._read_drag_payload()
+        if not filenames:
+            return default
+
+        target_dir = self._resolve_drop_target_dir(x, y)
+        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
+            return default
+
+        move_files = internal_marker == INTERNAL_DRAG_MARKER
+        return wx.DragMove if move_files else wx.DragCopy
+
+    def OnDropFiles(self, x, y, filenames):
+        if not filenames:
+            return False
+
+        target_dir = self._resolve_drop_target_dir(x, y)
+        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
+            return False
+
+        self._apply_drop(target_dir, filenames, move_files=False)
+        return True
+
+
+class FileListDropTarget(BaseFileSystemDropTarget):
     def _resolve_drop_target_dir(self, x, y):
         if hasattr(self.owner, "list") and self.owner.list is not None:
             try:
@@ -64,154 +190,8 @@ class FileListDropTarget(wx.DropTarget):
                 return target_dir
         return None
 
-    def _apply_drop(self, target_dir, filenames, move_files):
-        build_non_conflicting_path, refresh_after_fs_change = self._resolve_drop_helpers()
-        errors = []
-        affected_dirs = [target_dir]
-        seen_dirs = {os.path.normcase(os.path.normpath(target_dir))} if isinstance(target_dir, str) and target_dir else set()
 
-        for source_path in filenames:
-            if not isinstance(source_path, str) or not source_path:
-                continue
-
-            source_name = os.path.basename(source_path.rstrip("\\/"))
-            destination_path = os.path.join(target_dir, source_name)
-            overwrite_target = False
-
-            if os.path.exists(destination_path):
-                overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(self.owner, destination_path)
-                if overwrite_choice is None:
-                    continue
-                if overwrite_choice is False:
-                    destination_path = build_non_conflicting_path(destination_path)
-                else:
-                    overwrite_target = True
-
-            if move_files:
-                source_parent = os.path.dirname(source_path)
-                if isinstance(source_parent, str) and source_parent and os.path.isdir(source_parent):
-                    normalized = os.path.normcase(os.path.normpath(source_parent))
-                    if normalized not in seen_dirs:
-                        affected_dirs.append(source_parent)
-                        seen_dirs.add(normalized)
-
-            try:
-                if move_files:
-                    if overwrite_target and os.path.exists(destination_path):
-                        if os.path.isdir(destination_path):
-                            shutil.rmtree(destination_path)
-                        else:
-                            os.remove(destination_path)
-                    shutil.move(source_path, destination_path)
-                elif os.path.isdir(source_path):
-                    if overwrite_target and os.path.exists(destination_path):
-                        shutil.rmtree(destination_path)
-                    shutil.copytree(source_path, destination_path)
-                else:
-                    if overwrite_target and os.path.exists(destination_path):
-                        os.remove(destination_path)
-                    shutil.copy2(source_path, destination_path)
-            except Exception as exc:
-                errors.append(f"{source_path}: {exc}")
-
-        if errors:
-            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
-        else:
-            refresh_after_fs_change(self.owner, affected_dirs=affected_dirs)
-
-        return True
-
-    def _read_drag_payload(self):
-        internal_marker = None
-        filenames = []
-
-        if hasattr(self, "text_data"):
-            try:
-                payload = self.text_data.GetText()
-            except Exception:
-                payload = ""
-            if isinstance(payload, str) and payload.startswith(INTERNAL_DRAG_MARKER + "\n"):
-                parts = payload.split("\n", 1)
-                if len(parts) == 2:
-                    internal_marker = parts[0]
-                    filenames = [item for item in parts[1].split("\n") if item]
-
-        if not filenames and hasattr(self.file_data, "GetFilenames"):
-            filenames = list(self.file_data.GetFilenames())
-
-        return internal_marker, filenames
-
-    def OnDrop(self, x, y):
-        if not self.GetData():
-            return False
-
-        internal_marker, filenames = self._read_drag_payload()
-        if not filenames:
-            return False
-
-        target_dir = self._resolve_drop_target_dir(x, y)
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return False
-
-        move_files = internal_marker == INTERNAL_DRAG_MARKER
-        self._apply_drop(target_dir, filenames, move_files)
-        return True
-
-    def OnData(self, x, y, default):
-        if not self.GetData():
-            return default
-
-        internal_marker, filenames = self._read_drag_payload()
-        if not filenames:
-            return default
-
-        target_dir = self._resolve_drop_target_dir(x, y)
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return default
-
-        move_files = internal_marker == INTERNAL_DRAG_MARKER
-        return wx.DragMove if move_files else wx.DragCopy
-
-    def OnDropFiles(self, x, y, filenames):
-        if not filenames:
-            return False
-
-        target_dir = self._resolve_drop_target_dir(x, y)
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return False
-
-        self._apply_drop(target_dir, filenames, move_files=False)
-        return True
-
-
-class TreeDropTarget(wx.DropTarget):
-    def __init__(self, owner):
-        super().__init__()
-        self.owner = owner
-        self.file_data = wx.FileDataObject()
-        self.text_data = wx.TextDataObject()
-        self.data_object = None
-        if hasattr(wx, "DataObjectComposite") and hasattr(self.file_data, "AddFile") and hasattr(self.text_data, "SetText"):
-            self.data_object = wx.DataObjectComposite()
-            if hasattr(wx, "DATADOBJECT_PREFERRED"):
-                self.data_object.Add(self.text_data, wx.DATADOBJECT_PREFERRED)
-            else:
-                self.data_object.Add(self.text_data)
-            self.data_object.Add(self.file_data)
-            self.SetDataObject(self.data_object)
-        else:
-            self.SetDataObject(self.file_data)
-
-    def _resolve_drop_helpers(self):
-        compat_module = sys.modules.get("controls.filelist")
-        build_helper = getattr(compat_module, "_build_non_conflicting_path", None)
-        refresh_helper = getattr(compat_module, "_refresh_after_fs_change", None)
-        if build_helper is None:
-            build_helper = _build_non_conflicting_path
-        if refresh_helper is None:
-            refresh_helper = _refresh_after_fs_change
-        return build_helper, refresh_helper
-
+class TreeDropTarget(BaseFileSystemDropTarget):
     def _resolve_drop_target_dir(self, x, y):
         if hasattr(self.owner, "tree") and self.owner.tree is not None:
             try:
@@ -228,125 +208,6 @@ class TreeDropTarget(wx.DropTarget):
             if isinstance(target_dir, str) and os.path.isdir(target_dir):
                 return target_dir
         return None
-
-    def _apply_drop(self, target_dir, filenames, move_files):
-        build_non_conflicting_path, refresh_after_fs_change = self._resolve_drop_helpers()
-        errors = []
-        affected_dirs = [target_dir]
-        seen_dirs = {os.path.normcase(os.path.normpath(target_dir))} if isinstance(target_dir, str) and target_dir else set()
-
-        for source_path in filenames:
-            if not isinstance(source_path, str) or not source_path:
-                continue
-
-            source_name = os.path.basename(source_path.rstrip("\\/"))
-            destination_path = os.path.join(target_dir, source_name)
-            overwrite_target = False
-
-            if os.path.exists(destination_path):
-                overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(self.owner, destination_path)
-                if overwrite_choice is None:
-                    continue
-                if overwrite_choice is False:
-                    destination_path = build_non_conflicting_path(destination_path)
-                else:
-                    overwrite_target = True
-
-            if move_files:
-                source_parent = os.path.dirname(source_path)
-                if isinstance(source_parent, str) and source_parent and os.path.isdir(source_parent):
-                    normalized = os.path.normcase(os.path.normpath(source_parent))
-                    if normalized not in seen_dirs:
-                        affected_dirs.append(source_parent)
-                        seen_dirs.add(normalized)
-
-            try:
-                if move_files:
-                    if overwrite_target and os.path.exists(destination_path):
-                        if os.path.isdir(destination_path):
-                            shutil.rmtree(destination_path)
-                        else:
-                            os.remove(destination_path)
-                    shutil.move(source_path, destination_path)
-                elif os.path.isdir(source_path):
-                    if overwrite_target and os.path.exists(destination_path):
-                        shutil.rmtree(destination_path)
-                    shutil.copytree(source_path, destination_path)
-                else:
-                    if overwrite_target and os.path.exists(destination_path):
-                        os.remove(destination_path)
-                    shutil.copy2(source_path, destination_path)
-            except Exception as exc:
-                errors.append(f"{source_path}: {exc}")
-
-        if errors:
-            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
-        else:
-            refresh_after_fs_change(self.owner, affected_dirs=affected_dirs)
-
-        return True
-
-    def _read_drag_payload(self):
-        internal_marker = None
-        filenames = []
-
-        if hasattr(self, "text_data"):
-            try:
-                payload = self.text_data.GetText()
-            except Exception:
-                payload = ""
-            if isinstance(payload, str) and payload.startswith(INTERNAL_DRAG_MARKER + "\n"):
-                parts = payload.split("\n", 1)
-                if len(parts) == 2:
-                    internal_marker = parts[0]
-                    filenames = [item for item in parts[1].split("\n") if item]
-
-        if not filenames and hasattr(self.file_data, "GetFilenames"):
-            filenames = list(self.file_data.GetFilenames())
-
-        return internal_marker, filenames
-
-    def OnDrop(self, x, y):
-        if not self.GetData():
-            return False
-
-        internal_marker, filenames = self._read_drag_payload()
-        if not filenames:
-            return False
-
-        target_dir = self._resolve_drop_target_dir(x, y)
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return False
-
-        move_files = internal_marker == INTERNAL_DRAG_MARKER
-        self._apply_drop(target_dir, filenames, move_files)
-        return True
-
-    def OnData(self, x, y, default):
-        if not self.GetData():
-            return default
-
-        internal_marker, filenames = self._read_drag_payload()
-        if not filenames:
-            return default
-
-        target_dir = self._resolve_drop_target_dir(x, y)
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return default
-
-        move_files = internal_marker == INTERNAL_DRAG_MARKER
-        return wx.DragMove if move_files else wx.DragCopy
-
-    def OnDropFiles(self, x, y, filenames):
-        if not filenames:
-            return False
-
-        target_dir = self._resolve_drop_target_dir(x, y)
-        if not isinstance(target_dir, str) or not os.path.isdir(target_dir):
-            return False
-
-        self._apply_drop(target_dir, filenames, move_files=False)
-        return True
 
 
 _build_non_conflicting_path = __import__("file_operations.copy_and_paste", fromlist=["_build_non_conflicting_path"])._build_non_conflicting_path

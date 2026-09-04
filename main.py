@@ -688,14 +688,27 @@ class FileExplorer(wx.Frame):
         saved_standard_shortcuts_visible = settings.get("standard_shortcuts_visible", False)
         if hasattr(self, "standard_shortcuts_visible"):
             self.standard_shortcuts_visible = bool(saved_standard_shortcuts_visible)
-        if favorite_sash is not None and self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
-            self.favorite_panel_above_tree = favorite_above_tree
-            self._apply_favorite_panel_position(sash_position=int(favorite_sash))
-        elif self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
-            self.favorite_panel_above_tree = favorite_above_tree
-            self._apply_favorite_panel_position()
-        if self.favorite_content_splitter is not None and self.favorite_content_splitter.IsSplit():
-            self.favorite_content_splitter.SetSashPosition(max(40, int(self.favorite_standard_shortcuts_splitter_sash)))
+        if hasattr(self, "favorite_splitter") and self.favorite_splitter is not None and self.favorite_splitter.IsSplit():
+            if favorite_sash is not None:
+                self.favorite_panel_above_tree = favorite_above_tree
+                self._apply_favorite_panel_position(sash_position=int(favorite_sash))
+            else:
+                self.favorite_panel_above_tree = favorite_above_tree
+                self._apply_favorite_panel_position()
+        if self.favorite_content_splitter is not None:
+            if self.standard_shortcuts_visible and not self.favorite_content_splitter.IsSplit():
+                try:
+                    self.favorite_content_splitter.SplitHorizontally(
+                        self.favorite_list,
+                        self.standard_shortcuts_panel,
+                        max(40, min(int(self.favorite_standard_shortcuts_splitter_sash), 400)),
+                    )
+                except Exception:
+                    pass
+            if self.favorite_content_splitter.IsSplit():
+                self.favorite_content_splitter.SetSashPosition(max(40, min(int(self.favorite_standard_shortcuts_splitter_sash), 400)))
+            if hasattr(self, "favorite_panel") and self.favorite_panel is not None and hasattr(self.favorite_panel, "GetSizer"):
+                self.favorite_panel.GetSizer().Layout()
 
     def on_close(self, event):
         unsaved_pdf_paths = get_unsaved_pdf_paths()

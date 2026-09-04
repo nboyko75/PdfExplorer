@@ -329,6 +329,21 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertEqual(owner.favorite_standard_shortcuts_splitter_sash, 156)
         owner.save_splitter_positions.assert_called_once_with()
 
+    def test_restore_splitter_positions_restores_horizontal_sash_on_open(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.favorite_content_splitter = mock.MagicMock()
+        owner.favorite_content_splitter.IsSplit.return_value = True
+        owner.favorite_list = mock.MagicMock()
+        owner.standard_shortcuts_panel = mock.MagicMock()
+        owner.favorite_panel = mock.MagicMock()
+        owner.favorite_panel.GetSizer.return_value = mock.MagicMock()
+        owner.standard_shortcuts_visible = True
+        owner.favorite_standard_shortcuts_splitter_sash = 120
+
+        main.FileExplorer.restore_splitter_positions(owner, {"favorite_standard_shortcuts_splitter_sash": 178})
+
+        owner.favorite_content_splitter.SetSashPosition.assert_called_with(178)
+
     def test_standard_shortcuts_default_visible_items_are_loaded(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.standard_shortcuts_visibility = {
@@ -500,6 +515,12 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
                 main.navigation_utils.load_folder(owner, temp_dir)
 
         owner.list.SetItem.assert_any_call(0, 1, "pdf")
+
+    def test_drop_targets_share_common_base_class(self):
+        import controls.drag_and_drop as drag_and_drop_module
+
+        self.assertTrue(issubclass(drag_and_drop_module.FileListDropTarget, drag_and_drop_module.BaseFileSystemDropTarget))
+        self.assertTrue(issubclass(drag_and_drop_module.TreeDropTarget, drag_and_drop_module.BaseFileSystemDropTarget))
 
     def test_drag_and_drop_refresh_delegates_to_filelist_refresh(self):
         import controls.drag_and_drop as drag_and_drop_module
