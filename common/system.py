@@ -45,8 +45,15 @@ def move_to_recycle_bin(paths):
 
 
 def is_hidden(path):
-    attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+    if not path:
+        return False
+
+    try:
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+    except Exception:
+        return False
+
     if attrs == -1:
-        raise FileNotFoundError(path)
+        return False
 
     return bool(attrs & FILE_ATTRIBUTE_HIDDEN)

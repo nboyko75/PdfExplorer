@@ -47,6 +47,75 @@ class ImageUtilsFallbackTests(unittest.TestCase):
         self.assertEqual(manager.icon_files["add_to_favorites"], os.path.join("/tmp/icons", "add_to_favorite.bmp"))
         self.assertEqual(manager.icon_files["remove_from_favorites"], os.path.join("/tmp/icons", "remove_from_favorite.bmp"))
 
+    def test_real_shortcut_folder_uses_path_without_file_attribute_flag(self):
+        import controls.favorite_panel as favorite_panel
+
+        owner = mock.Mock()
+        owner.standard_shortcuts_image_list = mock.Mock()
+        owner.favorite_folder_icon_index = -1
+        shortcut = {"path": "C:/Temp/folder.lnk", "key": "custom"}
+
+        with mock.patch.object(favorite_panel.image_utils, "get_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))) as mocked_get:
+            favorite_panel._standard_shortcut_icon_index(owner, shortcut)
+
+        mocked_get.assert_called_once_with("C:/Temp/folder.lnk")
+
+    def test_generic_folder_icon_requests_file_attributes_flag(self):
+        image_utils = _import_image_utils_with_mocked_wx()
+        fake_windll = mock.Mock()
+        fake_windll.shell32.SHGetFileInfoW.return_value = 1
+        fake_windll.user32.DestroyIcon.return_value = None
+
+        with mock.patch.object(image_utils.ctypes, "windll", fake_windll), \
+             mock.patch.object(image_utils, "hicon_to_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))):
+            image_utils.get_shell_bitmap("folder", 0x00000010, use_file_attributes=True)
+
+        flags = fake_windll.shell32.SHGetFileInfoW.call_args[0][4]
+        self.assertTrue(flags & 0x00000010)
+
+    def test_recycle_bin_uses_stock_icon_not_desktop_path(self):
+        import controls.favorite_panel as favorite_panel
+
+        owner = mock.Mock()
+        owner.standard_shortcuts_image_list = mock.Mock()
+        owner.standard_shortcuts_folder_icon_index = -1
+        shortcut = {"path": "C:/Users/User/Desktop/Recycle Bin", "key": "recycle_bin"}
+
+        with mock.patch.object(favorite_panel.image_utils, "get_recycle_bin_icon_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))) as mocked_get:
+            favorite_panel._standard_shortcut_icon_index(owner, shortcut)
+
+        mocked_get.assert_called_once_with()
+
+    def test_shortcut_link_uses_shell_icon_in_list_and_tree(self):
+        import controls.tree_utils as tree_utils
+
+        owner = mock.Mock()
+        owner.tree_images = mock.Mock()
+        owner.tree_icon_cache = {}
+        owner.tree_icon_file = 7
+        owner.tree_images.Add.side_effect = [11]
+
+        shortcut_path = r"C:\Users\User\Desktop\App.lnk"
+        with mock.patch.object(tree_utils.image_utils, "get_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))) as mocked_get_shell, \
+             mock.patch.object(tree_utils.image_utils, "create_extension_icon_bitmap") as mocked_create:
+            result = tree_utils.get_tree_icon_index(owner, shortcut_path, is_dir=False)
+
+        self.assertEqual(result, 11)
+        mocked_get_shell.assert_called_once_with(shortcut_path)
+        mocked_create.assert_not_called()
+
+        owner.list_images = mock.Mock()
+        owner.list_icon_cache = {}
+        owner.list_images.Add.side_effect = [12]
+
+        with mock.patch.object(tree_utils.image_utils, "get_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))) as mocked_get_shell_list, \
+             mock.patch.object(tree_utils.image_utils, "create_extension_icon_bitmap") as mocked_create_list:
+            result = tree_utils.image_utils.get_list_icon_index(owner, shortcut_path, is_dir=False)
+
+        self.assertEqual(result, 12)
+        mocked_get_shell_list.assert_called_once_with(shortcut_path)
+        mocked_create_list.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

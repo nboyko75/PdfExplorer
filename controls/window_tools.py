@@ -17,6 +17,21 @@ from controls.settings_utils import (
 from localization import tr
 
 
+def get_windows_special_folder(name):
+    try:
+        import win32com.client
+
+        shell = win32com.client.Dispatch("WScript.Shell")
+        path = shell.SpecialFolders(name)
+
+        if path and os.path.isdir(path):
+            return os.path.normpath(path)
+    except Exception:
+        pass
+
+    return ""
+
+
 def _get_project_root_dir():
     # In frozen builds (e.g. PyInstaller), persist settings next to the executable.
     if getattr(sys, "frozen", False):

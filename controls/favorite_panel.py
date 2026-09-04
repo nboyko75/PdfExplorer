@@ -3,7 +3,7 @@ import wx
 
 from controls.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
-from controls.window_tools import set_column_image_on_left
+from controls.window_tools import set_column_image_on_left, get_windows_special_folder
 from localization import tr
 import file_operations.image_utils as image_utils
 
@@ -22,13 +22,13 @@ STANDARD_SHORTCUT_DEFINITIONS = (
 def _standard_shortcut_path_for_key(key):
     home_dir = os.path.expanduser("~")
     mapping = {
-        "desktop": os.path.join(home_dir, "Desktop"),
-        "documents": os.path.join(home_dir, "Documents"),
-        "download": os.path.join(home_dir, "Downloads"),
-        "images": os.path.join(home_dir, "Pictures"),
-        "music": os.path.join(home_dir, "Music"),
-        "video": os.path.join(home_dir, "Videos"),
-        "recycle_bin": os.path.join(home_dir, "Desktop", "Recycle Bin"),
+        "desktop": os.path.join(home_dir, get_windows_special_folder("Desktop")),
+        "documents": os.path.join(home_dir, get_windows_special_folder("MyDocuments")),
+        "download": os.path.join(home_dir, get_windows_special_folder("Downloads")),
+        "images": os.path.join(home_dir, get_windows_special_folder("MyPictures")),
+        "music": os.path.join(home_dir, get_windows_special_folder("MyMusic")),
+        "video": os.path.join(home_dir, get_windows_special_folder("MyVideos")),
+        "recycle_bin": get_windows_special_folder("RecycleBin") or os.path.join(home_dir, "Desktop", "Recycle Bin"),
     }
     path = mapping.get(key, "")
     if path and os.path.isdir(path):
@@ -247,8 +247,10 @@ def build_favorite_panel(owner, parent):
     folder_bitmap = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
     if folder_bitmap.IsOk():
         owner.favorite_folder_icon_index = owner.favorite_image_list.Add(folder_bitmap)
+        owner.standard_shortcuts_folder_icon_index = owner.standard_shortcuts_image_list.Add(folder_bitmap)
     else:
         owner.favorite_folder_icon_index = -1
+        owner.standard_shortcuts_folder_icon_index = -1
 
     owner.favorite_list.SetImageList(owner.favorite_image_list, wx.IMAGE_LIST_SMALL)
     owner.favorite_list.InsertColumn(0, tr("favorite_column_header"), width=200)
@@ -408,32 +410,38 @@ def refresh_favorite_list(owner):
 
 
 def _standard_shortcut_icon_index(owner, shortcut):
+    fallback = getattr(owner, "standard_shortcuts_folder_icon_index", -1)
+
     if owner is None or not isinstance(shortcut, dict):
-        return getattr(owner, "favorite_folder_icon_index", -1)
+        return fallback
 
     shortcut_path = shortcut.get("path", "")
     shortcut_key = shortcut.get("key", "")
     image_list = getattr(owner, "standard_shortcuts_image_list", None)
 
+    if image_list is None:
+        return fallback
+
+    if shortcut_key == "recycle_bin":
+        try:
+            icon = image_utils.get_recycle_bin_icon_bitmap()
+            if icon is not None and icon.IsOk():
+                return image_list.Add(icon)
+        except Exception:
+            pass
+        return fallback
+
     if not shortcut_path:
-        return getattr(owner, "favorite_folder_icon_index", -1)
+        return fallback
 
     try:
-        icon = image_utils.get_shell_bitmap(shortcut_path, 0x00000010)
-        if icon is not None and icon.IsOk() and image_list is not None:
+        icon = image_utils.get_shell_bitmap(shortcut_path)
+        if icon is not None and icon.IsOk():
             return image_list.Add(icon)
     except Exception:
         pass
 
-    if shortcut_key == "recycle_bin":
-        try:
-            icon = image_utils.get_shell_bitmap("Recycle Bin", 0x00000010)
-            if icon is not None and icon.IsOk() and image_list is not None:
-                return image_list.Add(icon)
-        except Exception:
-            pass
-
-    return getattr(owner, "favorite_folder_icon_index", -1)
+    return fallback
 
 
 def refresh_standard_shortcuts_list(owner):

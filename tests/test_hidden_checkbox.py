@@ -11,6 +11,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 import wx
 
+import common.system as system
 import controls.favorite_panel as favorite_panel
 import controls.filelist as filelist
 import file_operations.image_utils as image_utils
@@ -18,6 +19,10 @@ import main
 
 
 class HiddenCheckboxToggleTests(unittest.TestCase):
+    def test_is_hidden_returns_false_for_missing_paths(self):
+        missing_path = os.path.join(tempfile.gettempdir(), "definitely_missing_path_12345")
+        self.assertFalse(system.is_hidden(missing_path))
+
     def test_toggling_hidden_checkbox_refreshes_tree_and_list(self):
         owner = types.SimpleNamespace(
             show_hidden=False,

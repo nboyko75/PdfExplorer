@@ -427,34 +427,86 @@ def hicon_to_bitmap(hicon, size=16):
     return img.ConvertToBitmap()
 
 
-def get_shell_bitmap(fake_path, file_attr):
-    """Return a 16x16 wx.Bitmap for *fake_path* using SHGetFileInfo, or None."""
-    SHGFI_ICON              = 0x000000100
-    SHGFI_SMALLICON         = 0x000000001
-    SHGFI_USEFILEATTRIBUTES = 0x000000010
+def get_shell_bitmap(path, file_attr=0, use_file_attributes=False):
+    """Return a 16x16 Windows shell icon for a real or hypothetical path."""
+    SHGFI_ICON = 0x00000100
+    SHGFI_SMALLICON = 0x00000001
+    SHGFI_USEFILEATTRIBUTES = 0x00000010
 
     class SHFILEINFOW(ctypes.Structure):
         _fields_ = [
-            ("hIcon",         ctypes.c_void_p),
-            ("iIcon",         ctypes.c_int),
-            ("dwAttributes",  ctypes.c_uint),
+            ("hIcon", ctypes.c_void_p),
+            ("iIcon", ctypes.c_int),
+            ("dwAttributes", ctypes.c_uint),
             ("szDisplayName", ctypes.c_wchar * 260),
-            ("szTypeName",    ctypes.c_wchar * 80),
+            ("szTypeName", ctypes.c_wchar * 80),
         ]
 
     try:
         shfi = SHFILEINFOW()
-        flags = SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES
-        ret = ctypes.windll.shell32.SHGetFileInfoW(
-            fake_path, file_attr, ctypes.byref(shfi), ctypes.sizeof(shfi), flags
+        flags = SHGFI_ICON | SHGFI_SMALLICON
+
+        if use_file_attributes:
+            flags |= SHGFI_USEFILEATTRIBUTES
+
+        result = ctypes.windll.shell32.SHGetFileInfoW(
+            path,
+            file_attr,
+            ctypes.byref(shfi),
+            ctypes.sizeof(shfi),
+            flags,
         )
-        if ret and shfi.hIcon:
-            bmp = hicon_to_bitmap(shfi.hIcon, 16)
-            ctypes.windll.user32.DestroyIcon(ctypes.c_void_p(shfi.hIcon))
-            if bmp and bmp.IsOk():
-                return bmp
+
+        if result and shfi.hIcon:
+            try:
+                bitmap = hicon_to_bitmap(shfi.hIcon, 16)
+            finally:
+                ctypes.windll.user32.DestroyIcon(
+                    ctypes.c_void_p(shfi.hIcon)
+                )
+
+            if bitmap and bitmap.IsOk():
+                return bitmap
     except Exception:
         pass
+
+    return None
+
+
+def get_recycle_bin_icon_bitmap():
+    """Return the stock Recycle Bin icon for Windows 10/11."""
+    SIID_RECYCLER = 31
+    SHGSI_ICON = 0x000000100
+    SHGSI_SMALLICON = 0x000000001
+
+    class SHSTOCKICONINFO(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", ctypes.c_uint),
+            ("hIcon", ctypes.c_void_p),
+            ("iSysImageIndex", ctypes.c_int),
+            ("iIcon", ctypes.c_int),
+            ("szPath", ctypes.c_wchar * 260),
+        ]
+
+    try:
+        shell32 = ctypes.windll.shell32
+        if not hasattr(shell32, "SHGetStockIconInfo"):
+            return None
+
+        info = SHSTOCKICONINFO()
+        info.cbSize = ctypes.sizeof(info)
+        flags = SHGSI_ICON | SHGSI_SMALLICON
+        result = shell32.SHGetStockIconInfo(SIID_RECYCLER, flags, ctypes.byref(info))
+        if result == 0 and info.hIcon:
+            try:
+                bitmap = hicon_to_bitmap(info.hIcon, 16)
+            finally:
+                ctypes.windll.user32.DestroyIcon(ctypes.c_void_p(info.hIcon))
+            if bitmap and bitmap.IsOk():
+                return bitmap
+    except Exception:
+        pass
+
     return None
 
 
@@ -571,7 +623,7 @@ def init_list_images(owner):
     FILE_ATTRIBUTE_DIRECTORY = 0x00000010
     FILE_ATTRIBUTE_NORMAL    = 0x00000080
 
-    folder_bmp = get_shell_bitmap("folder", FILE_ATTRIBUTE_DIRECTORY)
+    folder_bmp = get_shell_bitmap("folder", FILE_ATTRIBUTE_DIRECTORY, use_file_attributes=True)
     if not folder_bmp:
         folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
     if not folder_bmp.IsOk():
@@ -616,7 +668,7 @@ def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
         if cached is not None:
             return cached
 
-        folder_bmp = get_shell_bitmap("folder", 0x00000010)
+        folder_bmp = get_shell_bitmap("folder", 0x00000010, use_file_attributes=True)
         if not folder_bmp:
             folder_bmp = wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
         if not folder_bmp.IsOk():
@@ -644,6 +696,21 @@ def get_list_icon_index(owner, path, is_dir, is_hidden_item=False):
         if file_bmp is None:
             return 0
         return _add_bitmap_to_cache(cache_key, file_bmp)
+
+    if ext == ".lnk":
+        cache_key = f"{ext}|hidden" if is_hidden_item else ext
+        cached = owner.list_icon_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        shortcut_bmp = get_shell_bitmap(path)
+        if shortcut_bmp is None or not shortcut_bmp.IsOk():
+            shortcut_bmp = create_extension_icon_bitmap(ext)
+        if shortcut_bmp is None:
+            return 0
+        if is_hidden_item:
+            shortcut_bmp = Hidden_Image(shortcut_bmp.ConvertToImage()).ConvertToBitmap()
+        return _add_bitmap_to_cache(cache_key, shortcut_bmp)
 
     cache_key = f"{ext}|hidden" if is_hidden_item else ext
     cached = owner.list_icon_cache.get(cache_key)
