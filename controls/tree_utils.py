@@ -372,9 +372,12 @@ def on_tree_select(owner, event):
         return
 
     if os.path.isfile(path):
+        parent_path = os.path.dirname(path)
         path_box = getattr(owner, "path_box", None)
         if path_box is not None and hasattr(path_box, "SetValue"):
-            path_box.SetValue(os.path.dirname(path))
+            path_box.SetValue(parent_path)
+        if hasattr(owner, "load_folder"):
+            owner.load_folder(parent_path)
         if hasattr(owner, "show_file_preview"):
             owner.show_file_preview(path)
         else:

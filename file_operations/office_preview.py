@@ -504,7 +504,7 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
         else:
             should_quit_app = False
 
-        app.Visible = 1
+        app.Visible = False
 
         if presentation is None:
             presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)

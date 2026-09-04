@@ -69,6 +69,39 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.pdf_preview_zoom, 1.0)
         mocked_show_pdf_feed.assert_called_once_with(owner, "second.pdf")
 
+    def test_show_file_preview_ignores_duplicate_active_pdf(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="duplicate.pdf",
+            preview_enabled=True,
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            selected_pdf_page_panel=None,
+            current_image_preview=None,
+            current_image_zoom=1.0,
+            current_html_zoom=1.0,
+            preview_tabs=[{"path": "duplicate.pdf", "pinned": False, "caption": "duplicate.pdf", "hint": "duplicate.pdf"}],
+            preview_active_tab_index=0,
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", return_value=True), \
+             mock.patch.object(file_preview, "_reset_pdf_view_mode_for_new_file"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed, \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=True), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False):
+            file_preview.show_file_preview(owner, "duplicate.pdf")
+
+        mocked_show_pdf_feed.assert_not_called()
+        self.assertEqual(owner.current_preview_path, "duplicate.pdf")
+
     def test_page_view_button_visible_for_image_preview(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
@@ -155,6 +188,44 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.pdf_preview_zoom, 1.25)
         self.assertEqual(owner.pdf_page_view_mode, file_preview.PAGE_VIEW_MODE_MANUAL)
         mocked_show_pdf_feed.assert_called_once_with(owner, "converted.pdf")
+
+    def test_show_file_preview_refreshes_same_office_file_when_enabled(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=True,
+            current_preview_path="report.docx",
+            preview_tabs=[{"path": "report.docx", "pinned": False, "caption": "report.docx", "hint": "report.docx"}],
+            preview_active_tab_index=0,
+            selected_pdf_page_panel=None,
+            current_image_preview=None,
+            current_image_zoom=1.0,
+            current_html_zoom=1.0,
+            busy_cursor=lambda: file_preview.nullcontext(),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", return_value=True), \
+             mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
+             mock.patch.object(file_preview, "_reset_pdf_view_mode_for_new_file"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "_sync_preview_tab_for_path"), \
+             mock.patch.object(file_preview, "_resolve_preview_pdf_path", return_value="converted.pdf"), \
+             mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed, \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=True):
+            file_preview.show_file_preview(owner, "report.docx")
+
+        mocked_show_pdf_feed.assert_called_once_with(owner, "converted.pdf")
+        self.assertEqual(owner.current_preview_path, "report.docx")
 
     def test_manual_zoom_works_for_html_preview(self):
         file_preview = _import_file_preview_with_mocked_wx()
@@ -545,20 +616,26 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         html_preview.SetZoom.assert_called_once_with(125)
 
-    def test_tree_file_selection_does_not_preview_file(self):
+    def test_tree_file_selection_loads_parent_folder_and_previews_file(self):
         tree_utils = __import__("controls.tree_utils", fromlist=["on_tree_select"])
         owner = types.SimpleNamespace(
-            tree=types.SimpleNamespace(GetItemData=lambda _item: "sample.html"),
+            updating_tree=False,
+            tree=types.SimpleNamespace(GetItemData=lambda _item: "C:/project/sample.html"),
+            path_box=types.SimpleNamespace(SetValue=mock.MagicMock()),
+            load_folder=mock.MagicMock(),
             show_file_preview=mock.MagicMock(),
             open_path=mock.MagicMock(),
             confirm_preview_change=lambda path: True,
         )
         event = types.SimpleNamespace(GetItem=lambda: object(), Veto=mock.MagicMock())
 
-        with mock.patch("controls.tree_utils.os.path.isdir", return_value=False):
+        with mock.patch("controls.tree_utils.os.path.isdir", return_value=False), \
+             mock.patch("controls.tree_utils.os.path.isfile", return_value=True):
             tree_utils.on_tree_select(owner, event)
 
-        owner.show_file_preview.assert_not_called()
+        owner.path_box.SetValue.assert_called_once_with("C:\\project")
+        owner.load_folder.assert_called_once_with("C:\\project")
+        owner.show_file_preview.assert_called_once_with("C:\\project\\sample.html")
         owner.open_path.assert_not_called()
 
     def test_shared_open_path_or_file_opens_folders_and_files(self):
@@ -1431,7 +1508,7 @@ class OfficePreviewLimitTests(unittest.TestCase):
         self.assertEqual(result, "preview.pdf")
         mocked_limit.assert_called_once_with("preview.pdf", __import__("file_operations.pdf_utils", fromlist=["DEFAULT_SHOW_PAGES_LIMIT"]).DEFAULT_SHOW_PAGES_LIMIT)
 
-    def test_powerpoint_export_opens_document_read_only(self):
+    def test_powerpoint_export_hides_app_window(self):
         office_preview = __import__("file_operations.office_preview", fromlist=["_export_powerpoint_to_pdf"])
 
         fake_app = mock.Mock()
@@ -1443,6 +1520,7 @@ class OfficePreviewLimitTests(unittest.TestCase):
             office_preview.win32_client.DispatchEx.return_value = fake_app
             office_preview._export_powerpoint_to_pdf("report.pptx", "preview.pdf")
 
+        self.assertFalse(fake_app.Visible)
         fake_app.Presentations.Open.assert_called_once_with("report.pptx", ReadOnly=True, WithWindow=False)
         fake_presentation.Close.assert_called_once_with()
         fake_app.Quit.assert_called_once()

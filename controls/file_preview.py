@@ -1482,7 +1482,18 @@ def show_file_preview(owner, path):
     previous_path = getattr(owner, "current_preview_path", None)
     normalized_previous = os.path.normcase(os.path.normpath(previous_path)) if isinstance(previous_path, str) and previous_path else None
     normalized_path = os.path.normcase(os.path.normpath(path)) if isinstance(path, str) and path else None
-    is_same_office_file = bool(normalized_path and normalized_previous and normalized_path == normalized_previous and is_office_preview_allowed(owner, path))
+
+    if normalized_path:
+        for tab_index, tab in enumerate(owner.preview_tabs):
+            tab_path = tab.get("path")
+            if not tab_path:
+                continue
+            normalized_tab_path = os.path.normcase(os.path.normpath(tab_path))
+            if normalized_tab_path == normalized_path:
+                owner.preview_active_tab_index = tab_index
+                if normalized_previous == normalized_path:
+                    return
+                break
 
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
@@ -1500,14 +1511,6 @@ def show_file_preview(owner, path):
         update_pdf_save_button_state(owner)
 
     if not path:
-        update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-        owner.filePreview.Layout()
-        return
-
-    if is_same_office_file:
-        return
-
-    if os.path.isdir(path):
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
         owner.filePreview.Layout()
         return
