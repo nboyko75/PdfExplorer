@@ -90,7 +90,7 @@ class FileExplorer(wx.Frame):
         self.standard_shortcuts_visibility = {
             "desktop": True,
             "documents": True,
-            "download": False,
+            "downloads": False,
             "images": False,
             "music": False,
             "video": False,
@@ -99,8 +99,9 @@ class FileExplorer(wx.Frame):
         saved_shortcuts = settings.get("standard_shortcuts_visibility")
         if isinstance(saved_shortcuts, dict):
             for key, value in saved_shortcuts.items():
-                if key in self.standard_shortcuts_visibility:
-                    self.standard_shortcuts_visibility[key] = bool(value)
+                legacy_key = "downloads" if key == "download" else key
+                if legacy_key in self.standard_shortcuts_visibility:
+                    self.standard_shortcuts_visibility[legacy_key] = bool(value)
         saved_page_view_mode = str(settings.get("pdf_page_view_mode", "1_page_wide"))
         if saved_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
             saved_page_view_mode = file_preview.PAGE_VIEW_MODE_1_TALL

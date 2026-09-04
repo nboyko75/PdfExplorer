@@ -109,7 +109,7 @@ def load_folder(owner, path):
             size = ""
             size_kb = None
             is_dir = True
-            image_index = image_utils.get_list_icon_index(owner, full_path, is_dir=True, is_hidden_item=is_hidden_item)
+            image_index = image_utils.get_file_list_shell_icon_index(owner, full_path, is_hidden_item=is_hidden_item)
         else:
             extension = os.path.splitext(name)[1].lower().lstrip(".")
             typ = extension if extension else tr("file_type_file")
@@ -120,7 +120,7 @@ def load_folder(owner, path):
                 size_kb = None
                 size = ""
             is_dir = False
-            image_index = image_utils.get_list_icon_index(owner, full_path, is_dir=False, is_hidden_item=is_hidden_item)
+            image_index = image_utils.get_file_list_shell_icon_index(owner, full_path, is_hidden_item=is_hidden_item)
 
         try:
             modified_ts = os.path.getmtime(full_path)

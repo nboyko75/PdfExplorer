@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import ctypes
+import uuid
 from ctypes import wintypes
 
 import wx
@@ -17,7 +18,70 @@ from controls.settings_utils import (
 from localization import tr
 
 
+class GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", ctypes.c_ulong),
+        ("Data2", ctypes.c_ushort),
+        ("Data3", ctypes.c_ushort),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
+
+    @classmethod
+    def from_string(cls, value):
+        guid = uuid.UUID(value)
+        return cls.from_buffer_copy(guid.bytes_le)
+
+
+KNOWN_FOLDER_IDS = {
+    "desktop": "B4BFCC3A-DB2C-424C-B029-7FE99A87C641",
+    "documents": "FDD39AD0-238F-46AF-ADB4-6C85480369C7",
+    "downloads": "374DE290-123F-4565-9164-39C4925E467B",
+    "pictures": "33E28130-4E1E-4676-835A-98395C3BC3BB",
+    "music": "4BD8D571-6D19-48D3-BE97-422220080E43",
+    "videos": "18989B1D-99B5-455B-841C-AB7C74E4DDFC",
+}
+
+
+def get_windows_known_folder(folder_key):
+    guid_text = KNOWN_FOLDER_IDS.get(str(folder_key).lower())
+    if not guid_text:
+        return ""
+
+    folder_id = GUID.from_string(guid_text)
+    path_pointer = ctypes.c_wchar_p()
+    shell32 = ctypes.windll.shell32
+    ole32 = ctypes.windll.ole32
+
+    shell32.SHGetKnownFolderPath.argtypes = [
+        ctypes.POINTER(GUID),
+        wintypes.DWORD,
+        wintypes.HANDLE,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    ]
+    shell32.SHGetKnownFolderPath.restype = ctypes.HRESULT
+
+    result = shell32.SHGetKnownFolderPath(
+        ctypes.byref(folder_id),
+        0,
+        None,
+        ctypes.byref(path_pointer),
+    )
+
+    if result != 0:
+        return ""
+
+    try:
+        path = path_pointer.value or ""
+        return os.path.normpath(path) if path else ""
+    finally:
+        ole32.CoTaskMemFree(path_pointer)
+
+
 def get_windows_special_folder(name):
+    normalized_name = str(name).lower()
+    if normalized_name in KNOWN_FOLDER_IDS:
+        return get_windows_known_folder(normalized_name)
+
     try:
         import win32com.client
 

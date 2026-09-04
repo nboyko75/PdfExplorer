@@ -28,6 +28,7 @@ def normalize_tree_path(path):
 def init_tree_images(owner):
     owner.tree_images = wx.ImageList(16, 16)
     owner.tree_icon_cache = {}
+    owner.tree_shell_icon_indexes = {}
 
     root_bmp = wx.ArtProvider.GetBitmap(wx.ART_HARDDISK, wx.ART_OTHER, (16, 16))
     if not root_bmp.IsOk():
@@ -59,6 +60,9 @@ def get_tree_icon_index(owner, path, is_dir, is_hidden_item=False):
             return owner.tree_images.Add(image_utils.Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap())
         return owner.tree_icon_cache["__folder__"]
 
+    if os.path.isfile(path):
+        return image_utils.get_tree_shell_icon_index(owner, path, is_hidden_item=is_hidden_item)
+
     ext = os.path.splitext(path)[1].lower()
     if not ext:
         bmp = wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
@@ -69,20 +73,7 @@ def get_tree_icon_index(owner, path, is_dir, is_hidden_item=False):
         return owner.tree_icon_cache["__file__"]
 
     if ext == ".lnk":
-        cache_key = f"{ext}|hidden" if is_hidden_item else ext
-        cached = owner.tree_icon_cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        bmp = image_utils.get_shell_bitmap(path)
-        if bmp is None or not bmp.IsOk():
-            bmp = image_utils.create_extension_icon_bitmap(ext)
-        if bmp is None:
-            return owner.tree_icon_cache.get("__file__", owner.tree_icon_file)
-        if is_hidden_item:
-            bmp = image_utils.Hidden_Image(bmp.ConvertToImage()).ConvertToBitmap()
-        owner.tree_icon_cache[cache_key] = owner.tree_images.Add(bmp)
-        return owner.tree_icon_cache[cache_key]
+        return image_utils.get_tree_shell_icon_index(owner, path, is_hidden_item=is_hidden_item)
 
     cache_key = f"{ext}|hidden" if is_hidden_item else ext
     cached = owner.tree_icon_cache.get(cache_key)

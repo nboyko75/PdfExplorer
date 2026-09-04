@@ -11,7 +11,7 @@ import file_operations.image_utils as image_utils
 STANDARD_SHORTCUT_DEFINITIONS = (
     {"key": "desktop", "label": "Desktop", "default": True},
     {"key": "documents", "label": "Documents", "default": True},
-    {"key": "download", "label": "Downloads", "default": False},
+    {"key": "downloads", "label": "Downloads", "default": False},
     {"key": "images", "label": "Images", "default": False},
     {"key": "music", "label": "Music", "default": False},
     {"key": "video", "label": "Videos", "default": False},
@@ -20,31 +20,24 @@ STANDARD_SHORTCUT_DEFINITIONS = (
 
 
 def _standard_shortcut_path_for_key(key):
-    home_dir = os.path.expanduser("~")
-    mapping = {
-        "desktop": os.path.join(home_dir, get_windows_special_folder("Desktop")),
-        "documents": os.path.join(home_dir, get_windows_special_folder("MyDocuments")),
-        "download": os.path.join(home_dir, get_windows_special_folder("Downloads")),
-        "images": os.path.join(home_dir, get_windows_special_folder("MyPictures")),
-        "music": os.path.join(home_dir, get_windows_special_folder("MyMusic")),
-        "video": os.path.join(home_dir, get_windows_special_folder("MyVideos")),
-        "recycle_bin": get_windows_special_folder("RecycleBin") or os.path.join(home_dir, "Desktop", "Recycle Bin"),
+    folder_key_mapping = {
+        "desktop": "desktop",
+        "documents": "documents",
+        "download": "downloads",
+        "downloads": "downloads",
+        "images": "pictures",
+        "music": "music",
+        "video": "videos",
     }
-    path = mapping.get(key, "")
-    if path and os.path.isdir(path):
-        return os.path.normpath(path)
+
+    folder_key = folder_key_mapping.get(key)
+    if folder_key:
+        return get_windows_special_folder(folder_key)
+
     if key == "recycle_bin":
-        try:
-            import win32com.client
-            shell = win32com.client.Dispatch("WScript.Shell")
-            desktop_path = shell.SpecialFolders("Desktop")
-            if desktop_path:
-                recycle_bin_path = os.path.join(desktop_path, "Recycle Bin")
-                if os.path.isdir(recycle_bin_path):
-                    return os.path.normpath(recycle_bin_path)
-        except Exception:
-            pass
-    return os.path.normpath(path) if path else ""
+        return ""
+
+    return ""
 
 
 def _standard_shortcut_entries(owner):
@@ -58,7 +51,7 @@ def _standard_shortcut_entries(owner):
             label = tr("favorite_shortcut_desktop") if tr("favorite_shortcut_desktop") != "favorite_shortcut_desktop" else "Desktop"
         elif key == "documents":
             label = tr("favorite_shortcut_documents") if tr("favorite_shortcut_documents") != "favorite_shortcut_documents" else "Documents"
-        elif key == "download":
+        elif key == "downloads":
             label = tr("favorite_shortcut_downloads") if tr("favorite_shortcut_downloads") != "favorite_shortcut_downloads" else "Downloads"
         elif key == "images":
             label = tr("favorite_shortcut_images") if tr("favorite_shortcut_images") != "favorite_shortcut_images" else "Images"
@@ -221,6 +214,7 @@ def build_favorite_panel(owner, parent):
     owner.favorite_row_move_up_btn.Hide()
     owner.favorite_row_move_down_btn.Hide()
 
+    owner.standard_shortcuts_icon_indexes = getattr(owner, "standard_shortcuts_icon_indexes", {})
     owner.icon_manager = image_utils.ensure_owner_icon_manager(owner)
     favorite_header_bitmap = None
     if owner.icon_manager is not None:
@@ -418,15 +412,25 @@ def _standard_shortcut_icon_index(owner, shortcut):
     shortcut_path = shortcut.get("path", "")
     shortcut_key = shortcut.get("key", "")
     image_list = getattr(owner, "standard_shortcuts_image_list", None)
-
     if image_list is None:
         return fallback
+
+    cached_index_map = getattr(owner, "standard_shortcuts_icon_indexes", None)
+    if not isinstance(cached_index_map, dict):
+        cached_index_map = {}
+        setattr(owner, "standard_shortcuts_icon_indexes", cached_index_map)
+
+    cached = cached_index_map.get(shortcut_key)
+    if cached is not None:
+        return cached
 
     if shortcut_key == "recycle_bin":
         try:
             icon = image_utils.get_recycle_bin_icon_bitmap()
             if icon is not None and icon.IsOk():
-                return image_list.Add(icon)
+                index = image_list.Add(icon)
+                owner.standard_shortcuts_icon_indexes[shortcut_key] = index
+                return index
         except Exception:
             pass
         return fallback
@@ -437,7 +441,9 @@ def _standard_shortcut_icon_index(owner, shortcut):
     try:
         icon = image_utils.get_shell_bitmap(shortcut_path)
         if icon is not None and icon.IsOk():
-            return image_list.Add(icon)
+            index = image_list.Add(icon)
+            owner.standard_shortcuts_icon_indexes[shortcut_key] = index
+            return index
     except Exception:
         pass
 

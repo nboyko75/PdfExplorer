@@ -473,6 +473,120 @@ def get_shell_bitmap(path, file_attr=0, use_file_attributes=False):
     return None
 
 
+def get_real_shell_bitmap(path, size=16, include_shortcut_overlay=True):
+    """Return the Windows Explorer icon for an existing file or folder.
+
+    For a real .lnk file, pass the actual shortcut path without SHGFI_USEFILEATTRIBUTES
+    so Explorer resolves the stored shortcut icon or the target's icon correctly.
+    """
+    if not isinstance(path, str) or not os.path.exists(path):
+        return None
+
+    SHGFI_ICON = 0x00000100
+    SHGFI_SMALLICON = 0x00000001
+    SHGFI_LARGEICON = 0x00000000
+    SHGFI_ADDOVERLAYS = 0x00000020
+
+    class SHFILEINFOW(ctypes.Structure):
+        _fields_ = [
+            ("hIcon", ctypes.c_void_p),
+            ("iIcon", ctypes.c_int),
+            ("dwAttributes", ctypes.c_uint),
+            ("szDisplayName", ctypes.c_wchar * 260),
+            ("szTypeName", ctypes.c_wchar * 80),
+        ]
+
+    try:
+        shell32 = ctypes.windll.shell32
+        user32 = ctypes.windll.user32
+        shell32.SHGetFileInfoW.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_uint,
+            ctypes.POINTER(SHFILEINFOW),
+            ctypes.c_uint,
+            ctypes.c_uint,
+        ]
+        shell32.SHGetFileInfoW.restype = ctypes.c_void_p
+
+        file_info = SHFILEINFOW()
+        flags = SHGFI_ICON | (SHGFI_SMALLICON if size <= 16 else SHGFI_LARGEICON)
+        if include_shortcut_overlay:
+            flags |= SHGFI_ADDOVERLAYS
+
+        result = shell32.SHGetFileInfoW(
+            path,
+            0,
+            ctypes.byref(file_info),
+            ctypes.sizeof(file_info),
+            flags,
+        )
+
+        if not result or not file_info.hIcon:
+            return None
+
+        try:
+            bitmap = hicon_to_bitmap(file_info.hIcon, size)
+            return bitmap if bitmap and bitmap.IsOk() else None
+        finally:
+            user32.DestroyIcon(ctypes.c_void_p(file_info.hIcon))
+    except Exception:
+        return None
+
+
+def get_file_list_shell_icon_index(owner, path, is_hidden_item=False):
+    if owner is None or not isinstance(path, str) or not path:
+        return getattr(owner, "file_icon_index", 0) if owner is not None else 0
+
+    normalized_path = os.path.normcase(os.path.abspath(path))
+    owner_dict = getattr(owner, "__dict__", {})
+    list_shell_icon_indexes = owner_dict.get("list_shell_icon_indexes")
+    if list_shell_icon_indexes is None:
+        list_shell_icon_indexes = {}
+        setattr(owner, "list_shell_icon_indexes", list_shell_icon_indexes)
+
+    cached_index = list_shell_icon_indexes.get(normalized_path)
+    if cached_index is not None:
+        return cached_index
+
+    bitmap = get_real_shell_bitmap(path, size=16, include_shortcut_overlay=True)
+    if bitmap is None:
+        return getattr(owner, "file_icon_index", 0)
+
+    if is_hidden_item:
+        bitmap = Hidden_Image(bitmap.ConvertToImage()).ConvertToBitmap()
+
+    index = owner.list_images.Add(bitmap)
+    list_shell_icon_indexes[normalized_path] = index
+    return index
+
+
+def get_tree_shell_icon_index(owner, path, is_hidden_item=False):
+    if owner is None or not isinstance(path, str) or not path:
+        return getattr(owner, "tree_icon_file", getattr(owner, "tree_icon_folder", 0)) if owner is not None else 0
+
+    normalized_path = os.path.normcase(os.path.abspath(path))
+    owner_dict = getattr(owner, "__dict__", {})
+    tree_shell_icon_indexes = owner_dict.get("tree_shell_icon_indexes")
+    if tree_shell_icon_indexes is None:
+        tree_shell_icon_indexes = {}
+        setattr(owner, "tree_shell_icon_indexes", tree_shell_icon_indexes)
+
+    cached_index = tree_shell_icon_indexes.get(normalized_path)
+    if cached_index is not None:
+        return cached_index
+
+    bitmap = get_real_shell_bitmap(path, size=16, include_shortcut_overlay=True)
+    if bitmap is None:
+        return getattr(owner, "tree_icon_file", getattr(owner, "tree_icon_folder", 0))
+
+    if is_hidden_item:
+        bitmap = Hidden_Image(bitmap.ConvertToImage()).ConvertToBitmap()
+
+    index = owner.tree_images.Add(bitmap)
+    tree_shell_icon_indexes[normalized_path] = index
+    return index
+
+
 def get_recycle_bin_icon_bitmap():
     """Return the stock Recycle Bin icon for Windows 10/11."""
     SIID_RECYCLER = 31
@@ -619,6 +733,7 @@ def create_extension_icon_bitmap(ext):
 def init_list_images(owner):
     owner.list_images = wx.ImageList(16, 16)
     owner.list_icon_cache = {}
+    owner.list_shell_icon_indexes = {}
 
     FILE_ATTRIBUTE_DIRECTORY = 0x00000010
     FILE_ATTRIBUTE_NORMAL    = 0x00000080

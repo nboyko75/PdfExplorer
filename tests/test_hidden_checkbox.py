@@ -151,7 +151,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_panel = mock.MagicMock()
         fake_panel.GetSize.return_value = types.SimpleNamespace(GetWidth=lambda: 300, GetHeight=lambda: 200)
         fake_image_list = mock.MagicMock()
-        fake_image_list.Add.side_effect = [5, 6, 7]
+        fake_image_list.Add.side_effect = [5, 6, 7, 8, 9]
         fake_bitmap = mock.MagicMock()
         fake_bitmap.IsOk.return_value = True
         with mock.patch.object(image_utils, "create_bitmap_button", return_value=fake_button), \
@@ -354,7 +354,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.standard_shortcuts_visibility = {
             "desktop": True,
             "documents": True,
-            "download": False,
+            "downloads": False,
             "images": False,
             "music": False,
             "video": False,
@@ -377,7 +377,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.standard_shortcuts_visibility = {
             "desktop": True,
             "documents": True,
-            "download": False,
+            "downloads": False,
             "images": False,
             "music": False,
             "video": False,
@@ -402,7 +402,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.standard_shortcuts_visibility = {
             "desktop": True,
             "documents": True,
-            "download": False,
+            "downloads": False,
             "images": False,
             "music": False,
             "video": False,
