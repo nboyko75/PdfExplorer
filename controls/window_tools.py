@@ -127,6 +127,42 @@ def save_window_geometry(frame):
     )
 
 
+def save_control_geometry(control, settings_prefix):
+    position = control.GetPosition()
+    size = control.GetSize()
+
+    update_settings({
+        f"{settings_prefix}_position": [int(position.x), int(position.y)],
+        f"{settings_prefix}_size": [int(size.x), int(size.y)],
+    })
+
+
+def restore_control_geometry(
+    control,
+    settings_prefix,
+    default_size,
+    min_size,
+    settings=None,
+):
+    if settings is None:
+        settings = load_settings()
+
+    control.SetMinSize(min_size)
+    control.SetSize(default_size)
+
+    saved_size = settings.get(f"{settings_prefix}_size")
+    if isinstance(saved_size, list) and len(saved_size) == 2:
+        width, height = map(int, saved_size)
+        if width >= min_size[0] and height >= min_size[1]:
+            control.SetSize((width, height))
+
+    saved_position = settings.get(f"{settings_prefix}_position")
+    if isinstance(saved_position, list) and len(saved_position) == 2:
+        control.SetPosition(tuple(map(int, saved_position)))
+
+    return control
+
+
 def restore_window_geometry(frame, settings=None):
     if settings is None:
         settings = load_settings()

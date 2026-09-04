@@ -22,7 +22,7 @@ from common.search_match_utils import (
     _parse_size_kb,
 )
 from localization import tr
-from controls.window_tools import load_settings, update_settings
+from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 
 
 def _show_date_picker_popup(parent_dialog, field_control, trigger_button=None, date_picker_name=None):
@@ -664,12 +664,9 @@ def _save_search_form_state(
     size_to_value,
 ):
     try:
-        position = dialog.GetPosition()
-        size = dialog.GetSize()
+        save_control_geometry(dialog, "search_form")
         update_settings(
             {
-                "search_form_position": [int(position.x), int(position.y)],
-                "search_form_size": [int(size.x), int(size.y)],
                 "search_form_query": query_value,
                 "search_form_folder": folder_value,
                 "search_form_file_mask": file_mask_value,
@@ -1121,22 +1118,17 @@ def show_search_form(owner):
 
     dialog.Bind(wx.EVT_CLOSE, on_close)
 
-    position = restored_state.get("position")
-    size = restored_state.get("size")
-    if isinstance(position, list) and len(position) == 2:
-        try:
-            dialog.SetPosition((int(position[0]), int(position[1])))
-        except Exception:
-            pass
-    if isinstance(size, list) and len(size) == 2:
-        try:
-            width, height = int(size[0]), int(size[1])
-            if width > 150 and height > 180:
-                dialog.SetSize((width, height))
-        except Exception:
-            pass
-    else:
-        dialog.SetSize((900, 500))
+    saved_settings = {
+        "search_form_position": restored_state.get("position"),
+        "search_form_size": restored_state.get("size"),
+    }
+    restore_control_geometry(
+        dialog,
+        "search_form",
+        default_size=(900, 500),
+        min_size=(150, 180),
+        settings=saved_settings,
+    )
 
     dialog.Layout()
     dialog.CenterOnParent()

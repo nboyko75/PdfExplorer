@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 from controls.file_preview import IMAGE_EXTENSIONS
 from localization import tr
-from controls.window_tools import load_settings, update_settings
+from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 import file_operations.office_preview as office_preview
 import file_operations.pdf_utils as pdf_utils
 
@@ -451,34 +451,17 @@ def _show_printer_properties(printer_name):
 
 
 def _save_print_form_geometry(dialog):
-    position = dialog.GetPosition()
-    size = dialog.GetSize()
-    update_settings({
-        "print_form_position": [int(position.x), int(position.y)],
-        "print_form_size": [int(size.x), int(size.y)],
-    })
+    save_control_geometry(dialog, "print_form")
 
 
 def _apply_print_form_geometry(dialog, settings=None):
-    if settings is None:
-        settings = load_settings()
-
-    saved_position = settings.get("print_form_position")
-    saved_size = settings.get("print_form_size")
-
-    min_width, min_height = 320, 200
-    default_width, default_height = 420, 220
-    dialog.SetMinSize((min_width, min_height))
-    dialog.SetSize((default_width, default_height))
-
-    if isinstance(saved_size, list) and len(saved_size) == 2:
-        width, height = int(saved_size[0]), int(saved_size[1])
-        if width >= min_width and height >= min_height:
-            dialog.SetSize((width, height))
-
-    if isinstance(saved_position, list) and len(saved_position) == 2:
-        x, y = int(saved_position[0]), int(saved_position[1])
-        dialog.SetPosition((x, y))
+    restore_control_geometry(
+        dialog,
+        "print_form",
+        default_size=(420, 220),
+        min_size=(320, 200),
+        settings=settings,
+    )
 
 
 def show_print_form(owner, document_path=None):

@@ -1,6 +1,8 @@
 import os
 import wx
 
+from controls.settings_utils import get_option_group_label
+from controls.splitter_utils import normalize_shortcuts_sash
 from controls.window_tools import set_column_image_on_left
 from localization import tr
 import file_operations.image_utils as image_utils
@@ -295,13 +297,14 @@ def build_favorite_panel(owner, parent):
     standard_shortcuts_sizer.Add(owner.standard_shortcuts_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
     owner.standard_shortcuts_panel.SetSizer(standard_shortcuts_sizer)
 
+    sash = normalize_shortcuts_sash(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120))
     owner.favorite_content_splitter.SplitHorizontally(
         owner.favorite_list,
         owner.standard_shortcuts_panel,
-        max(40, min(int(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120)), 400)),
+        sash,
     )
     if hasattr(owner, "favorite_standard_shortcuts_splitter_sash"):
-        owner.favorite_content_splitter.SetSashPosition(max(40, min(int(owner.favorite_standard_shortcuts_splitter_sash), 400)))
+        owner.favorite_content_splitter.SetSashPosition(sash)
     if not owner.standard_shortcuts_visible:
         try:
             if owner.favorite_content_splitter.IsSplit():
@@ -480,7 +483,7 @@ def on_favorite_content_splitter_sash_changed(owner, event):
     if splitter is None:
         return
 
-    owner.favorite_standard_shortcuts_splitter_sash = int(
+    owner.favorite_standard_shortcuts_splitter_sash = normalize_shortcuts_sash(
         splitter.GetSashPosition()
     )
 
@@ -506,8 +509,9 @@ def toggle_standard_shortcuts_panel(owner):
         if splitter is not None:
             try:
                 if not splitter.IsSplit():
-                    splitter.SplitHorizontally(owner.favorite_list, standard_shortcuts_pane or owner.standard_shortcuts_list, getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120))
-                    splitter.SetSashPosition(max(40, min(int(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120)), 400)))
+                    sash = normalize_shortcuts_sash(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120))
+                    splitter.SplitHorizontally(owner.favorite_list, standard_shortcuts_pane or owner.standard_shortcuts_list, sash)
+                    splitter.SetSashPosition(sash)
             except Exception:
                 pass
     else:
@@ -526,7 +530,7 @@ def toggle_standard_shortcuts_panel(owner):
             splitter.Layout()
             splitter.Update()
             if splitter.IsSplit():
-                owner.favorite_standard_shortcuts_splitter_sash = int(splitter.GetSashPosition())
+                owner.favorite_standard_shortcuts_splitter_sash = normalize_shortcuts_sash(splitter.GetSashPosition())
         except Exception:
             pass
 

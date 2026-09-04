@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     ImageOps = None
 
 from localization import tr
-from controls.window_tools import load_settings, update_settings
+from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 import controls.file_preview as file_preview
 
 
@@ -143,15 +143,16 @@ def _show_scan_dialog(owner):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    saved_size = settings.get("scan_dialog_size")
-    if isinstance(saved_size, list) and len(saved_size) == 2:
-        width, height = int(saved_size[0]), int(saved_size[1])
-        if width > 100 and height > 100:
-            dialog.SetSize((width, height))
+    restore_control_geometry(
+        dialog,
+        "scan_dialog",
+        default_size=(520, 260),
+        min_size=(260, 180),
+        settings=settings,
+    )
 
     result_code = dialog.ShowModal()
-    dialog_size = dialog.GetSize()
-    update_settings({"scan_dialog_size": [int(dialog_size.x), int(dialog_size.y)]})
+    save_control_geometry(dialog, "scan_dialog")
 
     if result_code != wx.ID_OK:
         dialog.Destroy()

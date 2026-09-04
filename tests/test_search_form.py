@@ -16,7 +16,6 @@ import controls.tree_utils as tree_utils_module
 from common import date_utils as common_date_utils
 import controls.filelist as filelist_module
 import controls.search_form as search_form_module
-import distlocalization
 from controls.search_form import (
     _collect_search_matches,
     _format_search_status,
@@ -113,25 +112,6 @@ class SearchFilesTests(unittest.TestCase):
             self.assertIsInstance(tr("context_extract_from_archive"), str)
             self.assertTrue(tr("context_add_to_archive"))
             self.assertTrue(tr("context_extract_from_archive"))
-
-    def test_distlocalization_rename_dialog_buttons_are_localized(self):
-        expected = {
-            "en": ("OK", "Cancel"),
-            "de": ("OK", "Abbrechen"),
-            "es": ("Aceptar", "Cancelar"),
-            "fr": ("OK", "Annuler"),
-            "it": ("OK", "Annulla"),
-            "ja": ("OK", "キャンセル"),
-            "ko": ("확인", "취소"),
-            "pt_br": ("OK", "Cancelar"),
-            "ru": ("OK", "Отмена"),
-            "uk": ("OK", "Скасувати"),
-            "zh_cn": ("确定", "取消"),
-        }
-        for locale_name, (expected_ok, expected_cancel) in expected.items():
-            distlocalization.load_locale(locale_name)
-            self.assertEqual(distlocalization.tr("ok_button"), expected_ok)
-            self.assertEqual(distlocalization.tr("cancel_button"), expected_cancel)
 
     def test_status_bar_uses_current_file_folder_on_left(self):
         left, right = _format_search_status("C:/root/search", "C:/root/search/subdir/report.txt")

@@ -8,6 +8,7 @@ from file_operations.pdf_utils import discard_pdf_changes, get_unsaved_pdf_paths
 from localization import tr, load_locale, available_locales
 from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
 from controls.options_form import show_options_form
+from controls.splitter_utils import normalize_shortcuts_sash
 import controls.tree_utils as tree_utils
 import controls.drag_and_drop as drag_and_drop
 import controls.favorite_panel as favorite_panel
@@ -77,7 +78,7 @@ class FileExplorer(wx.Frame):
         self.favorite_panel = None
         self.favorite_list = None
         self.favorite_content_splitter = None
-        self.favorite_standard_shortcuts_splitter_sash = int(settings.get("favorite_standard_shortcuts_splitter_sash", 120))
+        self.favorite_standard_shortcuts_splitter_sash = normalize_shortcuts_sash(settings.get("favorite_standard_shortcuts_splitter_sash", 120))
         self.favorite_panel_above_tree = bool(settings.get("favorite_panel_above_tree", False))
         self.favorite_paths = []
         for favorite_path in settings.get("favorite_paths", []):
@@ -116,7 +117,6 @@ class FileExplorer(wx.Frame):
         self.bind_events()
 
         restore_window_geometry(self, settings)
-        self.restore_splitter_positions(settings)
         wx.CallAfter(self.restore_splitter_positions, settings)
 
         opened_initial_path = False
@@ -471,7 +471,7 @@ class FileExplorer(wx.Frame):
 
         panel.SetSizer(main_sizer)
 
-        self.init_tree()
+        tree_utils.init_tree(self)
 
     def init_tree_images(self):
         return tree_utils.init_tree_images(self)
@@ -684,7 +684,7 @@ class FileExplorer(wx.Frame):
         favorite_above_tree = bool(settings.get("favorite_panel_above_tree", False))
         favorite_standard_shortcuts_sash = settings.get("favorite_standard_shortcuts_splitter_sash")
         if isinstance(favorite_standard_shortcuts_sash, (int, float)):
-            self.favorite_standard_shortcuts_splitter_sash = int(favorite_standard_shortcuts_sash)
+            self.favorite_standard_shortcuts_splitter_sash = normalize_shortcuts_sash(favorite_standard_shortcuts_sash)
         saved_standard_shortcuts_visible = settings.get("standard_shortcuts_visible", False)
         if hasattr(self, "standard_shortcuts_visible"):
             self.standard_shortcuts_visible = bool(saved_standard_shortcuts_visible)
@@ -698,15 +698,16 @@ class FileExplorer(wx.Frame):
         if self.favorite_content_splitter is not None:
             if self.standard_shortcuts_visible and not self.favorite_content_splitter.IsSplit():
                 try:
+                    sash = normalize_shortcuts_sash(self.favorite_standard_shortcuts_splitter_sash)
                     self.favorite_content_splitter.SplitHorizontally(
                         self.favorite_list,
                         self.standard_shortcuts_panel,
-                        max(40, min(int(self.favorite_standard_shortcuts_splitter_sash), 400)),
+                        sash,
                     )
                 except Exception:
                     pass
             if self.favorite_content_splitter.IsSplit():
-                self.favorite_content_splitter.SetSashPosition(max(40, min(int(self.favorite_standard_shortcuts_splitter_sash), 400)))
+                self.favorite_content_splitter.SetSashPosition(normalize_shortcuts_sash(self.favorite_standard_shortcuts_splitter_sash))
             if hasattr(self, "favorite_panel") and self.favorite_panel is not None and hasattr(self.favorite_panel, "GetSizer"):
                 self.favorite_panel.GetSizer().Layout()
 
@@ -858,24 +859,6 @@ class FileExplorer(wx.Frame):
             elif self.current_preview_path:
                 file_preview.refresh_preview_for_page_view_mode(self, self.current_preview_path)
 
-    def create_drag_overlay(self):
-        return drag_and_drop.create_drag_overlay(self)
-
-    def show_drag_overlay(self, page_index, page_panel, x, y):
-        drag_and_drop.show_drag_overlay(self, page_index, page_panel, x, y)
-
-    def hide_drag_overlay(self):
-        drag_and_drop.hide_drag_overlay(self)
-
-    def create_drop_frame(self):
-        return drag_and_drop.create_drop_frame(self)
-
-    def show_drop_frame(self, page_index, page_panel, x, y):
-        drag_and_drop.show_drop_frame(self, page_index, page_panel, x, y)
-
-    def hide_drop_frame(self):
-        drag_and_drop.hide_drop_frame(self)
-
     def show_file_preview(self, path):
         file_preview.show_file_preview(self, path)
 
@@ -884,12 +867,6 @@ class FileExplorer(wx.Frame):
 
     def show_pdf_feed(self, path):
         file_preview.show_pdf_feed(self, path)
-
-    def get_pdf_page_panel_from_event(self, event):
-        return file_preview.get_pdf_page_panel_from_event(self, event)
-
-    def get_selected_pdf_page_index(self):
-        return file_preview.get_selected_pdf_page_index(self)
 
     def on_key(self, event):
         # Handle Ctrl+Z for undo
@@ -948,19 +925,6 @@ class FileExplorer(wx.Frame):
             wx.MessageBox(tr("undo_done"), tr("undo_title"), style=wx.OK | wx.ICON_INFORMATION)
         except Exception as exc:
             wx.MessageBox(str(exc), tr("undo_title"), style=wx.OK | wx.ICON_ERROR)
-
-    # ---------------- TREE ----------------
-    def normalize_tree_path(self, path):
-        return tree_utils.normalize_tree_path(path)
-
-    def populate_tree_node(self, item, path):
-        return tree_utils.populate_tree_node(self, item, path)
-
-    def init_tree(self):
-        return tree_utils.init_tree(self)
-
-    def get_drives(self):
-        return tree_utils.get_drives()
 
     # ---------------- NAVIGATION ----------------
     def open_path(self, path, add_history=True):

@@ -1776,6 +1776,70 @@ def _save_dialog_geometry(dialog, settings_key):
     )
 
 
+def _build_pdf_import_destination_controls(panel, owner, page_count):
+    destination_box = wx.StaticBox(
+        panel,
+        label=tr("import_pdf_destination_label"),
+    )
+    destination_sizer = wx.StaticBoxSizer(
+        destination_box,
+        wx.VERTICAL,
+    )
+
+    at_begin_radio = wx.RadioButton(
+        panel,
+        label=tr("move_page_at_begin"),
+        style=wx.RB_GROUP,
+    )
+    after_page_radio = wx.RadioButton(
+        panel,
+        label=tr("import_pdf_after_page"),
+    )
+    at_end_radio = wx.RadioButton(
+        panel,
+        label=tr("move_page_at_end"),
+    )
+
+    selected = get_selected_pdf_page_index(owner) or 0
+    page_number_spin = wx.SpinCtrl(
+        panel,
+        min=1,
+        max=max(1, page_count),
+        initial=max(1, min(page_count, selected + 1)),
+        size=(80, -1),
+    )
+
+    def update_state(_event=None):
+        page_number_spin.Enable(
+            after_page_radio.GetValue() and page_count > 0
+        )
+
+    for radio in (
+        at_begin_radio,
+        after_page_radio,
+        at_end_radio,
+    ):
+        radio.Bind(wx.EVT_RADIOBUTTON, update_state)
+
+    at_end_radio.SetValue(True)
+    update_state()
+
+    destination_sizer.Add(at_begin_radio, 0, wx.TOP, 3)
+    after_page_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    after_page_sizer.Add(after_page_radio, 0, wx.RIGHT, 6)
+    after_page_sizer.Add(page_number_spin, 0)
+    destination_sizer.Add(after_page_sizer, 0, wx.TOP, 3)
+    destination_sizer.Add(at_end_radio, 0)
+
+    return {
+        "sizer": destination_sizer,
+        "at_begin": at_begin_radio,
+        "after_page": after_page_radio,
+        "at_end": at_end_radio,
+        "page_number": page_number_spin,
+    }
+
+
 def _show_import_pdf_dialog(owner, page_count):
     dialog = wx.Dialog(owner, title=tr("import_pdf_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
@@ -1798,29 +1862,12 @@ def _show_import_pdf_dialog(owner, page_count):
 
     browse_btn.Bind(wx.EVT_BUTTON, browse_for_pdf)
 
-    destination_box = wx.StaticBox(panel, label=tr("import_pdf_destination_label"))
-    destination_sizer = wx.StaticBoxSizer(destination_box, wx.VERTICAL)
-    at_begin_radio = wx.RadioButton(panel, label=tr("move_page_at_begin"), style=wx.RB_GROUP)
-    after_page_radio = wx.RadioButton(panel, label=tr("import_pdf_after_page"))
-    at_end_radio = wx.RadioButton(panel, label=tr("move_page_at_end"))
-    page_number_spin = wx.SpinCtrl(panel, min=1, max=max(1, page_count), initial=max(1, min(page_count, (get_selected_pdf_page_index(owner) or 0) + 1)), size=(80, -1))
-
-    def update_after_page_state(_):
-        enabled = after_page_radio.GetValue() and page_count > 0
-        page_number_spin.Enable(enabled)
-
-    at_begin_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
-    after_page_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
-    at_end_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
-    at_end_radio.SetValue(True)
-    update_after_page_state(None)
-
-    destination_sizer.Add(at_begin_radio, 0, wx.TOP, 3)
-    after_page_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    after_page_sizer.Add(after_page_radio, 0, wx.RIGHT, 6)
-    after_page_sizer.Add(page_number_spin, 0)
-    destination_sizer.Add(after_page_sizer, 0, wx.TOP, 3)
-    destination_sizer.Add(at_end_radio, 0)
+    destination_controls = _build_pdf_import_destination_controls(panel, owner, page_count)
+    destination_sizer = destination_controls["sizer"]
+    at_begin_radio = destination_controls["at_begin"]
+    after_page_radio = destination_controls["after_page"]
+    at_end_radio = destination_controls["at_end"]
+    page_number_spin = destination_controls["page_number"]
 
     source_row = wx.BoxSizer(wx.HORIZONTAL)
     source_row.Add(source_text, 1, wx.RIGHT, 8)
@@ -2034,29 +2081,12 @@ def _show_import_from_scanner_dialog(owner, page_count):
     dialog = wx.Dialog(owner, title=tr("preview_import_from_scanner_button"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
 
-    destination_box = wx.StaticBox(panel, label=tr("import_pdf_destination_label"))
-    destination_sizer = wx.StaticBoxSizer(destination_box, wx.VERTICAL)
-    at_begin_radio = wx.RadioButton(panel, label=tr("move_page_at_begin"), style=wx.RB_GROUP)
-    after_page_radio = wx.RadioButton(panel, label=tr("import_pdf_after_page"))
-    at_end_radio = wx.RadioButton(panel, label=tr("move_page_at_end"))
-    page_number_spin = wx.SpinCtrl(panel, min=1, max=max(1, page_count), initial=max(1, min(page_count, (get_selected_pdf_page_index(owner) or 0) + 1)), size=(80, -1))
-
-    def update_after_page_state(_):
-        enabled = after_page_radio.GetValue() and page_count > 0
-        page_number_spin.Enable(enabled)
-
-    at_begin_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
-    after_page_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
-    at_end_radio.Bind(wx.EVT_RADIOBUTTON, update_after_page_state)
-    at_end_radio.SetValue(True)
-    update_after_page_state(None)
-
-    destination_sizer.Add(at_begin_radio, 0, wx.TOP, 3)
-    after_page_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    after_page_sizer.Add(after_page_radio, 0, wx.RIGHT, 6)
-    after_page_sizer.Add(page_number_spin, 0)
-    destination_sizer.Add(after_page_sizer, 0, wx.TOP, 3)
-    destination_sizer.Add(at_end_radio, 0)
+    destination_controls = _build_pdf_import_destination_controls(panel, owner, page_count)
+    destination_sizer = destination_controls["sizer"]
+    at_begin_radio = destination_controls["at_begin"]
+    after_page_radio = destination_controls["after_page"]
+    at_end_radio = destination_controls["at_end"]
+    page_number_spin = destination_controls["page_number"]
 
     ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
     cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
@@ -2288,32 +2318,31 @@ def on_preview_zoom_out(event):
         owner.preview_zoom_out_btn.Enable(False)
 
 
-def on_preview_rotate(event):
-    owner = _get_preview_owner_from_event(event)
-    if owner:
-        if not is_pdf_file(owner.current_preview_path):
-            wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-            return
-        try:
-            with owner.busy_cursor():
-                rotate_pdf(owner.current_preview_path, 90)
-                show_pdf_feed(owner, owner.current_preview_path)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+def _rotate_entire_pdf(owner, angle):
+    if not is_pdf_file(owner.current_preview_path):
+        wx.MessageBox(
+            tr("no_preview_available"),
+            tr("app_title"),
+            wx.OK | wx.ICON_INFORMATION,
+        )
+        return
+
+    try:
+        with owner.busy_cursor():
+            rotate_pdf(owner.current_preview_path, angle)
+            show_pdf_feed(owner, owner.current_preview_path)
+    except Exception as exc:
+        wx.MessageBox(
+            str(exc),
+            tr("app_title"),
+            wx.OK | wx.ICON_ERROR,
+        )
 
 
 def on_preview_rotate_all_left(event):
     owner = _get_preview_owner_from_event(event)
     if owner:
-        if not is_pdf_file(owner.current_preview_path):
-            wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-            return
-        try:
-            with owner.busy_cursor():
-                rotate_pdf(owner.current_preview_path, -90)
-                show_pdf_feed(owner, owner.current_preview_path)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        _rotate_entire_pdf(owner, -90)
 
 
 def on_preview_rotate_left(event):
@@ -2418,15 +2447,7 @@ def on_preview_rotate_right(event):
 def on_preview_rotate_all_right(event):
     owner = _get_preview_owner_from_event(event)
     if owner:
-        if not is_pdf_file(owner.current_preview_path):
-            wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-            return
-        try:
-            with owner.busy_cursor():
-                rotate_pdf(owner.current_preview_path, 90)
-                show_pdf_feed(owner, owner.current_preview_path)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        _rotate_entire_pdf(owner, 90)
 
 
 # def on_preview_auto_rotate(event):

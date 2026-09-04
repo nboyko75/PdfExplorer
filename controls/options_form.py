@@ -13,7 +13,7 @@ from controls.settings_utils import (
     get_locale_value_label,
     normalize_setting_value,
 )
-from controls.window_tools import load_settings, update_settings
+from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 from localization import tr
 
 
@@ -25,30 +25,17 @@ _normalize_setting_value = normalize_setting_value
 
 
 def _save_dialog_geometry(dialog):
-    position = dialog.GetPosition()
-    size = dialog.GetSize()
-    update_settings({
-        "options_form_position": [int(position.x), int(position.y)],
-        "options_form_size": [int(size.x), int(size.y)],
-    })
+    save_control_geometry(dialog, "options_form")
 
 
 def _apply_dialog_geometry(dialog, settings):
-    saved_position = settings.get("options_form_position")
-    saved_size = settings.get("options_form_size")
-
-    min_width, min_height = 550, 450
-    default_width, default_height = 920, 620
-    dialog.SetMinSize((min_width, min_height))
-    dialog.SetSize((default_width, default_height))
-
-    if isinstance(saved_size, list) and len(saved_size) == 2:
-        width, height = int(saved_size[0]), int(saved_size[1])
-        if width >= min_width and height >= min_height:
-            dialog.SetSize((width, height))
-    if isinstance(saved_position, list) and len(saved_position) == 2:
-        x, y = int(saved_position[0]), int(saved_position[1])
-        dialog.SetPosition((x, y))
+    restore_control_geometry(
+        dialog,
+        "options_form",
+        default_size=(920, 620),
+        min_size=(550, 450),
+        settings=settings,
+    )
 
 
 def show_options_form(owner):
