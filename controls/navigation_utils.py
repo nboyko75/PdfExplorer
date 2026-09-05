@@ -136,7 +136,12 @@ def load_folder(owner, path):
                     "modified": modified,
                     "modified_ts": modified_ts,
                     "is_dir": is_dir,
-                    "image_index": image_utils.get_list_icon_index(owner, original_path or name, is_dir, is_hidden_item=False),
+                    "image_index": image_utils.get_common_item_icon_index(
+                        owner,
+                        recovered_path,
+                        original_path or name,
+                        is_dir=is_dir,
+                    ),
                     "full_path": preview_path,
                 }
             )

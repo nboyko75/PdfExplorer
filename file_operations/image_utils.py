@@ -560,6 +560,37 @@ def get_file_list_shell_icon_index(owner, path, is_hidden_item=False):
     return index
 
 
+def get_common_item_icon_index(owner, recycled_path, original_path, is_dir=False):
+    """Return the Explorer icon for an item stored in the Recycle Bin.
+
+    ``original_path`` normally no longer exists and its display name may not
+    include an extension.  The Shell-provided recycled path points at the
+    actual $R item, retains the original extension, and can therefore provide
+    the same icon Explorer displays for the deleted item.
+    """
+    for candidate in (recycled_path, original_path):
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        if not os.path.exists(candidate):
+            continue
+
+        bitmap = get_real_shell_bitmap(candidate, size=16, include_shortcut_overlay=True)
+        if bitmap is None or not bitmap.IsOk():
+            continue
+
+        cache_key = "recycle_bin|" + os.path.normcase(os.path.abspath(candidate))
+        cached_index = owner.list_shell_icon_indexes.get(cache_key)
+        if cached_index is not None:
+            return cached_index
+
+        index = owner.list_images.Add(bitmap)
+        owner.list_shell_icon_indexes[cache_key] = index
+        return index
+
+    fallback_path = recycled_path or original_path or ("folder" if is_dir else "file")
+    return get_list_icon_index(owner, fallback_path, is_dir, is_hidden_item=False)
+
+
 def get_tree_shell_icon_index(owner, path, is_hidden_item=False):
     if owner is None or not isinstance(path, str) or not path:
         return getattr(owner, "tree_icon_file", getattr(owner, "tree_icon_folder", 0)) if owner is not None else 0
