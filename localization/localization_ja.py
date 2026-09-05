@@ -113,6 +113,7 @@ TRANSLATIONS = {
     "favorite_move_down_button": "お気に入りパネルを下へ移動",
     "favorite_no_items": "お気に入りなし",
     "context_refresh": "更新",
+    "context_restore": "復元",
     "context_print": "印刷",
     "context_copy": "コピー",
     "context_cut": "切り取り",

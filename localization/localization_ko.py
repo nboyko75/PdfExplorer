@@ -113,6 +113,7 @@ TRANSLATIONS = {
     "favorite_move_down_button": "즐겨찾기 패널 아래로 이동",
     "favorite_no_items": "즐겨찾기 없음",
     "context_refresh": "새로 고침",
+    "context_restore": "복원",
     "context_print": "인쇄",
     "context_copy": "복사",
     "context_cut": "잘라내기",

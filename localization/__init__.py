@@ -146,6 +146,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "restart_required_title": "Restart required",
     "restart_required_message": "Language settings were changed. Restart the application to apply the new language.",
     "context_refresh": "Refresh",
+    "context_restore": "Restore",
     "context_print": "Print",
     "context_copy": "Copy",
     "context_cut": "Cut",

@@ -375,6 +375,17 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
     def test_recycle_bin_standard_shortcut_uses_virtual_shell_path(self):
         self.assertEqual(favorite_panel._standard_shortcut_path_for_key("recycle_bin"), "shell:RecycleBinFolder")
 
+    def test_standard_shortcut_activation_opens_recycle_bin_virtual_folder(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_list.GetFirstSelected.return_value = 0
+        owner.open_recycle_bin = mock.MagicMock()
+
+        with mock.patch.object(favorite_panel, "_visible_standard_shortcuts", return_value=[{"key": "recycle_bin", "path": "shell:RecycleBinFolder"}]):
+            favorite_panel.on_standard_shortcut_list_activate(owner, mock.MagicMock())
+
+        owner.open_recycle_bin.assert_called_once_with(add_history=True)
+
     def test_load_folder_handles_virtual_recycle_bin_path(self):
         owner = types.SimpleNamespace(
             list=mock.MagicMock(),
@@ -403,6 +414,64 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             main.navigation_utils.load_folder(owner, "shell:RecycleBinFolder")
 
         owner.list.InsertItem.assert_called_once_with(0, "Deleted file.txt", mock.ANY)
+
+    def test_recycle_bin_context_menu_uses_recycle_bin_only_items(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
+        owner.list = mock.MagicMock()
+        owner.list.HitTest.return_value = (0, mock.MagicMock())
+        owner.list.GetItemState.return_value = 0
+        owner.list.GetFirstSelected.return_value = 0
+        owner.list.GetNextSelected.return_value = wx.NOT_FOUND
+        owner.list.GetItemText.return_value = "Deleted file.txt"
+        owner.list.GetItemData.return_value = "shell:RecycleBinFolder/Deleted file.txt"
+        owner.list.PopupMenu = mock.Mock()
+        owner.Bind = mock.Mock()
+        owner.load_folder = mock.Mock()
+
+        fake_menu = mock.MagicMock()
+        fake_refresh = mock.MagicMock()
+        fake_restore = mock.MagicMock()
+        fake_delete = mock.MagicMock()
+        fake_menu.Append.side_effect = [fake_refresh, fake_restore, fake_delete]
+
+        with mock.patch.object(wx, "Menu", return_value=fake_menu):
+            filelist.on_right_click(owner, mock.MagicMock())
+
+        self.assertEqual(fake_menu.Append.call_count, 3)
+        fake_refresh.Enable.assert_called_once_with(True)
+        fake_restore.Enable.assert_called_once_with(True)
+        fake_delete.Enable.assert_called_once_with(True)
+
+    def test_load_folder_uses_standard_folder_and_file_icons_for_recycle_bin_items(self):
+        owner = types.SimpleNamespace(
+            list=mock.MagicMock(),
+            search_box=types.SimpleNamespace(GetValue=lambda: ""),
+            show_hidden=True,
+            list_sort_column=None,
+            list_sort_direction=0,
+            update_list_sort_header_icons=mock.Mock(),
+            update_list_toolbar_buttons=mock.Mock(),
+        )
+        owner.list.GetItemCount.return_value = 0
+        owner.list.InsertItem.side_effect = [0]
+
+        recycled_items = [{
+            "name": "Deleted file.txt",
+            "original_path": "C:/Temp/Deleted file.txt",
+            "recycled_path": "shell:RecycleBinFolder",
+            "deleted_from": "C:/Temp",
+            "deleted_date": None,
+            "size": 2048,
+            "is_dir": False,
+        }]
+
+        with mock.patch("controls.navigation_utils.get_recycle_bin_items", return_value=recycled_items), \
+             mock.patch("controls.navigation_utils.image_utils.get_list_icon_index", return_value=17) as mock_get_icon:
+            main.navigation_utils.load_folder(owner, "shell:RecycleBinFolder")
+
+        mock_get_icon.assert_called_once_with(owner, "C:/Temp/Deleted file.txt", False, False)
+        owner.list.InsertItem.assert_called_once_with(0, "Deleted file.txt", 17)
 
     def test_standard_shortcuts_rows_use_shell_icons_instead_of_folder_icon(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)

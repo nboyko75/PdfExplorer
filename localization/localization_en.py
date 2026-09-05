@@ -84,6 +84,7 @@ TRANSLATIONS = {
     "favorite_move_down_button": "Move favorite panel down",
     "favorite_no_items": "No favorites",
     "context_refresh": "Refresh",
+    "context_restore": "Restore",
     "context_copy": "Copy",
     "context_cut": "Cut",
     "context_paste": "Paste",

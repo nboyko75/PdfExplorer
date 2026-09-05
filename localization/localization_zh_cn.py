@@ -113,6 +113,7 @@ TRANSLATIONS = {
     "favorite_move_down_button": "将收藏面板下移",
     "favorite_no_items": "暂无收藏",
     "context_refresh": "刷新",
+    "context_restore": "恢复",
     "context_print": "打印",
     "context_copy": "复制",
     "context_cut": "剪切",

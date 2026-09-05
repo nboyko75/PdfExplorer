@@ -1,6 +1,7 @@
 import os
 import wx
 
+import controls.navigation_utils as navigation_utils
 from controls.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
 from controls.window_tools import set_column_image_on_left, get_windows_special_folder
@@ -567,7 +568,18 @@ def on_standard_shortcut_list_activate(owner, event):
     shortcuts = _visible_standard_shortcuts(owner)
     if not (0 <= selected_index < len(shortcuts)):
         return
-    target_path = shortcuts[selected_index].get("path", "")
+
+    shortcut = shortcuts[selected_index]
+    key = shortcut.get("key")
+    target_path = shortcut.get("path", "")
+
+    if key == "recycle_bin":
+        if hasattr(owner, "open_recycle_bin"):
+            owner.open_recycle_bin(add_history=True)
+        else:
+            navigation_utils.open_recycle_bin(owner, add_history=True)
+        return
+
     if os.path.isdir(target_path):
         if hasattr(owner, "open_path"):
             owner.open_path(target_path, add_history=True)

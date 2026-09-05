@@ -931,6 +931,9 @@ class FileExplorer(wx.Frame):
     def open_path(self, path, add_history=True):
         return navigation_utils.open_path(self, path, add_history=add_history)
 
+    def open_recycle_bin(self, add_history=True):
+        return navigation_utils.open_recycle_bin(self, add_history=add_history)
+
     def open_location(self, path, add_history=True):
         if not isinstance(path, str) or not path:
             return False

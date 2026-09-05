@@ -137,6 +137,7 @@ TRANSLATIONS = {
     "favorite_move_down_button": "Déplacer le panneau des favoris vers le bas",
     "favorite_no_items": "Aucun favori",
     "context_refresh": "Actualiser",
+    "context_restore": "Restaurer",
     "context_print": "Imprimer",
     "context_copy": "Copier",
     "context_cut": "Couper",

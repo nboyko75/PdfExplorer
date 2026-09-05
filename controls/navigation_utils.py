@@ -85,8 +85,13 @@ def go_forward(owner, _):
             owner.select_tree_item_by_path(target_path)
 
 
+def open_recycle_bin(owner, add_history=True):
+    return open_path(owner, RECYCLE_BIN_PATH, add_history=add_history)
+
+
 def load_folder(owner, path):
     owner.list.DeleteAllItems()
+    owner._list_item_paths = {}
 
     if is_virtual_shell_path(path):
         if path.lower() == RECYCLE_BIN_PATH.lower():
@@ -129,7 +134,7 @@ def load_folder(owner, path):
                     "modified": modified,
                     "modified_ts": modified_ts,
                     "is_dir": is_dir,
-                    "image_index": 0,
+                    "image_index": image_utils.get_list_icon_index(owner, original_path or name, is_dir, is_hidden_item=False),
                     "full_path": original_path,
                 }
             )
@@ -170,6 +175,7 @@ def load_folder(owner, path):
 
         for row in row_data:
             item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
+            owner._list_item_paths[item_index] = row["full_path"]
             owner.list.SetItem(item_index, 1, row["type"])
             owner.list.SetItem(item_index, 2, row["size"])
             owner.list.SetItem(item_index, 3, row["modified"])
@@ -277,6 +283,7 @@ def load_folder(owner, path):
 
     for row in row_data:
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
+        owner._list_item_paths[item_index] = row["full_path"]
         owner.list.SetItem(item_index, 1, row["type"])
         owner.list.SetItem(item_index, 2, row["size"])
         owner.list.SetItem(item_index, 3, row["modified"])

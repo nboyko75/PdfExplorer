@@ -26,6 +26,73 @@ def _convert_com_date(value):
         return None
 
 
+def _match_recycle_bin_item(shell_item, target_path):
+    if not isinstance(target_path, str) or not target_path:
+        return False
+
+    try:
+        display_name = str(shell_item.Name or "")
+        deleted_from = shell_item.ExtendedProperty("System.Recycle.DeletedFrom")
+        deleted_from = str(deleted_from or "")
+        original_path = os.path.join(deleted_from, display_name) if deleted_from else display_name
+        candidate_paths = {os.path.normcase(os.path.normpath(target_path)), os.path.normcase(os.path.normpath(original_path)), os.path.normcase(os.path.normpath(display_name))}
+        return any(candidate in candidate_paths for candidate in {os.path.normcase(os.path.normpath(target_path)), os.path.normcase(os.path.normpath(original_path)), os.path.normcase(os.path.normpath(display_name))})
+    except Exception:
+        return False
+
+
+def restore_recycle_bin_items(paths):
+    """Restore selected items from the Windows Recycle Bin to their original locations."""
+    if os.name != "nt":
+        return False
+
+    if not paths:
+        return False
+
+    candidate_paths = [path for path in paths if isinstance(path, str) and path]
+    if not candidate_paths:
+        return False
+
+    try:
+        pythoncom.CoInitialize()
+    except Exception:
+        pass
+
+    try:
+        shell = win32com.client.Dispatch("Shell.Application")
+        recycle_bin = shell.NameSpace(CSIDL_BITBUCKET)
+        if recycle_bin is None:
+            return False
+
+        restored_any = False
+        for shell_item in recycle_bin.Items():
+            if shell_item is None:
+                continue
+            for candidate in candidate_paths:
+                if not _match_recycle_bin_item(shell_item, candidate):
+                    continue
+                try:
+                    shell_item.InvokeVerb("undelete")
+                    restored_any = True
+                    break
+                except Exception:
+                    try:
+                        shell_item.InvokeVerb("restore")
+                        restored_any = True
+                        break
+                    except Exception:
+                        continue
+            if restored_any and len(candidate_paths) == 1:
+                break
+
+        return restored_any
+    finally:
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
+
+
 def get_recycle_bin_items():
     """Return items currently displayed by the Windows Recycle Bin."""
     try:

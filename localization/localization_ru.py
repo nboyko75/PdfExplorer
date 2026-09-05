@@ -137,6 +137,7 @@ TRANSLATIONS = {
     "favorite_move_down_button": "Переместить панель избранного вниз",
     "favorite_no_items": "Нет избранного",
     "context_refresh": "Обновить",
+    "context_restore": "Восстановить",
     "context_print": "Печать",
     "context_copy": "Копировать",
     "context_cut": "Вырезать",

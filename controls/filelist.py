@@ -4,6 +4,8 @@ import shutil
 
 import wx
 
+from file_operations.recycle_bin import RECYCLE_BIN_PATH, restore_recycle_bin_items
+
 from common.system import move_to_recycle_bin
 
 if not hasattr(wx, "DATADOBJECT_PREFERRED"):
@@ -430,7 +432,44 @@ def on_right_click(owner, event):
         except Exception:
             pass
 
+    def handle_restore(_):
+        selected_paths = get_selected_list_paths(owner)
+        if not selected_paths:
+            return
+        if not restore_recycle_bin_items(selected_paths):
+            return
+        current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+        if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
+            owner.load_folder(current_folder)
+
     menu = wx.Menu()
+    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+    is_recycle_bin = isinstance(current_folder, str) and current_folder.lower() == RECYCLE_BIN_PATH.lower()
+    icon_manager = image_utils.ensure_owner_icon_manager(owner)
+
+    if is_recycle_bin:
+        refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
+        restore_item = menu.Append(-1, tr("context_restore"))
+        delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Del")
+
+        if icon_manager:
+            icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
+            icon_manager.set_menu_icon(restore_item, art_id=wx.ART_UNDO)
+            icon_manager.set_menu_icon(delete_permanent_item, art_id=wx.ART_DELETE)
+
+        selected_paths = get_selected_list_paths(owner)
+        valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and path]
+
+        refresh_item.Enable(True)
+        restore_item.Enable(bool(valid_selected_paths))
+        delete_permanent_item.Enable(bool(valid_selected_paths))
+
+        owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
+        owner.Bind(wx.EVT_MENU, handle_restore, restore_item)
+        owner.Bind(wx.EVT_MENU, owner.on_list_delete_permanent, delete_permanent_item)
+        owner.list.PopupMenu(menu)
+        menu.Destroy()
+        return
 
     scan_item = menu.Append(-1, tr("scan"))
     open_item = menu.Append(-1, tr("context_open"))
@@ -451,7 +490,6 @@ def on_right_click(owner, event):
     extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
     extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
 
-    icon_manager = image_utils.ensure_owner_icon_manager(owner)
     refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
     if refresh_bmp.IsOk():
         refresh_item.SetBitmap(refresh_bmp)
@@ -481,7 +519,6 @@ def on_right_click(owner, event):
     valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and os.path.exists(path)]
     can_act_on_selection = bool(valid_selected_paths)
     can_act_on_single_selection = len(valid_selected_paths) == 1
-    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
     can_create_in_current_folder = os.path.isdir(current_folder)
     can_go_up = bool(current_folder and os.path.isdir(current_folder) and os.path.dirname(current_folder))
     can_paste = _can_paste_into_directory(owner, current_folder)
@@ -571,11 +608,16 @@ def get_selected_list_paths(owner):
         return []
 
     current_folder = owner.path_box.GetValue()
+    item_paths = getattr(owner, "_list_item_paths", {})
     selected_paths = []
     index = owner.list.GetFirstSelected()
     while index != wx.NOT_FOUND:
         name = owner.list.GetItemText(index)
-        selected_paths.append(os.path.join(current_folder, name))
+        item_path = item_paths.get(index)
+        if isinstance(item_path, str) and item_path:
+            selected_paths.append(item_path)
+        else:
+            selected_paths.append(os.path.join(current_folder, name))
         index = owner.list.GetNextSelected(index)
 
     return selected_paths
