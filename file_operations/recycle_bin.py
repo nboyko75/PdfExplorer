@@ -26,31 +26,57 @@ def _convert_com_date(value):
         return None
 
 
+def _normalize_path(path):
+    if not isinstance(path, str) or not path:
+        return ""
+    return os.path.normcase(os.path.normpath(path))
+
+
 def _match_recycle_bin_item(shell_item, target_path):
-    if not isinstance(target_path, str) or not target_path:
+    normalized_target = _normalize_path(target_path)
+    if not normalized_target:
         return False
 
     try:
+        recycled_path = str(shell_item.Path or "")
         display_name = str(shell_item.Name or "")
-        deleted_from = shell_item.ExtendedProperty("System.Recycle.DeletedFrom")
+
+        deleted_from = shell_item.ExtendedProperty(
+            "System.Recycle.DeletedFrom"
+        )
         deleted_from = str(deleted_from or "")
-        original_path = os.path.join(deleted_from, display_name) if deleted_from else display_name
-        candidate_paths = {os.path.normcase(os.path.normpath(target_path)), os.path.normcase(os.path.normpath(original_path)), os.path.normcase(os.path.normpath(display_name))}
-        return any(candidate in candidate_paths for candidate in {os.path.normcase(os.path.normpath(target_path)), os.path.normcase(os.path.normpath(original_path)), os.path.normcase(os.path.normpath(display_name))})
+
+        original_path = (
+            os.path.join(deleted_from, display_name)
+            if deleted_from
+            else ""
+        )
+
+        possible_paths = {
+            _normalize_path(recycled_path),
+            _normalize_path(original_path),
+        }
+        possible_paths.discard("")
+
+        return normalized_target in possible_paths
+
     except Exception:
         return False
 
 
 def restore_recycle_bin_items(paths):
-    """Restore selected items from the Windows Recycle Bin to their original locations."""
+    """Restore selected Recycle Bin items to their original locations."""
     if os.name != "nt":
         return False
 
-    if not paths:
-        return False
+    remaining_paths = {
+        _normalize_path(path)
+        for path in paths or []
+        if isinstance(path, str) and path
+    }
+    remaining_paths.discard("")
 
-    candidate_paths = [path for path in paths if isinstance(path, str) and path]
-    if not candidate_paths:
+    if not remaining_paths:
         return False
 
     try:
@@ -64,28 +90,31 @@ def restore_recycle_bin_items(paths):
         if recycle_bin is None:
             return False
 
-        restored_any = False
-        for shell_item in recycle_bin.Items():
-            if shell_item is None:
-                continue
-            for candidate in candidate_paths:
-                if not _match_recycle_bin_item(shell_item, candidate):
-                    continue
-                try:
-                    shell_item.InvokeVerb("undelete")
-                    restored_any = True
-                    break
-                except Exception:
-                    try:
-                        shell_item.InvokeVerb("restore")
-                        restored_any = True
-                        break
-                    except Exception:
-                        continue
-            if restored_any and len(candidate_paths) == 1:
-                break
+        # Copy the collection because Restore modifies it.
+        shell_items = list(recycle_bin.Items())
+        restored_count = 0
 
-        return restored_any
+        for shell_item in shell_items:
+            try:
+                recycled_path = _normalize_path(
+                    str(shell_item.Path or "")
+                )
+            except Exception:
+                continue
+
+            if recycled_path not in remaining_paths:
+                continue
+
+            try:
+                # "undelete" is the canonical Shell verb for Restore.
+                shell_item.InvokeVerb("undelete")
+                remaining_paths.remove(recycled_path)
+                restored_count += 1
+            except Exception:
+                continue
+
+        return restored_count > 0
+
     finally:
         try:
             pythoncom.CoUninitialize()

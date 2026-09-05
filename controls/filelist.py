@@ -443,7 +443,7 @@ def on_right_click(owner, event):
             return
         current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
         if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
-            owner.load_folder(current_folder)
+            wx.CallLater(300, owner.load_folder, current_folder)
 
     menu = wx.Menu()
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
