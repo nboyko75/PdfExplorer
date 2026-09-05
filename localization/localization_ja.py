@@ -120,6 +120,8 @@ TRANSLATIONS = {
     "context_paste": "貼り付け",
     "context_remove_to_recycle_bin": "ごみ箱に移動",
     "context_delete": "完全に削除",
+    "context_clear_all": "すべて空にする",
+    "confirm_clear_recycle_bin": "ごみ箱のすべての項目を空にしますか？",
     "ok_button": "OK",
     "cancel_button": "キャンセル",
     "context_add_to_archive": "アーカイブに追加",

@@ -64,6 +64,54 @@ def _match_recycle_bin_item(shell_item, target_path):
         return False
 
 
+def clear_recycle_bin():
+    """Empty the Windows Recycle Bin."""
+    if os.name != "nt":
+        return False
+
+    try:
+        import ctypes
+
+        shell32 = ctypes.windll.shell32
+        sh_empty_recycle_bin = getattr(shell32, "SHEmptyRecycleBinW", None)
+        if sh_empty_recycle_bin is None:
+            return False
+
+        sh_empty_recycle_bin.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_uint,
+        ]
+        sh_empty_recycle_bin.restype = ctypes.c_uint
+
+        result = sh_empty_recycle_bin(None, None, 0)
+        return result == 0
+    except Exception:
+        try:
+            import pythoncom
+            import win32com.client.dynamic
+
+            pythoncom.CoInitialize()
+            shell = win32com.client.dynamic.Dispatch("Shell.Application")
+            recycle_bin = shell.NameSpace(CSIDL_BITBUCKET)
+            if recycle_bin is None:
+                return False
+
+            for shell_item in list(recycle_bin.Items()):
+                try:
+                    shell_item.InvokeVerb("delete")
+                except Exception:
+                    pass
+            return True
+        except Exception:
+            return False
+        finally:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
+
+
 def restore_recycle_bin_items(paths):
     """Restore selected Recycle Bin items to their original locations."""
     if os.name != "nt":

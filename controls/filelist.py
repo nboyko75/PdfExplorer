@@ -4,7 +4,7 @@ import shutil
 
 import wx
 
-from file_operations.recycle_bin import RECYCLE_BIN_PATH, restore_recycle_bin_items
+from file_operations.recycle_bin import RECYCLE_BIN_PATH, restore_recycle_bin_items, clear_recycle_bin
 
 from common.system import move_to_recycle_bin
 
@@ -514,22 +514,27 @@ def on_right_click(owner, event):
         refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
         restore_item = menu.Append(-1, tr("context_restore"))
         delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Del")
+        clear_all_item = menu.Append(-1, tr("context_clear_all"))
 
         if icon_manager:
             icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
             icon_manager.set_menu_icon(restore_item, art_id=wx.ART_UNDO)
             icon_manager.set_menu_icon(delete_permanent_item, art_id=wx.ART_DELETE)
+            icon_manager.set_menu_icon(clear_all_item, art_id=wx.ART_DELETE)
 
         selected_paths = get_selected_list_paths(owner)
         valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and path]
+        has_items = bool(getattr(owner, "list", None) is not None and getattr(owner.list, "GetItemCount", lambda: 0)() > 0)
 
         refresh_item.Enable(True)
         restore_item.Enable(bool(valid_selected_paths))
         delete_permanent_item.Enable(bool(valid_selected_paths))
+        clear_all_item.Enable(has_items)
 
         owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
         owner.Bind(wx.EVT_MENU, handle_restore, restore_item)
         owner.Bind(wx.EVT_MENU, owner.on_list_delete_permanent, delete_permanent_item)
+        owner.Bind(wx.EVT_MENU, owner.on_list_clear_recycle_bin, clear_all_item)
         owner.list.PopupMenu(menu)
         menu.Destroy()
         return
@@ -776,9 +781,11 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
             if isinstance(item_path, str) and item_path:
                 selected_tree_path = os.path.normpath(item_path)
 
-    if current_folder and os.path.isdir(current_folder) and hasattr(owner, "load_folder"):
+    is_virtual_shell_folder = isinstance(current_folder, str) and current_folder.lower().startswith("shell:")
+    if current_folder and (os.path.isdir(current_folder) or is_virtual_shell_folder) and hasattr(owner, "load_folder"):
         owner.load_folder(current_folder)
-        _refresh_tree_node(owner, current_folder)
+        if os.path.isdir(current_folder):
+            _refresh_tree_node(owner, current_folder)
 
     if selected_tree_path and os.path.isdir(selected_tree_path):
         if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(selected_tree_path):
@@ -786,7 +793,10 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
 
     if affected_dirs is not None:
         for folder in affected_dirs:
-            if isinstance(folder, str) and folder and os.path.isdir(folder):
+            if not isinstance(folder, str) or not folder:
+                continue
+            is_virtual_folder = folder.lower().startswith("shell:")
+            if os.path.isdir(folder) or is_virtual_folder:
                 if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(os.path.normpath(folder)):
                     _refresh_tree_node(owner, folder)
 
@@ -1045,6 +1055,23 @@ def on_list_delete(owner, _):
 def on_list_delete_permanent(owner, _):
     paths = get_selected_list_paths(owner)
     delete_paths(owner, paths, permanent=True)
+
+
+def on_list_clear_recycle_bin(owner, _):
+    if owner is None:
+        return
+
+    if clear_recycle_bin():
+        current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+        if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
+            wx.CallAfter(owner.load_folder, current_folder)
+        if hasattr(owner, "tree") and owner.tree is not None:
+            try:
+                import controls.tree_utils as tree_utils
+                tree_utils.refresh_tree_selection_and_filelist(owner)
+            except Exception:
+                pass
+        file_preview._prune_deleted_preview_tabs(owner)
 
 
 def delete_paths(owner, paths, permanent=False):

@@ -144,6 +144,8 @@ TRANSLATIONS = {
     "context_paste": "Вставить",
     "context_remove_to_recycle_bin": "Удалить в корзину",
     "context_delete": "Удалить навсегда",
+    "context_clear_all": "Очистить всё",
+    "confirm_clear_recycle_bin": "Очистить всё в корзине?",
     "ok_button": "OK",
     "cancel_button": "Отмена",
     "context_add_to_archive": "Добавить в архив",

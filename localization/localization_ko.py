@@ -120,6 +120,8 @@ TRANSLATIONS = {
     "context_paste": "붙여넣기",
     "context_remove_to_recycle_bin": "휴지통으로 이동",
     "context_delete": "영구 삭제",
+    "context_clear_all": "모두 비우기",
+    "confirm_clear_recycle_bin": "휴지통의 모든 항목을 비우시겠습니까?",
     "ok_button": "확인",
     "cancel_button": "취소",
     "context_add_to_archive": "아카이브에 추가",

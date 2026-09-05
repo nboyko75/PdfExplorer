@@ -144,6 +144,8 @@ TRANSLATIONS = {
     "context_paste": "Pegar",
     "context_remove_to_recycle_bin": "Mover a la Papelera de reciclaje",
     "context_delete": "Eliminar permanentemente",
+    "context_clear_all": "Vaciar todo",
+    "confirm_clear_recycle_bin": "¿Vaciar todos los elementos de la Papelera de reciclaje?",
     "ok_button": "Aceptar",
     "cancel_button": "Cancelar",
     "context_add_to_archive": "Agregar al archivo",

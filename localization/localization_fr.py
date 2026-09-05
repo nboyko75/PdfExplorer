@@ -144,6 +144,8 @@ TRANSLATIONS = {
     "context_paste": "Coller",
     "context_remove_to_recycle_bin": "Supprimer vers la corbeille",
     "context_delete": "Supprimer définitivement",
+    "context_clear_all": "Tout vider",
+    "confirm_clear_recycle_bin": "Vider tous les éléments de la corbeille ?",
     "ok_button": "OK",
     "cancel_button": "Annuler",
     "context_add_to_archive": "Ajouter à l'archive",

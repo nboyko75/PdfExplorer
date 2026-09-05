@@ -120,6 +120,8 @@ TRANSLATIONS = {
     "context_paste": "粘贴",
     "context_remove_to_recycle_bin": "移到回收站",
     "context_delete": "永久删除",
+    "context_clear_all": "清空全部",
+    "confirm_clear_recycle_bin": "清空回收站中的所有项目吗？",
     "ok_button": "确定",
     "cancel_button": "取消",
     "context_add_to_archive": "添加到存档",

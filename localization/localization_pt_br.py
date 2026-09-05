@@ -144,6 +144,8 @@ TRANSLATIONS = {
     "context_paste": "Colar",
     "context_remove_to_recycle_bin": "Mover para a Lixeira",
     "context_delete": "Excluir permanentemente",
+    "context_clear_all": "Limpar tudo",
+    "confirm_clear_recycle_bin": "Limpar todos os itens da Lixeira?",
     "ok_button": "OK",
     "cancel_button": "Cancelar",
     "context_add_to_archive": "Adicionar ao arquivo",

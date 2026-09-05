@@ -1087,6 +1087,9 @@ class FileExplorer(wx.Frame):
     def on_list_delete_permanent(self, _):
         filelist.on_list_delete_permanent(self, _)
 
+    def on_list_clear_recycle_bin(self, _):
+        filelist.on_list_clear_recycle_bin(self, _)
+
     def on_open_item(self, event):
         filelist.on_open_item(self, event)
 

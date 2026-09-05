@@ -411,6 +411,37 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
     def test_recycle_bin_standard_shortcut_uses_virtual_shell_path(self):
         self.assertEqual(favorite_panel._standard_shortcut_path_for_key("recycle_bin"), "shell:RecycleBinFolder")
 
+    def test_delete_paths_refreshes_recycle_bin_list_after_permanent_delete(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
+        owner.load_folder = mock.Mock()
+        owner.tree = mock.MagicMock()
+        owner.tree.GetSelection.return_value = None
+        owner.current_preview_path = None
+        owner.preview_tabs = []
+
+        with mock.patch.object(filelist, "_remove_tree_item_for_path"), \
+             mock.patch.object(filelist, "_unique_preserving_order", return_value=["C:/Temp/Deleted file.txt"]), \
+             mock.patch.object(filelist, "_refresh_after_fs_change", wraps=filelist._refresh_after_fs_change) as mock_refresh, \
+             mock.patch.object(filelist, "wx") as fake_wx, \
+             mock.patch.object(filelist, "os") as fake_os, \
+             mock.patch.object(filelist, "shutil") as fake_shutil:
+            fake_wx.MessageDialog.return_value.ShowModal.return_value = wx.ID_YES
+            fake_wx.ID_YES = wx.ID_YES
+            fake_wx.NO_DEFAULT = wx.NO_DEFAULT
+            fake_wx.ICON_WARNING = wx.ICON_WARNING
+            fake_os.path.exists.return_value = True
+            fake_os.path.normpath.side_effect = os.path.normpath
+            fake_os.path.normcase.side_effect = os.path.normcase
+            fake_os.path.isdir.return_value = False
+            fake_os.path.isfile.return_value = False
+            fake_os.path.dirname.return_value = "C:/Temp"
+            fake_os.path.basename.return_value = "Deleted file.txt"
+            filelist.delete_paths(owner, ["C:/Temp/Deleted file.txt"], permanent=True)
+
+        owner.load_folder.assert_called_once_with("shell:RecycleBinFolder")
+        mock_refresh.assert_called_once()
+
     def test_standard_shortcut_activation_opens_recycle_bin_virtual_folder(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.standard_shortcuts_list = mock.MagicMock()
@@ -478,6 +509,60 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_refresh.Enable.assert_called_once_with(True)
         fake_restore.Enable.assert_called_once_with(True)
         fake_delete.Enable.assert_called_once_with(True)
+
+    def test_recycle_bin_context_menu_includes_clear_all_item(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
+        owner.list = mock.MagicMock()
+        owner.list.HitTest.return_value = (0, mock.MagicMock())
+        owner.list.GetItemState.return_value = 0
+        owner.list.GetFirstSelected.return_value = 0
+        owner.list.GetNextSelected.return_value = wx.NOT_FOUND
+        owner.list.GetItemText.return_value = "Deleted file.txt"
+        owner.list.GetItemData.return_value = "shell:RecycleBinFolder/Deleted file.txt"
+        owner.list.GetItemCount.return_value = 1
+        owner.list.PopupMenu = mock.Mock()
+        owner.Bind = mock.Mock()
+        owner.load_folder = mock.Mock()
+
+        fake_menu = mock.MagicMock()
+        fake_refresh = mock.MagicMock()
+        fake_restore = mock.MagicMock()
+        fake_delete = mock.MagicMock()
+        fake_clear_all = mock.MagicMock()
+        fake_menu.Append.side_effect = [fake_refresh, fake_restore, fake_delete, fake_clear_all]
+
+        with mock.patch.object(wx, "Menu", return_value=fake_menu):
+            filelist.on_right_click(owner, mock.MagicMock())
+
+        self.assertEqual(fake_menu.Append.call_count, 4)
+        self.assertIn("Clear all", "".join(str(call.args[1]) for call in fake_menu.Append.call_args_list))
+        fake_clear_all.Enable.assert_called_once_with(True)
+
+    def test_recycle_bin_context_menu_disables_clear_all_when_empty(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
+        owner.list = mock.MagicMock()
+        owner.list.HitTest.return_value = (0, mock.MagicMock())
+        owner.list.GetItemState.return_value = 0
+        owner.list.GetFirstSelected.return_value = wx.NOT_FOUND
+        owner.list.GetNextSelected.return_value = wx.NOT_FOUND
+        owner.list.GetItemCount.return_value = 0
+        owner.list.PopupMenu = mock.Mock()
+        owner.Bind = mock.Mock()
+        owner.load_folder = mock.Mock()
+
+        fake_menu = mock.MagicMock()
+        fake_refresh = mock.MagicMock()
+        fake_restore = mock.MagicMock()
+        fake_delete = mock.MagicMock()
+        fake_clear_all = mock.MagicMock()
+        fake_menu.Append.side_effect = [fake_refresh, fake_restore, fake_delete, fake_clear_all]
+
+        with mock.patch.object(wx, "Menu", return_value=fake_menu):
+            filelist.on_right_click(owner, mock.MagicMock())
+
+        fake_clear_all.Enable.assert_called_once_with(False)
 
     def test_load_folder_uses_standard_folder_and_file_icons_for_recycle_bin_items(self):
         owner = types.SimpleNamespace(

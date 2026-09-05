@@ -144,6 +144,8 @@ TRANSLATIONS = {
     "context_paste": "Incolla",
     "context_remove_to_recycle_bin": "Sposta nel Cestino",
     "context_delete": "Elimina definitivamente",
+    "context_clear_all": "Svuota tutto",
+    "confirm_clear_recycle_bin": "Svuotare tutti gli elementi del Cestino?",
     "ok_button": "OK",
     "cancel_button": "Annulla",
     "context_add_to_archive": "Aggiungi all'archivio",
