@@ -387,25 +387,21 @@ def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
     app = None
     doc = None
     close_document = False
-    should_quit_app = True
     try:
-        try:
-            app, doc = _get_running_office_document(source_path, "Word.Application", "Documents")
-        except Exception:
-            app, doc = None, None
-
-        if app is None:
-            app = win32_client.DispatchEx("Word.Application")
-        else:
-            should_quit_app = False
-
+        app = win32_client.DispatchEx("Word.Application")
         app.Visible = False
         app.DisplayAlerts = 0
+        app.ScreenUpdating = False
 
-        if doc is None:
-            doc = app.Documents.Open(source_path, ReadOnly=True)
-            close_document = True
-
+        doc = app.Documents.Open(
+            FileName=source_path,
+            ConfirmConversions=False,
+            ReadOnly=True,
+            AddToRecentFiles=False,
+            Visible=False,
+            OpenAndRepair=False,
+        )
+        close_document = True
         doc.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
     finally:
         if close_document and doc is not None:
@@ -413,7 +409,7 @@ def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
                 doc.Close(False)
             except Exception:
                 pass
-        if app is not None and should_quit_app:
+        if app is not None:
             try:
                 app.Quit()
             except Exception:
@@ -440,24 +436,28 @@ def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
     app = None
     workbook = None
     close_workbook = False
-    should_quit_app = True
     try:
-        try:
-            app, workbook = _get_running_office_document(source_path, "Excel.Application", "Workbooks")
-        except Exception:
-            app, workbook = None, None
-
-        if app is None:
-            app = win32_client.DispatchEx("Excel.Application")
-        else:
-            should_quit_app = False
-
+        app = win32_client.DispatchEx("Excel.Application")
         app.Visible = False
         app.DisplayAlerts = False
+        app.ScreenUpdating = False
+        app.EnableEvents = False
+        app.AskToUpdateLinks = False
 
-        if workbook is None:
-            workbook = app.Workbooks.Open(source_path, ReadOnly=True)
-            close_workbook = True
+        workbook = app.Workbooks.Open(
+            Filename=source_path,
+            UpdateLinks=0,
+            ReadOnly=True,
+            IgnoreReadOnlyRecommended=True,
+            AddToMru=False,
+            Notify=False,
+        )
+        close_workbook = True
+
+        try:
+            workbook.Windows(1).Visible = False
+        except Exception:
+            pass
 
         workbook.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
     finally:
@@ -466,7 +466,7 @@ def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
                 workbook.Close(False)
             except Exception:
                 pass
-        if app is not None and should_quit_app:
+        if app is not None:
             try:
                 app.Quit()
             except Exception:
@@ -492,24 +492,12 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
     app = None
     presentation = None
     close_presentation = False
-    should_quit_app = True
     try:
-        try:
-            app, presentation = _get_running_office_document(source_path, "PowerPoint.Application", "Presentations")
-        except Exception:
-            app, presentation = None, None
-
-        if app is None:
-            app = win32_client.DispatchEx("PowerPoint.Application")
-        else:
-            should_quit_app = False
-
+        app = win32_client.DispatchEx("PowerPoint.Application")
         app.Visible = False
 
-        if presentation is None:
-            presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)
-            close_presentation = True
-
+        presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)
+        close_presentation = True
         presentation.SaveAs(output_pdf, 32)
     finally:
         if close_presentation and presentation is not None:
@@ -517,7 +505,7 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
                 presentation.Close()
             except Exception:
                 pass
-        if app is not None and should_quit_app:
+        if app is not None:
             try:
                 app.Quit()
             except Exception:
