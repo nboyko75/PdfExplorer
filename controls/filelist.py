@@ -407,6 +407,63 @@ def on_list_deselect(owner, _):
     update_list_toolbar_buttons(owner)
 
 
+def _remove_restored_preview_tabs(owner, restored_paths):
+    if not isinstance(restored_paths, (list, tuple)) or not restored_paths:
+        return False
+
+    preview_tabs = getattr(owner, "preview_tabs", None)
+    if not isinstance(preview_tabs, list):
+        return False
+
+    selected_names = set()
+    selected_norm_paths = set()
+    for path in restored_paths:
+        if not isinstance(path, str) or not path:
+            continue
+        selected_names.add(os.path.basename(path))
+        selected_norm_paths.add(os.path.normcase(os.path.normpath(path)))
+
+    remaining_tabs = []
+    removed_any = False
+    for tab in preview_tabs:
+        if not isinstance(tab, dict):
+            remaining_tabs.append(tab)
+            continue
+
+        tab_path = tab.get("path")
+        if not isinstance(tab_path, str) or not tab_path:
+            remaining_tabs.append(tab)
+            continue
+
+        tab_name = os.path.basename(tab_path)
+        tab_norm = os.path.normcase(os.path.normpath(tab_path))
+        if tab_norm in selected_norm_paths or tab_name in selected_names:
+            removed_any = True
+            continue
+
+        remaining_tabs.append(tab)
+
+    if not removed_any:
+        return False
+
+    owner.preview_tabs = remaining_tabs
+    if not owner.preview_tabs:
+        owner.preview_active_tab_index = None
+    else:
+        owner.preview_active_tab_index = max(0, min(getattr(owner, "preview_active_tab_index", 0) or 0, len(owner.preview_tabs) - 1))
+        file_preview._normalize_preview_tabs(owner)
+    file_preview._render_preview_tab_bar(owner)
+
+    current_preview_path = getattr(owner, "current_preview_path", None)
+    if isinstance(current_preview_path, str) and current_preview_path:
+        current_norm = os.path.normcase(os.path.normpath(current_preview_path))
+        if current_norm in selected_norm_paths or os.path.basename(current_preview_path) in selected_names:
+            owner.current_preview_path = None
+            file_preview.show_file_preview(owner, None)
+
+    return True
+
+
 def on_right_click(owner, event):
     hit_index, _ = owner.list.HitTest(event.GetPosition())
     if hit_index != wx.NOT_FOUND:
@@ -441,6 +498,9 @@ def on_right_click(owner, event):
             return
         if not restore_recycle_bin_items(selected_paths):
             return
+
+        _remove_restored_preview_tabs(owner, selected_paths)
+
         current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
         if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
             wx.CallLater(300, owner.load_folder, current_folder)
@@ -996,7 +1056,7 @@ def delete_paths(owner, paths, permanent=False):
 
     action_title = tr("context_remove_to_recycle_bin") if not permanent else tr("context_delete")
     if len(unique_paths) == 1:
-        action_target = unique_paths[0]
+        action_target = os.path.basename(unique_paths[0])
     else:
         action_target = ", ".join(os.path.basename(path) for path in unique_paths)
 

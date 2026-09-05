@@ -1140,6 +1140,8 @@ class SearchFilesTests(unittest.TestCase):
 
         self.assertEqual(mock_wx.MessageDialog.call_count, 2)
         self.assertEqual(mocked_recycle.call_count, 1)
+        self.assertIn("child.txt", mock_wx.MessageDialog.call_args_list[0].args[1])
+        self.assertNotIn(temp_dir, mock_wx.MessageDialog.call_args_list[0].args[1])
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_move_to_recycle_bin_handles_user_canceled_shell_action(self):

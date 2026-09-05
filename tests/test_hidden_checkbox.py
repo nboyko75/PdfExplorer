@@ -13,6 +13,7 @@ import wx
 
 import common.system as system
 import controls.favorite_panel as favorite_panel
+import controls.file_preview as file_preview
 import controls.filelist as filelist
 import file_operations.image_utils as image_utils
 import main
@@ -490,6 +491,26 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
         mock_show_preview.assert_called_once_with(owner, "C:/$Recycle.Bin/S-1-5-21/Deleted file.docx")
         mock_restore.assert_not_called()
+
+    def test_restore_recycle_bin_removes_matching_preview_tabs(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.preview_tabs = [
+            {"path": "C:/$Recycle.Bin/S-1-5-21/Deleted file.docx", "pinned": False},
+            {"path": "keep.pdf", "pinned": False},
+        ]
+        owner.preview_active_tab_index = 0
+        owner.current_preview_path = "C:/$Recycle.Bin/S-1-5-21/Deleted file.docx"
+
+        with mock.patch.object(file_preview, "_normalize_preview_tabs") as mock_normalize, \
+             mock.patch.object(file_preview, "_render_preview_tab_bar") as mock_render, \
+             mock.patch.object(file_preview, "show_file_preview") as mock_show_preview:
+            self.assertTrue(filelist._remove_restored_preview_tabs(owner, ["C:/$Recycle.Bin/S-1-5-21/Deleted file.docx"]))
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["keep.pdf"])
+        self.assertIsNone(owner.current_preview_path)
+        mock_normalize.assert_called_once_with(owner)
+        mock_render.assert_called_once_with(owner)
+        mock_show_preview.assert_called_once_with(owner, None)
 
     def test_standard_shortcuts_rows_use_shell_icons_instead_of_folder_icon(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
