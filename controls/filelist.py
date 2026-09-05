@@ -9,6 +9,8 @@ from common.system import move_to_recycle_bin
 if not hasattr(wx, "DATADOBJECT_PREFERRED"):
     wx.DATADOBJECT_PREFERRED = 0
 
+from controls import tree_utils
+from controls import tree_utils
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 from file_operations.office_preview import is_office_file_open
@@ -584,13 +586,11 @@ def _refresh_tree_node(owner, folder_path):
         return
     if not hasattr(owner, "tree") or owner.tree is None:
         return
-    if not hasattr(owner, "populate_tree_node"):
-        return
 
     try:
         item = _find_tree_item_without_expanding(owner, folder_path)
         if item is not None and item.IsOk():
-            owner.populate_tree_node(item, folder_path)
+            tree_utils.populate_tree_node(owner, item, folder_path)
     except Exception:
         pass
 
@@ -892,7 +892,8 @@ def create_new_folder(owner, target_path=None):
     folder_path = os.path.join(target_dir, folder_name)
     try:
         os.makedirs(folder_path, exist_ok=False)
-        _refresh_after_fs_change(owner, affected_dirs=[target_dir])
+        affected_dirs = [target_dir]
+        _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 

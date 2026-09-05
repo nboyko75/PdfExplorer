@@ -170,7 +170,6 @@ def load_folder(owner, path):
 
         for row in row_data:
             item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
-            owner.list.SetItemData(item_index, row["full_path"])
             owner.list.SetItem(item_index, 1, row["type"])
             owner.list.SetItem(item_index, 2, row["size"])
             owner.list.SetItem(item_index, 3, row["modified"])
@@ -278,7 +277,6 @@ def load_folder(owner, path):
 
     for row in row_data:
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
-        owner.list.SetItemData(item_index, row.get("full_path") or os.path.join(path, row["name"]))
         owner.list.SetItem(item_index, 1, row["type"])
         owner.list.SetItem(item_index, 2, row["size"])
         owner.list.SetItem(item_index, 3, row["modified"])
