@@ -387,8 +387,11 @@ def on_list_select(owner, event):
         return
 
     index = event.GetIndex()
-    name = owner.list.GetItemText(index)
-    path = os.path.join(owner.path_box.GetValue(), name)
+    item_paths = getattr(owner, "_list_item_paths", {})
+    path = item_paths.get(index)
+    if not isinstance(path, str) or not path:
+        name = owner.list.GetItemText(index)
+        path = os.path.join(owner.path_box.GetValue(), name)
 
     previous_path = owner.current_preview_path
     if not file_preview.confirm_preview_change(owner, path):

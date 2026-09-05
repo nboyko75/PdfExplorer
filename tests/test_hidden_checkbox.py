@@ -459,7 +459,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         recycled_items = [{
             "name": "Deleted file.txt",
             "original_path": "C:/Temp/Deleted file.txt",
-            "recycled_path": "shell:RecycleBinFolder",
+            "recycled_path": "C:/$Recycle.Bin/S-1-5-21/Deleted file.txt",
             "deleted_from": "C:/Temp",
             "deleted_date": None,
             "size": 2048,
@@ -472,6 +472,24 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
         mock_get_icon.assert_called_once_with(owner, "C:/Temp/Deleted file.txt", False, False)
         owner.list.InsertItem.assert_called_once_with(0, "Deleted file.txt", 17)
+        self.assertEqual(owner._list_item_paths[0], "C:/$Recycle.Bin/S-1-5-21/Deleted file.txt")
+
+    def test_list_selection_uses_mapped_recycle_bin_path_for_preview(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.list = mock.MagicMock()
+        owner._list_item_paths = {0: "C:/$Recycle.Bin/S-1-5-21/Deleted file.docx"}
+        owner.current_preview_path = None
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
+
+        with mock.patch.object(file_preview, "confirm_preview_change", return_value=True), \
+             mock.patch.object(file_preview, "show_file_preview") as mock_show_preview, \
+             mock.patch.object(file_preview, "restore_list_selection") as mock_restore:
+            event = mock.MagicMock()
+            event.GetIndex.return_value = 0
+            filelist.on_list_select(owner, event)
+
+        mock_show_preview.assert_called_once_with(owner, "C:/$Recycle.Bin/S-1-5-21/Deleted file.docx")
+        mock_restore.assert_not_called()
 
     def test_standard_shortcuts_rows_use_shell_icons_instead_of_folder_icon(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)

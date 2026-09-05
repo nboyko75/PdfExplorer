@@ -121,6 +121,8 @@ def load_folder(owner, path):
             modified = deleted_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(deleted_date, datetime) else ""
             modified_ts = deleted_date.timestamp() if isinstance(deleted_date, datetime) else None
             original_path = item.get("original_path") or item.get("recycled_path") or name
+            recovered_path = item.get("recycled_path") or original_path
+            preview_path = recovered_path or original_path or name
 
             row_data.append(
                 {
@@ -135,7 +137,7 @@ def load_folder(owner, path):
                     "modified_ts": modified_ts,
                     "is_dir": is_dir,
                     "image_index": image_utils.get_list_icon_index(owner, original_path or name, is_dir, is_hidden_item=False),
-                    "full_path": original_path,
+                    "full_path": preview_path,
                 }
             )
 
