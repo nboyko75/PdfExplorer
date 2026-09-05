@@ -2,7 +2,7 @@ import datetime
 import os
 
 import pythoncom
-import win32com.client
+import win32com.client.dynamic
 
 
 RECYCLE_BIN_PATH = "shell:RecycleBinFolder"
@@ -85,7 +85,7 @@ def restore_recycle_bin_items(paths):
         pass
 
     try:
-        shell = win32com.client.Dispatch("Shell.Application")
+        shell = win32com.client.dynamic.Dispatch("Shell.Application")
         recycle_bin = shell.NameSpace(CSIDL_BITBUCKET)
         if recycle_bin is None:
             return False
@@ -124,54 +124,94 @@ def restore_recycle_bin_items(paths):
 
 def get_recycle_bin_items():
     """Return items currently displayed by the Windows Recycle Bin."""
-    try:
-        pythoncom.CoInitialize()
-    except Exception:
-        pass
+    initialized = False
 
     try:
-        shell = win32com.client.Dispatch("Shell.Application")
+        pythoncom.CoInitialize()
+        initialized = True
+
+        shell = win32com.client.dynamic.Dispatch("Shell.Application")
         recycle_bin = shell.NameSpace(CSIDL_BITBUCKET)
+
         if recycle_bin is None:
             return []
 
         result = []
-        for shell_item in recycle_bin.Items():
-            try:
-                display_name = str(shell_item.Name or "")
-                recycled_path = str(shell_item.Path or "")
-                is_folder = bool(shell_item.IsFolder)
 
-                deleted_from = shell_item.ExtendedProperty("System.Recycle.DeletedFrom")
-                deleted_from = str(deleted_from or "")
-
-                deleted_date = shell_item.ExtendedProperty("System.Recycle.DateDeleted")
-                deleted_date = _convert_com_date(deleted_date)
-
-                original_path = os.path.join(deleted_from, display_name) if deleted_from else display_name
-
-                try:
-                    size = int(shell_item.Size or 0)
-                except (TypeError, ValueError):
-                    size = 0
-
-                result.append(
-                    {
-                        "name": display_name,
-                        "original_path": original_path,
-                        "recycled_path": recycled_path,
-                        "deleted_from": deleted_from,
-                        "deleted_date": deleted_date,
-                        "size": size,
-                        "is_dir": is_folder,
-                    }
-                )
-            except Exception:
+        for shell_item in list(recycle_bin.Items()):
+            if shell_item is None:
                 continue
 
+            # Essential properties
+            try:
+                display_name = str(shell_item.Name or "")
+            except Exception:
+                display_name = ""
+
+            try:
+                recycled_path = str(shell_item.Path or "")
+            except Exception:
+                recycled_path = ""
+
+            if not display_name and recycled_path:
+                display_name = os.path.basename(recycled_path)
+
+            if not display_name:
+                continue
+
+            try:
+                is_folder = bool(shell_item.IsFolder)
+            except Exception:
+                is_folder = False
+
+            # Optional properties must not discard the item
+            try:
+                deleted_from = shell_item.ExtendedProperty(
+                    "System.Recycle.DeletedFrom"
+                )
+                deleted_from = str(deleted_from or "")
+            except Exception:
+                deleted_from = ""
+
+            try:
+                deleted_date = shell_item.ExtendedProperty(
+                    "System.Recycle.DateDeleted"
+                )
+                deleted_date = _convert_com_date(deleted_date)
+            except Exception:
+                deleted_date = None
+
+            try:
+                size = int(shell_item.Size or 0)
+            except (TypeError, ValueError, AttributeError):
+                size = 0
+
+            original_path = (
+                os.path.join(deleted_from, display_name)
+                if deleted_from
+                else display_name
+            )
+
+            result.append(
+                {
+                    "name": display_name,
+                    "original_path": original_path,
+                    "recycled_path": recycled_path,
+                    "deleted_from": deleted_from,
+                    "deleted_date": deleted_date,
+                    "size": size,
+                    "is_dir": is_folder,
+                }
+            )
+
         return result
+
+    except Exception:
+        return []
+
     finally:
-        try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
+        if initialized:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass

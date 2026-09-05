@@ -96,6 +96,61 @@ def get_windows_special_folder(name):
     return ""
 
 
+def get_windows_display_name(path):
+    if not path:
+        return ""
+
+    try:
+        from win32comext.shell import shell, shellcon
+
+        display_name = ""
+        try:
+            info = shell.SHGetFileInfo(str(path), 0, shellcon.SHGFI_DISPLAYNAME)
+            if info and len(info) > 1 and info[1] and len(info[1]) > 3:
+                display_name = info[1][3] or ""
+        except Exception:
+            display_name = ""
+
+        if display_name:
+            return display_name
+    except Exception:
+        pass
+
+    try:
+        basename = os.path.basename(os.path.normpath(str(path)))
+        if basename:
+            return basename
+    except Exception:
+        pass
+
+    return str(path)
+
+
+def get_special_folder_display_name(csidl, fallback=""):
+    try:
+        from win32comext.shell import shell, shellcon
+
+        pidl = None
+        try:
+            pidl = shell.SHGetSpecialFolderLocation(0, csidl)
+        except Exception:
+            pidl = None
+
+        if pidl is not None:
+            try:
+                info = shell.SHGetFileInfo(pidl, 0, shellcon.SHGFI_PIDL | shellcon.SHGFI_DISPLAYNAME)
+                if info and len(info) > 1 and info[1] and len(info[1]) > 3:
+                    display_name = info[1][3] or ""
+                if display_name:
+                    return display_name
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    return fallback
+
+
 def _get_project_root_dir():
     # In frozen builds (e.g. PyInstaller), persist settings next to the executable.
     if getattr(sys, "frozen", False):

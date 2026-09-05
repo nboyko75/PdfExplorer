@@ -373,6 +373,41 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertTrue(any(call.args[1] == "Recycle Bin" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
         self.assertFalse(any(call.args[1] == "Downloads" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
 
+    def test_standard_shortcuts_use_windows_display_names_and_key_defaults(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visibility = {}
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_image_list = mock.MagicMock()
+        owner.standard_shortcuts_panel = mock.MagicMock()
+        owner.standard_shortcuts_icon_indexes = {}
+        owner.standard_shortcuts_folder_icon_index = -1
+
+        def fake_display_name(path):
+            mapping = {
+                "C:/Users/Test/Desktop": "Desktop",
+                "C:/Users/Test/Documents": "Документи",
+                "shell:RecycleBinFolder": "Кошик",
+            }
+            return mapping.get(path, "")
+
+        with mock.patch.object(favorite_panel, "_standard_shortcut_path_for_key", return_value="") as mock_path, \
+             mock.patch.object(favorite_panel, "get_windows_display_name", side_effect=fake_display_name), \
+             mock.patch.object(image_utils, "get_shell_bitmap", return_value=mock.MagicMock(IsOk=lambda: False)):
+            mock_path.side_effect = lambda key: {
+                "desktop": "C:/Users/Test/Desktop",
+                "documents": "C:/Users/Test/Documents",
+                "recycle_bin": "shell:RecycleBinFolder",
+                "downloads": "C:/Users/Test/Downloads",
+                "images": "C:/Users/Test/Pictures",
+                "music": "C:/Users/Test/Music",
+                "video": "C:/Users/Test/Videos",
+            }.get(key, "")
+            favorite_panel.refresh_standard_shortcuts_list(owner)
+
+        self.assertTrue(any(call.args[1] == "Desktop" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+        self.assertTrue(any(call.args[1] == "Документи" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+        self.assertTrue(any(call.args[1] == "Кошик" for call in owner.standard_shortcuts_list.InsertItem.call_args_list))
+
     def test_recycle_bin_standard_shortcut_uses_virtual_shell_path(self):
         self.assertEqual(favorite_panel._standard_shortcut_path_for_key("recycle_bin"), "shell:RecycleBinFolder")
 

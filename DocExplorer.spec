@@ -2,8 +2,19 @@
 
 
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules
 
-project_dir = Path('D:/Projects/PdfExplorer').resolve()
+pywin32_hiddenimports = [
+    "pythoncom",
+    "pywintypes",
+    "win32com",
+    "win32com.client",
+    "win32com.client.dynamic",
+]
+
+pywin32_hiddenimports += collect_submodules("win32com")
+
+project_dir = Path(SPECPATH).resolve()
 venv_site_packages = project_dir / '.venv' / 'Lib' / 'site-packages'
 
 pymupdf_files = [
@@ -31,7 +42,7 @@ a = Analysis(
     pathex=[str(project_dir), str(venv_site_packages)],
     binaries=[],
     datas=[('images', 'images'), ('localization', 'localization')] + pymupdf_datas,
-    hiddenimports=pymupdf_hiddenimports,
+    hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

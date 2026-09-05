@@ -4,10 +4,20 @@ import wx
 import controls.navigation_utils as navigation_utils
 from controls.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
-from controls.window_tools import set_column_image_on_left, get_windows_special_folder
+from controls.window_tools import (
+    set_column_image_on_left,
+    get_windows_special_folder,
+    get_windows_display_name,
+    get_special_folder_display_name,
+)
 from file_operations.recycle_bin import RECYCLE_BIN_PATH
 from localization import tr
 import file_operations.image_utils as image_utils
+
+try:
+    from win32comext.shell import shellcon
+except Exception:  # pragma: no cover - Windows-only import
+    shellcon = None
 
 
 STANDARD_SHORTCUT_DEFINITIONS = (
@@ -42,29 +52,49 @@ def _standard_shortcut_path_for_key(key):
     return ""
 
 
+def _standard_shortcut_fallback_label(key):
+    fallback_labels = {
+        "desktop": "Desktop",
+        "documents": "Documents",
+        "downloads": "Downloads",
+        "images": "Images",
+        "music": "Music",
+        "video": "Videos",
+        "recycle_bin": "Recycle Bin",
+    }
+    fallback = fallback_labels.get(key, key.replace("_", " ").title())
+
+    label_map = {
+        "desktop": "favorite_shortcut_desktop",
+        "documents": "favorite_shortcut_documents",
+        "downloads": "favorite_shortcut_downloads",
+        "images": "favorite_shortcut_images",
+        "music": "favorite_shortcut_music",
+        "video": "favorite_shortcut_video",
+        "recycle_bin": "favorite_shortcut_recycle_bin",
+    }
+    translation_key = label_map.get(key)
+    if translation_key:
+        translated = tr(translation_key)
+        if translated and translated != translation_key:
+            return translated
+    return fallback
+
+
 def _standard_shortcut_entries(owner):
     shortcuts = []
     for item in STANDARD_SHORTCUT_DEFINITIONS:
         key = item["key"]
-        label = item["label"]
+        path = _standard_shortcut_path_for_key(key)
         if key == "recycle_bin":
-            label = tr("favorite_shortcut_recycle_bin") if tr("favorite_shortcut_recycle_bin") != "favorite_shortcut_recycle_bin" else "Recycle Bin"
-        elif key == "desktop":
-            label = tr("favorite_shortcut_desktop") if tr("favorite_shortcut_desktop") != "favorite_shortcut_desktop" else "Desktop"
-        elif key == "documents":
-            label = tr("favorite_shortcut_documents") if tr("favorite_shortcut_documents") != "favorite_shortcut_documents" else "Documents"
-        elif key == "downloads":
-            label = tr("favorite_shortcut_downloads") if tr("favorite_shortcut_downloads") != "favorite_shortcut_downloads" else "Downloads"
-        elif key == "images":
-            label = tr("favorite_shortcut_images") if tr("favorite_shortcut_images") != "favorite_shortcut_images" else "Images"
-        elif key == "music":
-            label = tr("favorite_shortcut_music") if tr("favorite_shortcut_music") != "favorite_shortcut_music" else "Music"
-        elif key == "video":
-            label = tr("favorite_shortcut_video") if tr("favorite_shortcut_video") != "favorite_shortcut_video" else "Videos"
+            label = get_special_folder_display_name(shellcon.CSIDL_BITBUCKET, _standard_shortcut_fallback_label(key)) if shellcon is not None else _standard_shortcut_fallback_label(key)
+        else:
+            label = get_windows_display_name(path) or _standard_shortcut_fallback_label(key)
         shortcuts.append({
             "key": key,
             "label": label,
-            "path": _standard_shortcut_path_for_key(key),
+            "path": path,
+            "default": bool(item.get("default", False)),
         })
     return shortcuts
 
@@ -76,7 +106,7 @@ def _visible_standard_shortcuts(owner):
     visible = []
     for shortcut in _standard_shortcut_entries(owner):
         key = shortcut["key"]
-        default_visible = shortcut["label"] in {"Desktop", "Documents", "Recycle Bin"}
+        default_visible = bool(shortcut.get("default", False))
         if bool(visibility.get(key, default_visible)):
             visible.append(shortcut)
     return visible
@@ -600,7 +630,7 @@ def on_standard_shortcut_right_click(owner, event):
     menu = wx.Menu()
     for shortcut in _standard_shortcut_entries(owner):
         item = menu.AppendCheckItem(-1, shortcut["label"])
-        item.Check(bool(owner.standard_shortcuts_visibility.get(shortcut["key"], shortcut["label"] in {"Desktop", "Documents", "Recycle Bin"})))
+        item.Check(bool(owner.standard_shortcuts_visibility.get(shortcut["key"], bool(shortcut.get("default", False)))))
         owner.Bind(wx.EVT_MENU, lambda _event, key=shortcut["key"]: _toggle_standard_shortcut_visibility(owner, key), item)
     owner.standard_shortcuts_list.PopupMenu(menu)
     menu.Destroy()
