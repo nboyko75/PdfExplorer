@@ -155,14 +155,11 @@ def _render_preview_tab_bar(owner):
         close_btn = wx.Button(tab_panel, label="✕", size=(28, 22))
         close_btn.SetToolTip(tr("preview_close_tab_button"))
         close_btn.Bind(wx.EVT_BUTTON, lambda event, tab_index=index: _close_preview_tab(owner, tab_index))
-        if index == 0:
-            close_btn.Hide()
 
         row = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(tab_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 6)
         row.Add(pin_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
-        if index != 0:
-            row.Add(close_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
+        row.Add(close_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 2)
         tab_panel.SetSizer(row)
         tab_panel.Bind(wx.EVT_LEFT_DOWN, lambda event, tab_index=index: _select_preview_tab(owner, tab_index))
         tab_sizer.Add(tab_panel, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 2)

@@ -234,6 +234,57 @@ class SearchFilesTests(unittest.TestCase):
         self.assertTrue(value.IsValid())
         self.assertEqual(value.FormatISODate(), "2024-02-10")
 
+    def test_clear_search_result_list_removes_existing_items(self):
+        class DummyListCtrl:
+            def __init__(self):
+                self.items = ["old"]
+
+            def DeleteAllItems(self):
+                self.items = []
+
+        list_ctrl = DummyListCtrl()
+
+        search_form_module._clear_search_result_list(list_ctrl)
+
+        self.assertEqual(list_ctrl.items, [])
+
+    def test_resolve_search_query_values_ignores_unchecked_fields(self):
+        class DummyCheckBox:
+            def __init__(self, value):
+                self.value = value
+
+            def GetValue(self):
+                return self.value
+
+        class DummyCombo:
+            def __init__(self, value):
+                self.value = value
+
+            def GetValue(self):
+                return self.value
+
+        filename_chk = DummyCheckBox(False)
+        filename_field = DummyCombo("filename text")
+        content_chk = DummyCheckBox(True)
+        content_field = DummyCombo("content text")
+
+        resolved_filename, resolved_content = search_form_module._resolve_search_query_values(
+            filename_chk,
+            filename_field,
+            content_chk,
+            content_field,
+        )
+
+        self.assertEqual(resolved_filename, "")
+        self.assertEqual(resolved_content, "content text")
+
+    def test_search_match_requires_both_enabled_modes_to_match(self):
+        self.assertFalse(search_form_module._should_include_search_match(True, True, True, False))
+        self.assertFalse(search_form_module._should_include_search_match(True, False, True, True))
+        self.assertTrue(search_form_module._should_include_search_match(True, True, True, True))
+        self.assertTrue(search_form_module._should_include_search_match(True, True, False, False))
+        self.assertTrue(search_form_module._should_include_search_match(False, False, True, True))
+
     def test_sync_query_history_handles_combo_without_is_popup_shown(self):
         original_history = search_form_module._load_search_history
         original_get_app = search_form_module.wx.GetApp

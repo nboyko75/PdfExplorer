@@ -306,6 +306,26 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_zoom_in_btn.Enable.assert_called_once_with(False)
         owner.preview_zoom_out_btn.Enable.assert_called_once_with(False)
 
+    def test_render_preview_tab_bar_keeps_close_button_for_first_tab(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_tabs=[
+                {"path": "first.pdf", "pinned": False},
+                {"path": "second.pdf", "pinned": False},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        row = mock.MagicMock()
+        file_preview.wx.BoxSizer.return_value = row
+
+        file_preview._render_preview_tab_bar(owner)
+
+        self.assertEqual(row.Add.call_count, 6)
+
     def test_toggle_preview_tab_pin_keeps_active_tab_and_moves_single_unpinned_to_right(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

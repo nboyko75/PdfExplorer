@@ -40,6 +40,89 @@ def _show_date_picker_popup(parent_dialog, field_control, trigger_button=None, d
     )
 
 
+def _resolve_search_query_values(search_filename_chk, query_filename_field, search_file_content_chk, query_filetext_field):
+    filename_value = ""
+    if search_filename_chk is not None and bool(search_filename_chk.GetValue()) and query_filename_field is not None:
+        filename_value = str(query_filename_field.GetValue() or "").strip()
+
+    content_value = ""
+    if search_file_content_chk is not None and bool(search_file_content_chk.GetValue()) and query_filetext_field is not None:
+        content_value = str(query_filetext_field.GetValue() or "").strip()
+
+    return filename_value, content_value
+
+
+def _clear_search_result_list(result_list):
+    if result_list is None:
+        return
+    try:
+        result_list.DeleteAllItems()
+    except Exception:
+        pass
+
+
+def _get_result_list_column_state(result_list):
+    if result_list is None:
+        return []
+    try:
+        return [
+            {"index": index, "width": int(result_list.GetColumnWidth(index))}
+            for index in range(result_list.GetColumnCount())
+        ]
+    except Exception:
+        return []
+
+
+def _restore_result_list_column_state(result_list, columns):
+    if result_list is None or not isinstance(columns, list):
+        return
+    try:
+        column_count = result_list.GetColumnCount()
+        for item in columns:
+            if not isinstance(item, dict):
+                continue
+            index = item.get("index")
+            width = item.get("width")
+            if not isinstance(index, int) or not isinstance(width, int):
+                continue
+            if 0 <= index < column_count:
+                result_list.SetColumnWidth(index, width)
+    except Exception:
+        pass
+
+
+def _format_search_result_size(file_path):
+    try:
+        size_bytes = os.path.getsize(file_path)
+    except OSError:
+        return ""
+    size_kb = max(0, size_bytes // 1024)
+    if size_kb == 0 and size_bytes > 0:
+        return f"{size_bytes} {tr('file_size_unit_kb')}"
+    return f"{size_kb} {tr('file_size_unit_kb')}"
+
+
+def _format_search_result_modified(file_path):
+    try:
+        modified_ts = os.path.getmtime(file_path)
+    except OSError:
+        return ""
+    try:
+        return datetime.fromtimestamp(modified_ts).strftime("%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return ""
+
+
+def _should_include_search_match(search_by_filename, file_name_match, search_by_content, content_match):
+    if search_by_filename and search_by_content:
+        return bool(file_name_match and content_match)
+    if search_by_filename:
+        return bool(file_name_match)
+    if search_by_content:
+        return bool(content_match)
+    return False
+
+
 _COMMON_PARSE_DATE_VALUE = common_date_utils._parse_date_value
 _COMMON_DATE_TO_WX_DATETIME = common_date_utils._date_to_wx_datetime
 
@@ -544,9 +627,9 @@ def _format_search_status(folder_name, file_name=None):
     return left, ""
 
 
-def _load_search_history():
+def _load_search_history(history_key="search_history"):
     settings = load_settings()
-    values = settings.get("search_history", [])
+    values = settings.get(history_key, [])
     if not isinstance(values, list):
         return []
     history = []
@@ -565,7 +648,7 @@ def _load_search_history():
     return history[:30]
 
 
-def _save_search_history(query_value):
+def _save_search_history(query_value, history_key="search_history"):
     if not isinstance(query_value, str):
         return
     cleaned = query_value.strip()
@@ -573,7 +656,7 @@ def _save_search_history(query_value):
         return
 
     settings = load_settings()
-    history = settings.get("search_history", [])
+    history = settings.get(history_key, [])
     if not isinstance(history, list):
         history = []
 
@@ -595,10 +678,10 @@ def _save_search_history(query_value):
         normalized = [item for item in normalized if item.lower() != cleaned.lower()]
     normalized.insert(0, cleaned)
     trimmed = normalized[:30]
-    update_settings({"search_history": trimmed})
+    update_settings({history_key: trimmed})
 
 
-def _sync_query_history(query_field, current_text=None):
+def _sync_query_history(query_field, current_text=None, history_key="search_history"):
     if query_field is None:
         return
     if getattr(query_field, "_query_history_syncing", False):
@@ -609,7 +692,7 @@ def _sync_query_history(query_field, current_text=None):
         text_value = ""
     text_value = str(text_value).strip()
 
-    history = _load_search_history()
+    history = _load_search_history(history_key)
     filtered = [item for item in history if not text_value or text_value.lower() in item.lower()]
 
     current_value = ""
@@ -646,6 +729,8 @@ def _sync_query_history(query_field, current_text=None):
 def _save_search_form_state(
     dialog,
     query_value,
+    filename_query_value,
+    content_query_value,
     folder_value,
     file_mask_value,
     include_child_value,
@@ -662,12 +747,17 @@ def _save_search_form_state(
     size_mode_value,
     size_from_value,
     size_to_value,
+    search_filename_value,
+    search_content_value,
+    result_columns_value=None,
 ):
     try:
         save_control_geometry(dialog, "search_form")
         update_settings(
             {
                 "search_form_query": query_value,
+                "search_form_filename_query": filename_query_value,
+                "search_form_content_query": content_query_value,
                 "search_form_folder": folder_value,
                 "search_form_file_mask": file_mask_value,
                 "search_form_include_child_folders": bool(include_child_value),
@@ -684,6 +774,9 @@ def _save_search_form_state(
                 "search_form_size_mode": int(size_mode_value),
                 "search_form_size_from": size_from_value,
                 "search_form_size_to": size_to_value,
+                "search_form_search_filename": bool(search_filename_value),
+                "search_form_search_file_content": bool(search_content_value),
+                "search_form_result_columns": list(result_columns_value or []),
             }
         )
     except Exception:
@@ -696,6 +789,8 @@ def _restore_search_form_state(settings):
         state = settings
     return {
         "query": state.get("search_form_query", ""),
+        "filename_query": state.get("search_form_filename_query", ""),
+        "content_query": state.get("search_form_content_query", ""),
         "folder": state.get("search_form_folder", ""),
         "file_mask": state.get("search_form_file_mask", ""),
         "include_child": bool(state.get("search_form_include_child_folders", True)),
@@ -712,6 +807,9 @@ def _restore_search_form_state(settings):
         "size_mode": int(state.get("search_form_size_mode", 0) or 0),
         "size_from": state.get("search_form_size_from", ""),
         "size_to": state.get("search_form_size_to", ""),
+        "search_filename": bool(state.get("search_form_search_filename", True)),
+        "search_file_content": bool(state.get("search_form_search_file_content", True)),
+        "result_columns": state.get("search_form_result_columns", []),
         "position": state.get("search_form_position"),
         "size": state.get("search_form_size"),
     }
@@ -745,65 +843,95 @@ def show_search_form(owner):
 
     # ---------- Top search controls ----------
     main = wx.BoxSizer(wx.VERTICAL)
+    top_sizer = wx.BoxSizer(wx.VERTICAL)
 
-    # Search text + file mask
-    top_grid = wx.FlexGridSizer(rows=2, cols=4, hgap=10, vgap=7)
-    top_grid.AddGrowableCol(1, 1)
+    # First row: folder controls and file-mask controls
+    folder_row = wx.BoxSizer(wx.HORIZONTAL)
 
-    query_label = wx.StaticText(panel, label=tr("search_query_label"))
-    query_label.SetMinSize((130, -1))
-    query_field = wx.ComboBox(panel, value=restored_state["query"], choices=_load_search_history(), style=wx.CB_DROPDOWN | wx.TE_PROCESS_ENTER)
-    query_field.SetMinSize((300, -1))
+    folder_label = wx.StaticText(panel, label=tr("search_folder_label"))
+    folder_label.SetMinSize((130, -1))
+
+    folder_field = wx.TextCtrl(panel, value=restored_state["folder"], style=wx.TE_PROCESS_ENTER)
+    folder_field.SetMinSize((225, -1))
+
+    browse_btn = wx.Button(panel, label=tr("search_browse_button"))
+    browse_btn.SetMinSize((75, -1))
 
     file_mask_label = wx.StaticText(panel, label=tr("search_file_mask_label"))
     file_mask_label.SetMinSize((80, -1))
+
     file_mask_field = wx.TextCtrl(panel, value=restored_state["file_mask"], style=wx.TE_PROCESS_ENTER)
     file_mask_field.SetMinSize((120, -1))
+
     clear_mask_btn = wx.Button(panel, label="x")
     clear_mask_btn.SetToolTip(tr("search_clear_mask_tooltip"))
     clear_mask_btn.SetMinSize((28, -1))
-    word_chk = wx.CheckBox(panel, label=tr("search_word_checkbox"))
-    word_chk.SetValue(bool(restored_state["word"]))
-    excel_chk = wx.CheckBox(panel, label=tr("search_excel_checkbox"))
-    excel_chk.SetValue(bool(restored_state["excel"]))
 
     file_mask_row = wx.BoxSizer(wx.HORIZONTAL)
     file_mask_row.Add(file_mask_field, 1, wx.EXPAND | wx.RIGHT, 2)
     file_mask_row.Add(clear_mask_btn, 0, wx.EXPAND)
 
-    top_grid.Add(query_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    top_grid.Add(query_field, 1, wx.EXPAND | wx.RIGHT, 10)
-    top_grid.Add(file_mask_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    top_grid.Add(file_mask_row, 1, wx.EXPAND)
-
-    folder_label = wx.StaticText(panel, label=tr("search_folder_label"))
-    folder_field = wx.TextCtrl(panel, value=restored_state["folder"], style=wx.TE_PROCESS_ENTER)
-    folder_field.SetMinSize((225, -1))
-    folder_row = wx.BoxSizer(wx.HORIZONTAL)
-    file_mask_box = wx.BoxSizer(wx.HORIZONTAL)
- 
-    browse_btn = wx.Button(panel, label=tr("search_browse_button"))
-    browse_btn.SetMinSize((75, -1))
-
+    folder_row.Add(folder_label, 0, wx.ALIGN_CENTER_VERTICAL)
     folder_row.Add(folder_field, 1, wx.EXPAND | wx.RIGHT, 10)
-    folder_row.Add(browse_btn, 0, wx.RIGHT, 10)
-    file_mask_box.Add(word_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 10)
-    file_mask_box.Add(excel_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 10)
+    folder_row.Add(browse_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+    folder_row.Add(file_mask_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+    folder_row.Add(file_mask_row, 0, wx.EXPAND)
 
-    top_grid.Add(folder_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    top_grid.Add(folder_row, 1, wx.EXPAND)
-    top_grid.Add((1, 1))
-    top_grid.Add(file_mask_box, 0, wx.EXPAND)
+    top_sizer.Add(folder_row, 0, wx.EXPAND)
 
-    main.Add(top_grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
-
-    # Include child folders
-    options = wx.BoxSizer(wx.HORIZONTAL)
+    # Second row: checkboxes
     include_child_chk = wx.CheckBox(panel, label=tr("search_include_subfolders"))
     include_child_chk.SetValue(bool(restored_state["include_child"]))
-    options.Add(include_child_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 155)
- 
-    main.Add(options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+    word_chk = wx.CheckBox(panel, label=tr("search_word_checkbox"))
+    word_chk.SetValue(bool(restored_state["word"]))
+
+    excel_chk = wx.CheckBox(panel, label=tr("search_excel_checkbox"))
+    excel_chk.SetValue(bool(restored_state["excel"]))
+
+    chkbox_row = wx.BoxSizer(wx.HORIZONTAL)
+    chkbox_row.AddSpacer(140)
+    chkbox_row.Add(include_child_chk, 0, wx.ALIGN_CENTER_VERTICAL| wx.TOP, 10)
+    chkbox_row.AddStretchSpacer(1)
+    chkbox_row.Add(word_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+    chkbox_row.Add(excel_chk, 0, wx.ALIGN_CENTER_VERTICAL)
+
+    top_sizer.Add(chkbox_row, 0, wx.EXPAND | wx.RIGHT, 30)
+    main.Add(top_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+    search_filename_chk = wx.CheckBox(panel, label=tr("search_filename_checkbox"))
+    search_filename_chk.SetValue(bool(restored_state.get("search_filename", True)))
+    search_filename_chk.SetMinSize((150, -1))
+    query_filename_label = wx.StaticText(panel, label=tr("search_query_label"))
+    query_filename_label.SetMinSize((130, -1))
+    query_filename_label.Wrap(130)
+    query_filename_field = wx.ComboBox(panel, value=str(restored_state.get("filename_query", restored_state.get("query", ""))), choices=_load_search_history("search_history_filename"), style=wx.CB_DROPDOWN | wx.TE_PROCESS_ENTER)
+    query_filename_field.SetMinSize((300, -1))
+    query_filename_field.Enable(search_filename_chk.GetValue())
+
+    query_filename_box = wx.BoxSizer(wx.HORIZONTAL)
+    query_filename_box.Add(search_filename_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+    query_filename_box.Add(query_filename_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    query_filename_box.Add(query_filename_field, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+
+    main.Add(query_filename_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+    search_file_content_chk = wx.CheckBox(panel, label=tr("search_file_content_checkbox"))
+    search_file_content_chk.SetValue(bool(restored_state.get("search_file_content", True)))
+    search_file_content_chk.SetMinSize((150, -1))
+    query_filetext_label = wx.StaticText(panel, label=tr("search_query_label"))
+    query_filetext_label.SetMinSize((130, -1))
+    query_filetext_label.Wrap(130)
+    query_filetext_field = wx.ComboBox(panel, value=str(restored_state.get("content_query", restored_state.get("query", ""))), choices=_load_search_history("search_history_file_content"), style=wx.CB_DROPDOWN | wx.TE_PROCESS_ENTER)
+    query_filetext_field.SetMinSize((300, -1))
+    query_filetext_field.Enable(search_file_content_chk.GetValue())
+
+    query_filetext_box = wx.BoxSizer(wx.HORIZONTAL)
+    query_filetext_box.Add(search_file_content_chk, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+    query_filetext_box.Add(query_filetext_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    query_filetext_box.Add(query_filetext_field, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+
+    main.Add(query_filetext_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
     # ---------- Search mode ----------
     mode_box = wx.StaticBoxSizer(wx.StaticBox(panel, label=""), wx.HORIZONTAL)
@@ -898,8 +1026,11 @@ def show_search_form(owner):
     quit_btn = wx.Button(panel, label=tr("search_cancel_button"))
 
     result_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SINGLE_SEL)
-    result_list.InsertColumn(0, tr("search_result_short_name"), width=220)
-    result_list.InsertColumn(1, tr("search_result_full_name"), width=520)
+    result_list.InsertColumn(0, tr("search_result_short_name"), width=300)
+    result_list.InsertColumn(1, tr("size_column"), width=60)
+    result_list.InsertColumn(2, tr("modified_column"), width=120)
+    result_list.InsertColumn(3, tr("search_result_full_name"), width=400)
+    _restore_result_list_column_state(result_list, restored_state.get("result_columns", []))
 
     status_bar = wx.StatusBar(panel, style=wx.STB_DEFAULT_STYLE)
     status_bar.SetFieldsCount(2)
@@ -949,7 +1080,9 @@ def show_search_form(owner):
     def save_geometry():
         _save_search_form_state(
             dialog,
-            query_field.GetValue(),
+            query_filetext_field.GetValue(),
+            query_filename_field.GetValue(),
+            query_filetext_field.GetValue(),
             folder_field.GetValue(),
             file_mask_field.GetValue(),
             include_child_chk.GetValue(),
@@ -966,13 +1099,18 @@ def show_search_form(owner):
             0,
             size_from_field.GetValue(),
             size_to_field.GetValue(),
+            search_filename_chk.GetValue(),
+            search_file_content_chk.GetValue(),
+            _get_result_list_column_state(result_list),
         )
 
     def finish_search(matches):
         result_list.DeleteAllItems()
         for match_path in matches:
             index = result_list.InsertItem(result_list.GetItemCount(), os.path.basename(match_path))
-            result_list.SetItem(index, 1, match_path)
+            result_list.SetItem(index, 1, _format_search_result_size(match_path))
+            result_list.SetItem(index, 2, _format_search_result_modified(match_path))
+            result_list.SetItem(index, 3, match_path)
         if matches:
             status_bar.SetStatusText(tr("search_finished_status"), 0)
             status_bar.SetStatusText(f"{len(matches)} {tr('search_results_count')}", 1)
@@ -1005,21 +1143,40 @@ def show_search_form(owner):
         return
 
     def run_search(_event=None):
-        text_value = query_field.GetValue().strip()
+        search_by_filename = bool(search_filename_chk.GetValue())
+        search_by_content = bool(search_file_content_chk.GetValue())
+        filename_value, content_value = _resolve_search_query_values(
+            search_filename_chk,
+            query_filename_field,
+            search_file_content_chk,
+            query_filetext_field,
+        )
         folder_value = folder_field.GetValue().strip()
-        if not text_value:
+        if not search_by_filename and not search_by_content:
             wx.MessageBox(tr("search_query_required"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
             return
         if not folder_value or not os.path.isdir(folder_value):
             wx.MessageBox(tr("search_no_folder"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
             return
 
-        _save_search_history(text_value)
-        _sync_query_history(query_field, text_value)
+        if search_by_filename and filename_value:
+            _save_search_history(filename_value, "search_history_filename")
+            _sync_query_history(query_filename_field, filename_value, "search_history_filename")
+        if search_by_content and content_value:
+            _save_search_history(content_value, "search_history_file_content")
+            _sync_query_history(query_filetext_field, content_value, "search_history_file_content")
+
+        if not filename_value and search_by_filename and not content_value and search_by_content:
+            wx.MessageBox(tr("search_query_required"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
+            return
+        if not content_value and search_by_content and not filename_value and search_by_filename:
+            wx.MessageBox(tr("search_query_required"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
+            return
 
         if search_state["running"]:
             return
 
+        _clear_search_result_list(result_list)
         stop_event = threading.Event()
         sync_file_mask_field()
         mask_value = file_mask_field.GetValue().strip()
@@ -1035,31 +1192,60 @@ def show_search_form(owner):
         stop_btn.Enable(True)
         set_status(folder_value, "")
 
+        mode_value = "regex" if regex_radio.GetValue() else "text"
+
         def worker():
             try:
-                matches = _collect_search_matches(
-                    text_value,
-                    folder_value,
-                    mode="regex" if regex_radio.GetValue() else "text",
-                    include_child_folders=include_child_chk.GetValue(),
-                    stop_event=stop_event,
-                    on_status=lambda current_folder, file_name: wx.CallAfter(set_status, current_folder, file_name),
-                    file_mask=mask_value,
-                    case_sensitive=case_sensitive_chk.GetValue(),
-                    whole_word=whole_word_chk.GetValue(),
-                    date_mode=date_mode,
-                    date_from=date_from_field.GetValue() if date_from_enabled else "",
-                    date_to=date_to_field.GetValue() if date_to_enabled else "",
-                    size_mode=size_mode,
-                    size_from=size_from_field.GetValue(),
-                    size_to=size_to_field.GetValue(),
-                )
+                matches = set()
+                for file_path in _iter_candidate_files(folder_value, include_child_chk.GetValue(), file_mask=mask_value):
+                    if stop_event.is_set():
+                        return
+                    if not os.path.isfile(file_path):
+                        continue
+                    if not _matches_date_filter(file_path, date_mode=date_mode, date_from=date_from_field.GetValue() if date_from_enabled else "", date_to=date_to_field.GetValue() if date_to_enabled else ""):
+                        continue
+                    if not _matches_size_filter(file_path, size_mode=size_mode, size_from=size_from_field.GetValue(), size_to=size_to_field.GetValue()):
+                        continue
+
+                    file_name = os.path.basename(file_path)
+                    file_name_match = False
+                    if search_by_filename and filename_value:
+                        if mode_value == "regex":
+                            try:
+                                pattern = re.compile(filename_value, 0 if case_sensitive_chk.GetValue() else re.IGNORECASE)
+                                file_name_match = bool(pattern.search(file_name))
+                            except re.error:
+                                file_name_match = False
+                        else:
+                            file_name_match = _matches_text_query(file_name, filename_value, case_sensitive=case_sensitive_chk.GetValue(), whole_word=whole_word_chk.GetValue())
+
+                    content_match = False
+                    if search_by_content and content_value:
+                        content = _extract_text_from_file(file_path)
+                        if content:
+                            if mode_value == "regex":
+                                try:
+                                    pattern = re.compile(content_value, 0 if case_sensitive_chk.GetValue() else re.IGNORECASE)
+                                    content_match = bool(pattern.search(content))
+                                except re.error:
+                                    content_match = False
+                            else:
+                                content_match = _matches_text_query(content, content_value, case_sensitive=case_sensitive_chk.GetValue(), whole_word=whole_word_chk.GetValue())
+
+                    if _should_include_search_match(search_by_filename, file_name_match, search_by_content, content_match):
+                        matches.add(file_path)
+                        try:
+                            wx.CallAfter(set_status, folder_value, file_path)
+                        except Exception:
+                            pass
+
+                ordered_matches = list(matches)
                 if stop_event.is_set():
                     wx.CallAfter(stop_search)
                     return
-                wx.CallAfter(finish_search, matches)
+                wx.CallAfter(finish_search, ordered_matches)
             except re.error:
-                wx.CallAfter(wx.MessageBox, tr("search_invalid_regex", error=text_value), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+                wx.CallAfter(wx.MessageBox, tr("search_invalid_regex", error=content_value or filename_value), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
             except Exception as exc:
                 wx.CallAfter(wx.MessageBox, str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
             finally:
@@ -1094,6 +1280,8 @@ def show_search_form(owner):
             except Exception:
                 pass
 
+    search_filename_chk.Bind(wx.EVT_CHECKBOX, lambda _event: query_filename_field.Enable(search_filename_chk.GetValue()))
+    search_file_content_chk.Bind(wx.EVT_CHECKBOX, lambda _event: query_filetext_field.Enable(search_file_content_chk.GetValue()))
     clear_mask_btn.Bind(wx.EVT_BUTTON, clear_mask)
     file_mask_field.Bind(wx.EVT_TEXT, lambda _event: sync_file_mask_field())
     word_chk.Bind(wx.EVT_CHECKBOX, lambda _event: sync_file_mask_field())
