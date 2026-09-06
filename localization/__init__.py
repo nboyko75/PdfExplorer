@@ -9,6 +9,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "menu_document": "Document",
     "menu_help": "Help",
     "menu_app_manual": "App manual",
+    "help_manual_open_pdf_button": "Open PDF",
     "menu_about": "About",
     "menu_file_options": "Options",
     "favorite_add_menu_item": "Add to favorite",

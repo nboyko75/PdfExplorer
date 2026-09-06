@@ -41,7 +41,7 @@ a = Analysis(
     [str(project_dir / 'main.py')],
     pathex=[str(project_dir), str(venv_site_packages)],
     binaries=[],
-    datas=[('images', 'images'), ('localization', 'localization')] + pymupdf_datas,
+    datas=[('images', 'images'), ('localization', 'localization'), ('docs/DocExplorer_User_Manual.pdf', 'docs')] + pymupdf_datas,
     hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports,
     hookspath=[],
     hooksconfig={},

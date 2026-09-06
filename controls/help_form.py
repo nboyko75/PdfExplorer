@@ -1,82 +1,86 @@
+import os
+import sys
+
 import wx
+
+try:
+    import fitz
+except ImportError:  # pragma: no cover
+    fitz = None
 
 from localization import tr
 
 
-def _build_manual_section_text(entries):
-    lines = []
-    for entry in entries:
-        lines.append(f"• {entry}")
-    return "\n".join(lines)
+MANUAL_RELATIVE_PATH = os.path.join("docs", "DocExplorer_User_Manual.pdf")
+
+
+def _resource_path(relative_path):
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base_path, relative_path)
+
+
+def _set_manual_page_bitmap(bitmap_control, pdf_page, available_width):
+    page_width = max(1.0, float(pdf_page.rect.width))
+    target_width = max(320, min(1400, int(available_width)))
+    zoom = max(0.5, min(2.5, target_width / page_width))
+    pixmap = pdf_page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+    image = wx.Image(pixmap.width, pixmap.height)
+    image.SetData(bytes(pixmap.samples))
+    bitmap_control.SetBitmap(wx.Bitmap(image))
+    bitmap_control.SetMinSize((pixmap.width, pixmap.height))
 
 
 def show_app_manual_form(owner):
-    dialog = wx.Dialog(owner, title=tr("menu_app_manual"), size=(800, 600))
+    manual_path = _resource_path(MANUAL_RELATIVE_PATH)
+    if not os.path.isfile(manual_path):
+        wx.MessageBox(f"Manual file was not found:\n{manual_path}", tr("menu_app_manual"), style=wx.OK | wx.ICON_ERROR)
+        return
+
+    dialog = wx.Dialog(owner, title=tr("menu_app_manual"), size=(1000, 760), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
-    scroll = wx.ScrolledWindow(panel)
+    toolbar = wx.BoxSizer(wx.HORIZONTAL)
+    open_btn = wx.Button(panel, label=tr("help_manual_open_pdf_button"))
+    close_btn = wx.Button(panel, wx.ID_CLOSE, tr("exit_button"))
+    toolbar.Add(open_btn, 0, wx.RIGHT, 8)
+    toolbar.AddStretchSpacer(1)
+    toolbar.Add(close_btn, 0)
+
+    scroll = wx.ScrolledWindow(panel, style=wx.VSCROLL | wx.HSCROLL)
     scroll.SetScrollRate(12, 12)
+    pages_sizer = wx.BoxSizer(wx.VERTICAL)
+    pdf_document = None
 
-    sections = [
-        (
-            tr("menu_file"),
-            [
-                "Scan - scan a document using a connected scanner.",
-                "Open - open a selected file or folder.",
-                "New folder - create a folder inside the current directory.",
-                "Rename - rename the selected item.",
-                "Refresh - reload the current folder and tree view.",
-                "Print - print the selected file.",
-                "Copy / Cut / Paste / Delete - manage files and folders.",
-                "Add to archive / Extract from archive - package or unpack selected files.",
-                "Options - change application settings.",
-                "Exit - close the application.",
-            ],
-        ),
-        (
-            tr("menu_navigation"),
-            [
-                "Back / Forward - move through the navigation history.",
-                "Search in files - search the selected folder content.",
-            ],
-        ),
-        (
-            tr("menu_document"),
-            [
-                "Import from file / scanner - add pages into a PDF.",
-                "Export pages - save selected PDF pages to a new file.",
-                "Save / Cancel - keep or discard PDF changes.",
-                "Zoom / Layout - switch page display modes.",
-                "Rotate / Move / Remove page - edit the opened PDF.",
-                "Optimize / Adjust page width - improve the opened PDF output.",
-                "Optimize all PDF / Adjust page width all - batch-process PDFs in a folder or file.",
-            ],
-        ),
-        (
-            tr("menu_help"),
-            [
-                "About - view application information.",
-                "App manual - open this help guide.",
-            ],
-        ),
-    ]
+    if fitz is None:
+        message = wx.StaticText(scroll, label="The embedded PDF renderer is unavailable. Select Open PDF to view the manual.")
+        pages_sizer.Add(message, 0, wx.ALL, 16)
+    else:
+        try:
+            pdf_document = fitz.open(manual_path)
+            available_width = max(700, dialog.GetClientSize().width - 70)
+            for page_index in range(pdf_document.page_count):
+                page_bitmap = wx.StaticBitmap(scroll)
+                _set_manual_page_bitmap(page_bitmap, pdf_document.load_page(page_index), available_width)
+                pages_sizer.Add(page_bitmap, 0, wx.ALIGN_CENTER | wx.ALL, 8)
+        except Exception as exc:
+            if pdf_document is not None:
+                pdf_document.close()
+                pdf_document = None
+            message = wx.StaticText(scroll, label=f"The manual could not be rendered inside DocExplorer.\n{exc}\n\nSelect Open PDF to view it.")
+            pages_sizer.Add(message, 0, wx.ALL, 16)
 
-    body_sizer = wx.BoxSizer(wx.VERTICAL)
-    for title, entries in sections:
-        heading = wx.StaticText(scroll, label=title)
-        heading.SetFont(wx.Font(12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
-        body = wx.StaticText(scroll, label=_build_manual_section_text(entries))
-        body.Wrap(620)
-        body_sizer.Add(heading, 0, wx.ALL | wx.EXPAND, 8)
-        body_sizer.Add(body, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
-
-    scroll.SetSizer(body_sizer)
-    scroll.Layout()
-
-    close_btn = wx.Button(panel, wx.ID_OK, tr("exit_button"))
+    scroll.SetSizer(pages_sizer)
+    scroll.FitInside()
     main_sizer = wx.BoxSizer(wx.VERTICAL)
-    main_sizer.Add(scroll, 1, wx.EXPAND | wx.ALL, 12)
-    main_sizer.Add(close_btn, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 12)
+    main_sizer.Add(scroll, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+    main_sizer.Add(toolbar, 0, wx.EXPAND | wx.ALL, 10)
     panel.SetSizer(main_sizer)
+
+    open_btn.Bind(wx.EVT_BUTTON, lambda _event: os.startfile(manual_path))
+    close_btn.Bind(wx.EVT_BUTTON, lambda _event: dialog.EndModal(wx.ID_CLOSE))
     dialog.CenterOnParent()
-    dialog.ShowModal()
-    dialog.Destroy()
+    try:
+        dialog.ShowModal()
+    finally:
+        if pdf_document is not None:
+            pdf_document.close()
+        dialog.Destroy()

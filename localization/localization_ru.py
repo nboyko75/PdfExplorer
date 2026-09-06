@@ -7,6 +7,7 @@ TRANSLATIONS = {
     "menu_document": "Документ",
     "menu_help": "Справка",
     "menu_app_manual": "Руководство",
+    "help_manual_open_pdf_button": "Открыть PDF",
     "menu_about": "О программе",
     "menu_file_options": "Параметры",
     "options_dialog_title": "Параметры",
