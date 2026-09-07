@@ -1,16 +1,18 @@
 import os
 import sys
+import webbrowser
 
 import wx
 
 try:
-    import fitz
+    import wx.html2 as html2
 except ImportError:  # pragma: no cover
-    fitz = None
+    html2 = None
 
 from localization import tr
 
 
+HELP_RELATIVE_PATH = os.path.join("docs", "help", "index.html")
 MANUAL_RELATIVE_PATH = os.path.join("docs", "DocExplorer_User_Manual.pdf")
 
 
@@ -19,68 +21,67 @@ def _resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-def _set_manual_page_bitmap(bitmap_control, pdf_page, available_width):
-    page_width = max(1.0, float(pdf_page.rect.width))
-    target_width = max(320, min(1400, int(available_width)))
-    zoom = max(0.5, min(2.5, target_width / page_width))
-    pixmap = pdf_page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
-    image = wx.Image(pixmap.width, pixmap.height)
-    image.SetData(bytes(pixmap.samples))
-    bitmap_control.SetBitmap(wx.Bitmap(image))
-    bitmap_control.SetMinSize((pixmap.width, pixmap.height))
+def _open_local_file(path):
+    if hasattr(os, "startfile"):
+        os.startfile(path)
+    else:  # pragma: no cover
+        webbrowser.open("file:///" + os.path.abspath(path).replace(os.sep, "/"))
 
 
 def show_app_manual_form(owner):
+    """Show the menu-structured, animated offline help."""
+    help_path = _resource_path(HELP_RELATIVE_PATH)
     manual_path = _resource_path(MANUAL_RELATIVE_PATH)
-    if not os.path.isfile(manual_path):
-        wx.MessageBox(f"Manual file was not found:\n{manual_path}", tr("menu_app_manual"), style=wx.OK | wx.ICON_ERROR)
+    if not os.path.isfile(help_path):
+        wx.MessageBox(
+            f"Help file was not found:\n{help_path}",
+            tr("menu_app_manual"),
+            style=wx.OK | wx.ICON_ERROR,
+        )
         return
 
-    dialog = wx.Dialog(owner, title=tr("menu_app_manual"), size=(1000, 760), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    dialog = wx.Dialog(
+        owner,
+        title=tr("menu_app_manual"),
+        size=(1120, 820),
+        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+    )
     panel = wx.Panel(dialog)
     toolbar = wx.BoxSizer(wx.HORIZONTAL)
-    open_btn = wx.Button(panel, label=tr("help_manual_open_pdf_button"))
+    open_browser_btn = wx.Button(panel, label="Open in browser")
+    open_pdf_btn = wx.Button(panel, label="Open PDF")
     close_btn = wx.Button(panel, wx.ID_CLOSE, tr("exit_button"))
-    toolbar.Add(open_btn, 0, wx.RIGHT, 8)
+    toolbar.Add(open_browser_btn, 0, wx.RIGHT, 8)
+    if os.path.isfile(manual_path):
+        toolbar.Add(open_pdf_btn, 0, wx.RIGHT, 8)
+    else:
+        open_pdf_btn.Hide()
     toolbar.AddStretchSpacer(1)
     toolbar.Add(close_btn, 0)
 
-    scroll = wx.ScrolledWindow(panel, style=wx.VSCROLL | wx.HSCROLL)
-    scroll.SetScrollRate(12, 12)
-    pages_sizer = wx.BoxSizer(wx.VERTICAL)
-    pdf_document = None
-
-    if fitz is None:
-        message = wx.StaticText(scroll, label="The embedded PDF renderer is unavailable. Select Open PDF to view the manual.")
-        pages_sizer.Add(message, 0, wx.ALL, 16)
+    if html2 is not None:
+        viewer = html2.WebView.New(panel)
+        viewer.LoadURL("file:///" + os.path.abspath(help_path).replace(os.sep, "/"))
     else:
-        try:
-            pdf_document = fitz.open(manual_path)
-            available_width = max(700, dialog.GetClientSize().width - 70)
-            for page_index in range(pdf_document.page_count):
-                page_bitmap = wx.StaticBitmap(scroll)
-                _set_manual_page_bitmap(page_bitmap, pdf_document.load_page(page_index), available_width)
-                pages_sizer.Add(page_bitmap, 0, wx.ALIGN_CENTER | wx.ALL, 8)
-        except Exception as exc:
-            if pdf_document is not None:
-                pdf_document.close()
-                pdf_document = None
-            message = wx.StaticText(scroll, label=f"The manual could not be rendered inside DocExplorer.\n{exc}\n\nSelect Open PDF to view it.")
-            pages_sizer.Add(message, 0, wx.ALL, 16)
+        viewer = wx.Panel(panel)
+        message = wx.StaticText(
+            viewer,
+            label="The embedded HTML viewer is unavailable. Select Open in browser to view Help.",
+        )
+        fallback_sizer = wx.BoxSizer(wx.VERTICAL)
+        fallback_sizer.Add(message, 0, wx.ALL, 18)
+        viewer.SetSizer(fallback_sizer)
 
-    scroll.SetSizer(pages_sizer)
-    scroll.FitInside()
     main_sizer = wx.BoxSizer(wx.VERTICAL)
-    main_sizer.Add(scroll, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
     main_sizer.Add(toolbar, 0, wx.EXPAND | wx.ALL, 10)
+    main_sizer.Add(viewer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
     panel.SetSizer(main_sizer)
 
-    open_btn.Bind(wx.EVT_BUTTON, lambda _event: os.startfile(manual_path))
+    open_browser_btn.Bind(wx.EVT_BUTTON, lambda _event: _open_local_file(help_path))
+    open_pdf_btn.Bind(wx.EVT_BUTTON, lambda _event: _open_local_file(manual_path))
     close_btn.Bind(wx.EVT_BUTTON, lambda _event: dialog.EndModal(wx.ID_CLOSE))
     dialog.CenterOnParent()
     try:
         dialog.ShowModal()
     finally:
-        if pdf_document is not None:
-            pdf_document.close()
         dialog.Destroy()

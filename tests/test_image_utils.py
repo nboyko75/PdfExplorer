@@ -37,6 +37,16 @@ class ImageUtilsFallbackTests(unittest.TestCase):
 
         fallback_reader.assert_called_once_with("sample.png")
 
+    def test_can_preview_image_supports_gif_via_pillow_fallback(self):
+        image_utils = _import_image_utils_with_mocked_wx()
+        image_utils.wx.Image.CanRead.return_value = False
+
+        with mock.patch("file_operations.image_utils.os.path.isfile", return_value=True), \
+             mock.patch.object(image_utils, "_can_read_with_pillow", return_value=True) as fallback_reader:
+            self.assertTrue(image_utils.can_preview_image("sample.gif"))
+
+        fallback_reader.assert_called_once_with("sample.gif")
+
     def test_icon_manager_accepts_favorite_icon_aliases(self):
         image_utils = _import_image_utils_with_mocked_wx()
         with mock.patch("file_operations.image_utils.os.path.isfile", return_value=True):

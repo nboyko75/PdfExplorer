@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocExplorer Help</title>
+<style>
+:root{--nav:#17365d;--accent:#2472a4;--line:#d8e0ea;--paper:#fff;--bg:#eef3f8;--text:#263342}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 "Segoe UI",Arial,sans-serif}
+nav{position:fixed;inset:0 auto 0 0;width:270px;overflow:auto;background:var(--nav);color:white;padding:24px 20px}
+nav h1{font-size:25px;margin:0 0 5px} nav p{font-size:13px;color:#cbd8e8;margin:0 0 18px} nav ul{padding-left:18px} nav a{color:#fff;text-decoration:none} nav a:hover{text-decoration:underline}
+main{margin-left:270px;max-width:1120px;padding:28px 34px 70px} h1{color:var(--nav)} h2{margin-top:38px;padding:11px 15px;background:var(--nav);color:#fff;border-radius:8px} h3{margin:0 0 8px;color:var(--nav);font-size:22px}
+.intro,.command{background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 8px #17365d14}
+.intro{padding:18px 22px} .command{display:grid;grid-template-columns:minmax(220px,1fr) minmax(380px,720px);gap:24px;padding:18px;margin:15px 0;scroll-margin-top:12px}
+.command img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:7px} .copy p{margin:0}
+@media(max-width:850px){nav{position:static;width:auto}main{margin:0;padding:20px}.command{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style></head><body>
+<nav><h1>DocExplorer Help</h1><p>Menu-by-menu animated guide</p><ul><li><a href="#file-menu">File menu</a></li><li><a href="#navigation-menu">Navigation menu</a></li><li><a href="#document-menu">Document menu</a></li><li><a href="#help-menu">Help menu</a></li><li><a href="#context-menus">Context menus</a></li></ul></nav>
+<main><h1>DocExplorer User Help</h1>
+<div class="intro"><p>This guide follows the exact structure of the main menu and all context menus in the supplied DocExplorer source. Each menu item has a separate unit and an animated visual demonstration.</p><p><strong>Tip:</strong> right-click an animated image to pause it by opening it in a separate browser tab, or revisit the section to replay it.</p></div>
+<h2 id="file-menu">File menu</h2>
+    <section class="command" id="command-scan">
+      <div class="copy"><h3>Scan</h3><p>Open the scanner window, choose a device and acquire pages.</p></div>
+      <img src="gifs/scan.gif" alt="Animated demonstration of Scan">
+    </section>
+    <section class="command" id="command-open">
+      <div class="copy"><h3>Open</h3><p>Open the selected folder or file with the associated action.</p></div>
+      <img src="gifs/open.gif" alt="Animated demonstration of Open">
+    </section>
+    <section class="command" id="command-rename">
+      <div class="copy"><h3>Rename</h3><p>Rename one selected file or folder.</p></div>
+      <img src="gifs/rename.gif" alt="Animated demonstration of Rename">
+    </section>
+    <section class="command" id="command-new-folder">
+      <div class="copy"><h3>New folder</h3><p>Create a folder in the current location.</p></div>
+      <img src="gifs/new-folder.gif" alt="Animated demonstration of New folder">
+    </section>
+    <section class="command" id="command-refresh">
+      <div class="copy"><h3>Refresh</h3><p>Reload the tree and file list. Shortcut: F5.</p></div>
+      <img src="gifs/refresh.gif" alt="Animated demonstration of Refresh">
+    </section>
+    <section class="command" id="command-print">
+      <div class="copy"><h3>Print</h3><p>Open DocExplorer&#x27;s print form for the selected file. Shortcut: Ctrl+P.</p></div>
+      <img src="gifs/print.gif" alt="Animated demonstration of Print">
+    </section>
+    <section class="command" id="command-copy">
+      <div class="copy"><h3>Copy</h3><p>Put the selected files or folders on the clipboard. Shortcut: Ctrl+C.</p></div>
+      <img src="gifs/copy.gif" alt="Animated demonstration of Copy">
+    </section>
+    <section class="command" id="command-cut">
+      <div class="copy"><h3>Cut</h3><p>Mark the selected files or folders to be moved. Shortcut: Ctrl+X.</p></div>
+      <img src="gifs/cut.gif" alt="Animated demonstration of Cut">
+    </section>
+    <section class="command" id="command-paste">
+      <div class="copy"><h3>Paste</h3><p>Copy or move clipboard items into the current folder. Shortcut: Ctrl+V.</p></div>
+      <img src="gifs/paste.gif" alt="Animated demonstration of Paste">
+    </section>
+    <section class="command" id="command-recycle">
+      <div class="copy"><h3>Remove to Recycle Bin</h3><p>Move selected items to the Windows Recycle Bin. Shortcut: Ctrl+D.</p></div>
+      <img src="gifs/recycle.gif" alt="Animated demonstration of Remove to Recycle Bin">
+    </section>
+    <section class="command" id="command-delete">
+      <div class="copy"><h3>Delete permanently</h3><p>Delete selected items without moving them to the Recycle Bin. Shortcut: Shift+Del.</p></div>
+      <img src="gifs/delete.gif" alt="Animated demonstration of Delete permanently">
+    </section>
+    <section class="command" id="command-archive">
+      <div class="copy"><h3>Add to archive</h3><p>Create an archive from the selected files or folder.</p></div>
+      <img src="gifs/archive.gif" alt="Animated demonstration of Add to archive">
+    </section>
+    <section class="command" id="command-extract-here">
+      <div class="copy"><h3>Extract from archive here</h3><p>Extract an archive into the current folder.</p></div>
+      <img src="gifs/extract-here.gif" alt="Animated demonstration of Extract from archive here">
+    </section>
+    <section class="command" id="command-extract-into">
+      <div class="copy"><h3>Extract from archive into</h3><p>Create a named destination folder and extract the archive into it.</p></div>
+      <img src="gifs/extract-into.gif" alt="Animated demonstration of Extract from archive into">
+    </section>
+    <section class="command" id="command-options">
+      <div class="copy"><h3>Options</h3><p>Choose language, preview, interface and other application settings.</p></div>
+      <img src="gifs/options.gif" alt="Animated demonstration of Options">
+    </section>
+    <section class="command" id="command-exit">
+      <div class="copy"><h3>Exit</h3><p>Save the application state and close DocExplorer.</p></div>
+      <img src="gifs/exit.gif" alt="Animated demonstration of Exit">
+    </section><h2 id="navigation-menu">Navigation menu</h2>
+    <section class="command" id="command-back">
+      <div class="copy"><h3>Back</h3><p>Return to the previous location in navigation history.</p></div>
+      <img src="gifs/back.gif" alt="Animated demonstration of Back">
+    </section>
+    <section class="command" id="command-forward">
+      <div class="copy"><h3>Forward</h3><p>Go to the next location in navigation history.</p></div>
+      <img src="gifs/forward.gif" alt="Animated demonstration of Forward">
+    </section>
+    <section class="command" id="command-up">
+      <div class="copy"><h3>Up</h3><p>Open the parent folder of the current location.</p></div>
+      <img src="gifs/up.gif" alt="Animated demonstration of Up">
+    </section>
+    <section class="command" id="command-favorite-add">
+      <div class="copy"><h3>Add to Favorites</h3><p>Add the selected folder to the Favorites pane.</p></div>
+      <img src="gifs/favorite-add.gif" alt="Animated demonstration of Add to Favorites">
+    </section>
+    <section class="command" id="command-favorite-remove">
+      <div class="copy"><h3>Remove from Favorites</h3><p>Remove the selected folder from Favorites.</p></div>
+      <img src="gifs/favorite-remove.gif" alt="Animated demonstration of Remove from Favorites">
+    </section>
+    <section class="command" id="command-search">
+      <div class="copy"><h3>Search in files</h3><p>Open the search form and search by name, contents and filters.</p></div>
+      <img src="gifs/search.gif" alt="Animated demonstration of Search in files">
+    </section><h2 id="document-menu">Document menu</h2>
+    <section class="command" id="command-import-file">
+      <div class="copy"><h3>Import pages from file</h3><p>Append pages from another supported file to the current PDF.</p></div>
+      <img src="gifs/import-file.gif" alt="Animated demonstration of Import pages from file">
+    </section>
+    <section class="command" id="command-import-scanner">
+      <div class="copy"><h3>Import pages from scanner</h3><p>Scan pages and append them to the current PDF.</p></div>
+      <img src="gifs/import-scanner.gif" alt="Animated demonstration of Import pages from scanner">
+    </section>
+    <section class="command" id="command-export">
+      <div class="copy"><h3>Export pages</h3><p>Export selected PDF pages to a new file.</p></div>
+      <img src="gifs/export.gif" alt="Animated demonstration of Export pages">
+    </section>
+    <section class="command" id="command-save">
+      <div class="copy"><h3>Save</h3><p>Write pending PDF edits to the current file.</p></div>
+      <img src="gifs/save.gif" alt="Animated demonstration of Save">
+    </section>
+    <section class="command" id="command-cancel">
+      <div class="copy"><h3>Cancel changes</h3><p>Discard pending PDF edits and reload the saved document.</p></div>
+      <img src="gifs/cancel.gif" alt="Animated demonstration of Cancel changes">
+    </section>
+    <section class="command" id="command-zoom-in">
+      <div class="copy"><h3>Zoom in</h3><p>Increase the preview scale.</p></div>
+      <img src="gifs/zoom-in.gif" alt="Animated demonstration of Zoom in">
+    </section>
+    <section class="command" id="command-zoom-out">
+      <div class="copy"><h3>Zoom out</h3><p>Decrease the preview scale.</p></div>
+      <img src="gifs/zoom-out.gif" alt="Animated demonstration of Zoom out">
+    </section>
+    <section class="command" id="command-one-wide">
+      <div class="copy"><h3>Show 1 page wide</h3><p>Fit one page to the preview width.</p></div>
+      <img src="gifs/one-wide.gif" alt="Animated demonstration of Show 1 page wide">
+    </section>
+    <section class="command" id="command-two-wide">
+      <div class="copy"><h3>Show 2 pages wide</h3><p>Arrange two pages in each preview row.</p></div>
+      <img src="gifs/two-wide.gif" alt="Animated demonstration of Show 2 pages wide">
+    </section>
+    <section class="command" id="command-one-tall">
+      <div class="copy"><h3>Show 1 page tall</h3><p>Fit a complete page vertically in the preview.</p></div>
+      <img src="gifs/one-tall.gif" alt="Animated demonstration of Show 1 page tall">
+    </section>
+    <section class="command" id="command-manual-scale">
+      <div class="copy"><h3>Manual scale</h3><p>Use the zoom controls instead of an automatic fit mode.</p></div>
+      <img src="gifs/manual-scale.gif" alt="Animated demonstration of Manual scale">
+    </section>
+    <section class="command" id="command-rotate-all-left">
+      <div class="copy"><h3>Rotate all left</h3><p>Rotate every PDF page 90 degrees counter-clockwise.</p></div>
+      <img src="gifs/rotate-all-left.gif" alt="Animated demonstration of Rotate all left">
+    </section>
+    <section class="command" id="command-rotate-left">
+      <div class="copy"><h3>Rotate left</h3><p>Rotate the selected PDF page or image counter-clockwise.</p></div>
+      <img src="gifs/rotate-left.gif" alt="Animated demonstration of Rotate left">
+    </section>
+    <section class="command" id="command-rotate-right">
+      <div class="copy"><h3>Rotate right</h3><p>Rotate the selected PDF page or image clockwise.</p></div>
+      <img src="gifs/rotate-right.gif" alt="Animated demonstration of Rotate right">
+    </section>
+    <section class="command" id="command-rotate-all-right">
+      <div class="copy"><h3>Rotate all right</h3><p>Rotate every PDF page 90 degrees clockwise.</p></div>
+      <img src="gifs/rotate-all-right.gif" alt="Animated demonstration of Rotate all right">
+    </section>
+    <section class="command" id="command-move-page">
+      <div class="copy"><h3>Move page</h3><p>Move a PDF page to a new position.</p></div>
+      <img src="gifs/move-page.gif" alt="Animated demonstration of Move page">
+    </section>
+    <section class="command" id="command-remove-page">
+      <div class="copy"><h3>Remove page</h3><p>Remove the selected page from the PDF.</p></div>
+      <img src="gifs/remove-page.gif" alt="Animated demonstration of Remove page">
+    </section>
+    <section class="command" id="command-adjust-width">
+      <div class="copy"><h3>Adjust page width</h3><p>Make the current PDF page widths consistent.</p></div>
+      <img src="gifs/adjust-width.gif" alt="Animated demonstration of Adjust page width">
+    </section>
+    <section class="command" id="command-optimize">
+      <div class="copy"><h3>Optimize</h3><p>Reduce the size of the current PDF while preserving usable quality.</p></div>
+      <img src="gifs/optimize.gif" alt="Animated demonstration of Optimize">
+    </section>
+    <section class="command" id="command-optimize-all">
+      <div class="copy"><h3>Optimize all PDF files</h3><p>Optimize a selected PDF or every PDF in a selected folder.</p></div>
+      <img src="gifs/optimize-all.gif" alt="Animated demonstration of Optimize all PDF files">
+    </section>
+    <section class="command" id="command-adjust-all">
+      <div class="copy"><h3>Adjust page width in all PDF files</h3><p>Normalize page widths in a selected PDF or folder of PDFs.</p></div>
+      <img src="gifs/adjust-all.gif" alt="Animated demonstration of Adjust page width in all PDF files">
+    </section><h2 id="help-menu">Help menu</h2>
+    <section class="command" id="command-manual">
+      <div class="copy"><h3>App manual</h3><p>Open this animated, menu-structured Help. Shortcut: F1.</p></div>
+      <img src="gifs/manual.gif" alt="Animated demonstration of App manual">
+    </section>
+    <section class="command" id="command-about">
+      <div class="copy"><h3>About</h3><p>Show DocExplorer version and application information.</p></div>
+      <img src="gifs/about.gif" alt="Animated demonstration of About">
+    </section><h1 id="context-menus">Context menus</h1><p>Right-click the relevant pane to open these menus. Every context-menu item has its own unit below; commands shared with the main menu use the same animation and behavior.</p><h2 id="file-list-context-menu">File-list context menu</h2>
+    <section class="command">
+      <div class="copy"><h3>Scan</h3><p>Open the scanner window, choose a device and acquire pages.</p></div>
+      <img src="gifs/scan.gif" alt="Animated demonstration of Scan">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Open</h3><p>Open the selected folder or file with the associated action.</p></div>
+      <img src="gifs/open.gif" alt="Animated demonstration of Open">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Up</h3><p>Open the parent folder of the current location.</p></div>
+      <img src="gifs/up.gif" alt="Animated demonstration of Up">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>New folder</h3><p>Create a folder in the current location.</p></div>
+      <img src="gifs/new-folder.gif" alt="Animated demonstration of New folder">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Refresh</h3><p>Reload the tree and file list. Shortcut: F5.</p></div>
+      <img src="gifs/refresh.gif" alt="Animated demonstration of Refresh">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Print</h3><p>Open DocExplorer&#x27;s print form for the selected file. Shortcut: Ctrl+P.</p></div>
+      <img src="gifs/print.gif" alt="Animated demonstration of Print">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Copy</h3><p>Put the selected files or folders on the clipboard. Shortcut: Ctrl+C.</p></div>
+      <img src="gifs/copy.gif" alt="Animated demonstration of Copy">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Cut</h3><p>Mark the selected files or folders to be moved. Shortcut: Ctrl+X.</p></div>
+      <img src="gifs/cut.gif" alt="Animated demonstration of Cut">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Paste</h3><p>Copy or move clipboard items into the current folder. Shortcut: Ctrl+V.</p></div>
+      <img src="gifs/paste.gif" alt="Animated demonstration of Paste">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Rename</h3><p>Rename one selected file or folder.</p></div>
+      <img src="gifs/rename.gif" alt="Animated demonstration of Rename">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Remove to Recycle Bin</h3><p>Move selected items to the Windows Recycle Bin. Shortcut: Ctrl+D.</p></div>
+      <img src="gifs/recycle.gif" alt="Animated demonstration of Remove to Recycle Bin">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Delete permanently</h3><p>Delete selected items without moving them to the Recycle Bin. Shortcut: Shift+Del.</p></div>
+      <img src="gifs/delete.gif" alt="Animated demonstration of Delete permanently">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Add to archive</h3><p>Create an archive from the selected files or folder.</p></div>
+      <img src="gifs/archive.gif" alt="Animated demonstration of Add to archive">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Extract from archive here</h3><p>Extract an archive into the current folder.</p></div>
+      <img src="gifs/extract-here.gif" alt="Animated demonstration of Extract from archive here">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Extract from archive into</h3><p>Create a named destination folder and extract the archive into it.</p></div>
+      <img src="gifs/extract-into.gif" alt="Animated demonstration of Extract from archive into">
+    </section><h2 id="folder-tree-context-menu">Folder-tree context menu</h2>
+    <section class="command">
+      <div class="copy"><h3>Open</h3><p>Open the selected folder or file with the associated action.</p></div>
+      <img src="gifs/open.gif" alt="Animated demonstration of Open">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Up</h3><p>Open the parent folder of the current location.</p></div>
+      <img src="gifs/up.gif" alt="Animated demonstration of Up">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>New folder</h3><p>Create a folder in the current location.</p></div>
+      <img src="gifs/new-folder.gif" alt="Animated demonstration of New folder">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Refresh</h3><p>Reload the tree and file list. Shortcut: F5.</p></div>
+      <img src="gifs/refresh.gif" alt="Animated demonstration of Refresh">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Print</h3><p>Open DocExplorer&#x27;s print form for the selected file. Shortcut: Ctrl+P.</p></div>
+      <img src="gifs/print.gif" alt="Animated demonstration of Print">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Add to Favorites</h3><p>Add the selected folder to the Favorites pane.</p></div>
+      <img src="gifs/favorite-add.gif" alt="Animated demonstration of Add to Favorites">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Remove from Favorites</h3><p>Remove the selected folder from Favorites.</p></div>
+      <img src="gifs/favorite-remove.gif" alt="Animated demonstration of Remove from Favorites">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Copy</h3><p>Put the selected files or folders on the clipboard. Shortcut: Ctrl+C.</p></div>
+      <img src="gifs/copy.gif" alt="Animated demonstration of Copy">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Cut</h3><p>Mark the selected files or folders to be moved. Shortcut: Ctrl+X.</p></div>
+      <img src="gifs/cut.gif" alt="Animated demonstration of Cut">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Paste</h3><p>Copy or move clipboard items into the current folder. Shortcut: Ctrl+V.</p></div>
+      <img src="gifs/paste.gif" alt="Animated demonstration of Paste">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Rename</h3><p>Rename one selected file or folder.</p></div>
+      <img src="gifs/rename.gif" alt="Animated demonstration of Rename">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Remove to Recycle Bin</h3><p>Move selected items to the Windows Recycle Bin. Shortcut: Ctrl+D.</p></div>
+      <img src="gifs/recycle.gif" alt="Animated demonstration of Remove to Recycle Bin">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Delete permanently</h3><p>Delete selected items without moving them to the Recycle Bin. Shortcut: Shift+Del.</p></div>
+      <img src="gifs/delete.gif" alt="Animated demonstration of Delete permanently">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Add to archive</h3><p>Create an archive from the selected files or folder.</p></div>
+      <img src="gifs/archive.gif" alt="Animated demonstration of Add to archive">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Extract from archive here</h3><p>Extract an archive into the current folder.</p></div>
+      <img src="gifs/extract-here.gif" alt="Animated demonstration of Extract from archive here">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Extract from archive into</h3><p>Create a named destination folder and extract the archive into it.</p></div>
+      <img src="gifs/extract-into.gif" alt="Animated demonstration of Extract from archive into">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Optimize all PDF files</h3><p>Optimize a selected PDF or every PDF in a selected folder.</p></div>
+      <img src="gifs/optimize-all.gif" alt="Animated demonstration of Optimize all PDF files">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Adjust page width in all PDF files</h3><p>Normalize page widths in a selected PDF or folder of PDFs.</p></div>
+      <img src="gifs/adjust-all.gif" alt="Animated demonstration of Adjust page width in all PDF files">
+    </section><h2 id="preview-pane-context-menu">Preview pane context menu</h2>
+    <section class="command">
+      <div class="copy"><h3>Import pages from file</h3><p>Append pages from another supported file to the current PDF.</p></div>
+      <img src="gifs/import-file.gif" alt="Animated demonstration of Import pages from file">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Import pages from scanner</h3><p>Scan pages and append them to the current PDF.</p></div>
+      <img src="gifs/import-scanner.gif" alt="Animated demonstration of Import pages from scanner">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Export pages</h3><p>Export selected PDF pages to a new file.</p></div>
+      <img src="gifs/export.gif" alt="Animated demonstration of Export pages">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Save</h3><p>Write pending PDF edits to the current file.</p></div>
+      <img src="gifs/save.gif" alt="Animated demonstration of Save">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Save as</h3><p>Save the edited PDF under another name or in another folder.</p></div>
+      <img src="gifs/save-as.gif" alt="Animated demonstration of Save as">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Cancel changes</h3><p>Discard pending PDF edits and reload the saved document.</p></div>
+      <img src="gifs/cancel.gif" alt="Animated demonstration of Cancel changes">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Zoom in</h3><p>Increase the preview scale.</p></div>
+      <img src="gifs/zoom-in.gif" alt="Animated demonstration of Zoom in">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Zoom out</h3><p>Decrease the preview scale.</p></div>
+      <img src="gifs/zoom-out.gif" alt="Animated demonstration of Zoom out">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Show 1 page wide</h3><p>Fit one page to the preview width.</p></div>
+      <img src="gifs/one-wide.gif" alt="Animated demonstration of Show 1 page wide">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Show 2 pages wide</h3><p>Arrange two pages in each preview row.</p></div>
+      <img src="gifs/two-wide.gif" alt="Animated demonstration of Show 2 pages wide">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Show 1 page tall</h3><p>Fit a complete page vertically in the preview.</p></div>
+      <img src="gifs/one-tall.gif" alt="Animated demonstration of Show 1 page tall">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Manual scale</h3><p>Use the zoom controls instead of an automatic fit mode.</p></div>
+      <img src="gifs/manual-scale.gif" alt="Animated demonstration of Manual scale">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Rotate all left</h3><p>Rotate every PDF page 90 degrees counter-clockwise.</p></div>
+      <img src="gifs/rotate-all-left.gif" alt="Animated demonstration of Rotate all left">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Rotate left</h3><p>Rotate the selected PDF page or image counter-clockwise.</p></div>
+      <img src="gifs/rotate-left.gif" alt="Animated demonstration of Rotate left">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Rotate right</h3><p>Rotate the selected PDF page or image clockwise.</p></div>
+      <img src="gifs/rotate-right.gif" alt="Animated demonstration of Rotate right">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Rotate all right</h3><p>Rotate every PDF page 90 degrees clockwise.</p></div>
+      <img src="gifs/rotate-all-right.gif" alt="Animated demonstration of Rotate all right">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Move page</h3><p>Move a PDF page to a new position.</p></div>
+      <img src="gifs/move-page.gif" alt="Animated demonstration of Move page">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Remove page</h3><p>Remove the selected page from the PDF.</p></div>
+      <img src="gifs/remove-page.gif" alt="Animated demonstration of Remove page">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Adjust page width</h3><p>Make the current PDF page widths consistent.</p></div>
+      <img src="gifs/adjust-width.gif" alt="Animated demonstration of Adjust page width">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Optimize</h3><p>Reduce the size of the current PDF while preserving usable quality.</p></div>
+      <img src="gifs/optimize.gif" alt="Animated demonstration of Optimize">
+    </section><h2 id="recycle-bin-context-menu">Recycle Bin context menu</h2>
+    <section class="command">
+      <div class="copy"><h3>Refresh</h3><p>Reload the tree and file list. Shortcut: F5.</p></div>
+      <img src="gifs/refresh.gif" alt="Animated demonstration of Refresh">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Restore</h3><p>Restore selected Recycle Bin items to their original locations.</p></div>
+      <img src="gifs/restore.gif" alt="Animated demonstration of Restore">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Delete permanently</h3><p>Delete selected items without moving them to the Recycle Bin. Shortcut: Shift+Del.</p></div>
+      <img src="gifs/delete.gif" alt="Animated demonstration of Delete permanently">
+    </section>
+    <section class="command">
+      <div class="copy"><h3>Clear all</h3><p>Permanently remove every item from the Recycle Bin.</p></div>
+      <img src="gifs/clear-all.gif" alt="Animated demonstration of Clear all">
+    </section><h2 id="favorites-context-menu">Favorites context menu</h2>
+    <section class="command">
+      <div class="copy"><h3>Remove from Favorites</h3><p>Remove the selected row from the Favorites pane. Shortcut: Del.</p></div>
+      <img src="gifs/favorite-list-remove.gif" alt="Animated demonstration of Remove from Favorites">
+    </section><h2 id="windows-shortcuts-context-menu">Windows shortcuts context menu</h2>
+    <section class="command">
+      <div class="copy"><h3>Show or hide a shortcut</h3><p>Toggle a Windows shortcut entry by checking or clearing it.</p></div>
+      <img src="gifs/shortcut-visibility.gif" alt="Animated demonstration of Show or hide a shortcut">
+    </section>
+</main></body></html>

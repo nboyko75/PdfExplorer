@@ -179,13 +179,19 @@ def _suppress_image_decode_warnings():
 
 def _can_read_with_pillow(path):
     try:
-        from PIL import Image
+        from PIL import Image, ImageSequence
     except ImportError:
         return False
 
     try:
         with Image.open(path) as pil_image:
-            pil_image.verify()
+            if getattr(pil_image, "is_animated", False):
+                frames = ImageSequence.Iterator(pil_image)
+                first_frame = next(frames, None)
+                if first_frame is not None:
+                    first_frame.load()
+            else:
+                pil_image.load()
         return True
     except Exception:
         return False
@@ -208,24 +214,89 @@ def _convert_pillow_to_wx_image(pil_image):
     return wx_image
 
 
-def _load_image_for_preview(path):
-    image = _load_image_with_wx(path)
-    if image is not None and image.IsOk():
-        return image
-
+def _load_pillow_image_for_preview(path):
     try:
-        from PIL import Image, ImageOps
+        from PIL import Image, ImageOps, ImageSequence
     except ImportError:
-        return image
+        return None
 
     try:
         with Image.open(path) as pil_image:
+            if getattr(pil_image, "is_animated", False):
+                frames = ImageSequence.Iterator(pil_image)
+                pil_image = next(frames, pil_image)
             sanitized = ImageOps.exif_transpose(pil_image)
             converted = _convert_pillow_to_wx_image(sanitized)
             if converted is not None and converted.IsOk():
                 return converted
     except Exception:
+        return None
+
+    return None
+
+
+def _load_pillow_animation_for_preview(path):
+    """Return fully decoded wx.Image frames and their GIF delays."""
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return None
+
+    try:
+        frames = []
+        delays = []
+        with Image.open(path) as pil_image:
+            if not getattr(pil_image, "is_animated", False) or getattr(pil_image, "n_frames", 1) <= 1:
+                return None
+
+            for frame_index in range(pil_image.n_frames):
+                pil_image.seek(frame_index)
+                # convert/copy while the source file is open. Pillow returns
+                # composited GIF frames here, including disposal handling.
+                frame = ImageOps.exif_transpose(pil_image.convert("RGBA"))
+                wx_frame = _convert_pillow_to_wx_image(frame)
+                if wx_frame is None or not wx_frame.IsOk():
+                    return None
+                frames.append(wx_frame)
+                # A zero delay makes the UI spin continuously. Browsers use a
+                # practical minimum too, so clamp malformed/very short delays.
+                delays.append(max(20, int(pil_image.info.get("duration", 100) or 100)))
+
+        return frames, delays
+    except Exception:
+        return None
+
+
+def stop_image_animation(owner):
+    """Stop and release the current GIF timer and decoded frames."""
+    timer = getattr(owner, "_image_animation_timer", None)
+    handler = getattr(owner, "_image_animation_handler", None)
+    if timer is not None:
+        try:
+            timer.Stop()
+        except Exception:
+            pass
+        if handler is not None:
+            try:
+                owner.Unbind(wx.EVT_TIMER, handler=handler, source=timer)
+            except Exception:
+                pass
+
+    owner._image_animation_timer = None
+    owner._image_animation_handler = None
+    owner._image_animation_frames = None
+    owner._image_animation_delays = None
+    owner._image_animation_frame_index = 0
+
+
+def _load_image_for_preview(path):
+    image = _load_image_with_wx(path)
+    if image is not None and image.IsOk():
         return image
+
+    pil_image = _load_pillow_image_for_preview(path)
+    if pil_image is not None and pil_image.IsOk():
+        return pil_image
 
     return image
 
@@ -288,8 +359,10 @@ def _update_image_preview_viewport(owner, image_w, image_h):
 
 
 def show_image_preview(owner, path, tr_func):
+    stop_image_animation(owner)
     try:
-        image = _load_image_for_preview(path)
+        animation = _load_pillow_animation_for_preview(path)
+        image = animation[0][0] if animation is not None else _load_image_for_preview(path)
         if not image.IsOk():
             raise RuntimeError(tr_func("no_preview_available"))
         owner.current_image_preview = image
@@ -307,6 +380,33 @@ def show_image_preview(owner, path, tr_func):
     owner.pdf_preview_container.Show(True)
     owner.filePreview.Layout()
     refresh_image_preview_bitmap(owner)
+    if animation is not None:
+        # Reuse the already decoded frames instead of opening a potentially
+        # large GIF twice.
+        frames, delays = animation
+        owner._image_animation_frames = frames
+        owner._image_animation_delays = delays
+        owner._image_animation_frame_index = 0
+        timer = wx.Timer(owner)
+
+        def on_next_frame(_event):
+            active_frames = getattr(owner, "_image_animation_frames", None)
+            active_delays = getattr(owner, "_image_animation_delays", None)
+            if not active_frames or not active_delays:
+                return
+            if os.path.normcase(getattr(owner, "current_preview_path", "")) != os.path.normcase(path):
+                stop_image_animation(owner)
+                return
+            index = (getattr(owner, "_image_animation_frame_index", 0) + 1) % len(active_frames)
+            owner._image_animation_frame_index = index
+            owner.current_image_preview = active_frames[index]
+            refresh_image_preview_bitmap(owner)
+            timer.StartOnce(active_delays[index])
+
+        owner._image_animation_timer = timer
+        owner._image_animation_handler = on_next_frame
+        owner.Bind(wx.EVT_TIMER, on_next_frame, timer)
+        timer.StartOnce(delays[0])
 
 
 def rotate_image_file(path, clockwise=True):

@@ -1467,6 +1467,7 @@ def show_file_preview(owner, path):
         _sync_preview_tab_for_path(owner, path)
 
     if not getattr(owner, "preview_enabled", True):
+        image_utils.stop_image_animation(owner)
         owner.current_preview_path = path
         owner.preview_text.Show(False)
         owner.pdf_pages_panel.Hide()
@@ -1492,6 +1493,7 @@ def show_file_preview(owner, path):
                     return
                 break
 
+    image_utils.stop_image_animation(owner)
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     owner.selected_pdf_page_panel = None
