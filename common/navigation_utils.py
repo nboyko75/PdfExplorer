@@ -152,83 +152,56 @@ def _sort_file_rows(rows, sort_column, sort_direction):
     return folders + files
 
 
-def load_folder(owner, path):
-    owner.list.DeleteAllItems()
-    owner._list_item_paths = {}
+def _build_virtual_folder_rows(owner, items):
+    row_data = []
+    filter_text = owner.search_box.GetValue().lower()
 
-    if is_virtual_shell_path(path):
-        if path.lower() == RECYCLE_BIN_PATH.lower():
-            items = get_recycle_bin_items()
-        else:
-            items = []
+    for original_index, item in enumerate(items):
+        name = str(item.get("name") or "")
+        if not name:
+            continue
+        if filter_text and filter_text not in name.lower():
+            continue
 
-        filter_text = owner.search_box.GetValue().lower()
-        row_data = []
+        is_dir = bool(item.get("is_dir"))
+        size_value = item.get("size")
+        try:
+            size_kb = int(size_value or 0) // 1024
+        except (TypeError, ValueError):
+            size_kb = None
+        size = f"{size_kb} {tr('file_size_unit_kb')}" if size_kb is not None else ""
 
-        for original_index, item in enumerate(items):
-            name = str(item.get("name") or "")
-            if not name:
-                continue
-            if filter_text and filter_text not in name.lower():
-                continue
+        deleted_date = item.get("deleted_date")
+        modified = deleted_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(deleted_date, datetime) else ""
+        modified_ts = deleted_date.timestamp() if isinstance(deleted_date, datetime) else None
+        original_path = item.get("original_path") or item.get("recycled_path") or name
+        recovered_path = item.get("recycled_path") or original_path
+        preview_path = recovered_path or original_path or name
 
-            is_dir = bool(item.get("is_dir"))
-            size_value = item.get("size")
-            try:
-                size_kb = int(size_value or 0) // 1024
-            except (TypeError, ValueError):
-                size_kb = None
-            size = f"{size_kb} {tr('file_size_unit_kb')}" if size_kb is not None else ""
-
-            deleted_date = item.get("deleted_date")
-            modified = deleted_date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(deleted_date, datetime) else ""
-            modified_ts = deleted_date.timestamp() if isinstance(deleted_date, datetime) else None
-            original_path = item.get("original_path") or item.get("recycled_path") or name
-            recovered_path = item.get("recycled_path") or original_path
-            preview_path = recovered_path or original_path or name
-
-            row_data.append(
-                FileListRow(
-                    name=name,
-                    type_name=tr("file_type_folder") if is_dir else tr("file_type_file"),
-                    size_text=size,
-                    size_kb=size_kb,
-                    modified_text=modified,
-                    modified_timestamp=modified_ts,
-                    is_directory=is_dir,
-                    image_index=image_utils.get_common_item_icon_index(
-                        owner,
-                        recovered_path,
-                        original_path or name,
-                        is_dir=is_dir,
-                    ),
-                    path=preview_path,
-                    original_index=original_index,
-                )
+        row_data.append(
+            FileListRow(
+                name=name,
+                type_name=tr("file_type_folder") if is_dir else tr("file_type_file"),
+                size_text=size,
+                size_kb=size_kb,
+                modified_text=modified,
+                modified_timestamp=modified_ts,
+                is_directory=is_dir,
+                image_index=image_utils.get_common_item_icon_index(
+                    owner,
+                    recovered_path,
+                    original_path or name,
+                    is_dir=is_dir,
+                ),
+                path=preview_path,
+                original_index=original_index,
             )
+        )
 
-        sort_column = getattr(owner, "list_sort_column", None)
-        sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
-        row_data = _sort_file_rows(row_data, sort_column, sort_direction)
+    return row_data
 
-        for row in row_data:
-            item_index = owner.list.InsertItem(owner.list.GetItemCount(), row.name, row.image_index)
-            owner._list_item_paths[item_index] = row.path
-            owner.list.SetItem(item_index, 1, row.type_name)
-            owner.list.SetItem(item_index, 2, row.size_text)
-            owner.list.SetItem(item_index, 3, row.modified_text)
 
-        if hasattr(owner, "update_list_sort_header_icons"):
-            owner.update_list_sort_header_icons()
-        if hasattr(owner, "update_list_toolbar_buttons"):
-            owner.update_list_toolbar_buttons()
-        return
-
-    try:
-        items = os.listdir(path)
-    except PermissionError:
-        return
-
+def _build_filesystem_rows(owner, path, items):
     filter_text = owner.search_box.GetValue().lower()
     row_data = []
 
@@ -283,10 +256,10 @@ def load_folder(owner, path):
             )
         )
 
-    sort_column = getattr(owner, "list_sort_column", None)
-    sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
-    row_data = _sort_file_rows(row_data, sort_column, sort_direction)
+    return row_data
 
+
+def _populate_list_rows(owner, row_data):
     for row in row_data:
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row.name, row.image_index)
         owner._list_item_paths[item_index] = row.path
@@ -298,3 +271,26 @@ def load_folder(owner, path):
         owner.update_list_sort_header_icons()
     if hasattr(owner, "update_list_toolbar_buttons"):
         owner.update_list_toolbar_buttons()
+
+
+def load_folder(owner, path):
+    owner.list.DeleteAllItems()
+    owner._list_item_paths = {}
+
+    if is_virtual_shell_path(path):
+        if path.lower() == RECYCLE_BIN_PATH.lower():
+            items = get_recycle_bin_items()
+        else:
+            items = []
+        row_data = _build_virtual_folder_rows(owner, items)
+    else:
+        try:
+            items = os.listdir(path)
+        except PermissionError:
+            return
+        row_data = _build_filesystem_rows(owner, path, items)
+
+    sort_column = getattr(owner, "list_sort_column", None)
+    sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
+    row_data = _sort_file_rows(row_data, sort_column, sort_direction)
+    _populate_list_rows(owner, row_data)

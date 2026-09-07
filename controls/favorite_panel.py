@@ -170,9 +170,8 @@ def _build_standard_shortcuts_toggle_button(owner, parent):
         return _FallbackToggleButton()
 
 
-def build_favorite_panel(owner, parent):
+def _create_favorite_controls(owner, parent):
     owner.icon_manager = image_utils.ensure_owner_icon_manager(owner)
-
     owner.favorite_panel = wx.Panel(parent)
     owner.favorite_move_up_btn = image_utils.create_bitmap_button2(
         owner.favorite_panel,
@@ -248,6 +247,9 @@ def build_favorite_panel(owner, parent):
 
     owner.standard_shortcuts_icon_indexes = getattr(owner, "standard_shortcuts_icon_indexes", {})
     owner.icon_manager = image_utils.ensure_owner_icon_manager(owner)
+
+
+def _attach_favorite_list_icons(owner):
     favorite_header_bitmap = None
     if owner.icon_manager is not None:
         try:
@@ -278,6 +280,8 @@ def build_favorite_panel(owner, parent):
         owner.favorite_folder_icon_index = -1
         owner.standard_shortcuts_folder_icon_index = -1
 
+
+def _configure_favorite_list_columns(owner):
     owner.favorite_list.SetImageList(owner.favorite_image_list, wx.IMAGE_LIST_SMALL)
     owner.favorite_list.InsertColumn(0, tr("favorite_column_header"), width=200)
     owner.standard_shortcuts_list.SetImageList(owner.standard_shortcuts_image_list, wx.IMAGE_LIST_SMALL)
@@ -293,6 +297,8 @@ def build_favorite_panel(owner, parent):
     except Exception:
         pass
 
+
+def _bind_favorite_panel_events(owner):
     owner.favorite_list.Bind(wx.EVT_LIST_ITEM_SELECTED, owner.on_favorite_list_select)
     owner.favorite_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, owner.on_favorite_list_activate)
     owner.favorite_list.Bind(wx.EVT_LIST_BEGIN_DRAG, owner.on_favorite_begin_drag)
@@ -307,6 +313,25 @@ def build_favorite_panel(owner, parent):
         favorite_panel_resize_handler = lambda event: on_favorite_panel_resize(owner, event)
     owner.favorite_panel.Bind(wx.EVT_SIZE, favorite_panel_resize_handler)
 
+    owner.favorite_move_up_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_up)
+    owner.favorite_move_down_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_down)
+    owner.standard_shortcuts_move_up_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_up)
+    owner.standard_shortcuts_move_down_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_down)
+    owner.standard_shortcuts_toggle_btn.Bind(wx.EVT_BUTTON, owner.on_toggle_standard_shortcuts)
+    owner.standard_shortcuts_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, owner.on_standard_shortcut_list_activate)
+    owner.standard_shortcuts_list.Bind(wx.EVT_RIGHT_DOWN, owner.on_standard_shortcut_right_click)
+
+    row_move_up_handler = getattr(owner, "on_favorite_row_move_up", None)
+    if row_move_up_handler is None:
+        row_move_up_handler = lambda event: on_favorite_row_move_up(owner, event)
+    row_move_down_handler = getattr(owner, "on_favorite_row_move_down", None)
+    if row_move_down_handler is None:
+        row_move_down_handler = lambda event: on_favorite_row_move_down(owner, event)
+    owner.favorite_row_move_up_btn.Bind(wx.EVT_BUTTON, row_move_up_handler)
+    owner.favorite_row_move_down_btn.Bind(wx.EVT_BUTTON, row_move_down_handler)
+
+
+def _build_favorite_panel_layout(owner):
     favorite_header = wx.BoxSizer(wx.HORIZONTAL)
     favorite_header.Add(owner.favorite_move_up_btn, 0, wx.RIGHT, 3)
     favorite_header.Add(owner.favorite_move_down_btn, 0, wx.RIGHT, 3)
@@ -345,23 +370,13 @@ def build_favorite_panel(owner, parent):
     favorite_sizer.Add(owner.favorite_content_splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
     owner.favorite_panel.SetSizer(favorite_sizer)
 
-    owner.favorite_move_up_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_up)
-    owner.favorite_move_down_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_down)
-    owner.standard_shortcuts_move_up_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_up)
-    owner.standard_shortcuts_move_down_btn.Bind(wx.EVT_BUTTON, owner.on_move_favorite_down)
-    owner.standard_shortcuts_toggle_btn.Bind(wx.EVT_BUTTON, owner.on_toggle_standard_shortcuts)
-    owner.standard_shortcuts_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, owner.on_standard_shortcut_list_activate)
-    owner.standard_shortcuts_list.Bind(wx.EVT_RIGHT_DOWN, owner.on_standard_shortcut_right_click)
 
-    row_move_up_handler = getattr(owner, "on_favorite_row_move_up", None)
-    if row_move_up_handler is None:
-        row_move_up_handler = lambda event: on_favorite_row_move_up(owner, event)
-    row_move_down_handler = getattr(owner, "on_favorite_row_move_down", None)
-    if row_move_down_handler is None:
-        row_move_down_handler = lambda event: on_favorite_row_move_down(owner, event)
-    owner.favorite_row_move_up_btn.Bind(wx.EVT_BUTTON, row_move_up_handler)
-    owner.favorite_row_move_down_btn.Bind(wx.EVT_BUTTON, row_move_down_handler)
-
+def build_favorite_panel(owner, parent):
+    _create_favorite_controls(owner, parent)
+    _attach_favorite_list_icons(owner)
+    _configure_favorite_list_columns(owner)
+    _bind_favorite_panel_events(owner)
+    _build_favorite_panel_layout(owner)
     refresh_favorite_list(owner)
     refresh_standard_shortcuts_list(owner)
     return owner.favorite_panel

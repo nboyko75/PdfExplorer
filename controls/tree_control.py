@@ -472,7 +472,7 @@ def on_tree_begin_drag(owner, event):
     drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
-def on_tree_right_click(owner, event):
+def _get_tree_context_menu_target(owner, event):
     selected_item = owner.tree.GetSelection()
     if event is not None:
         try:
@@ -490,9 +490,10 @@ def on_tree_right_click(owner, event):
     create_target = _resolve_tree_new_folder_target(owner, path)
     current_folder = getattr(owner, "path_box", None)
     folder_value = current_folder.GetValue() if current_folder is not None and hasattr(current_folder, "GetValue") else ""
-    context = menu_utils.FileCommandContext(owner=owner, source="tree", current_folder=folder_value, selected_paths=[path] if isinstance(path, str) and path else [], target_path=path)
-    menu = menu_utils.build_file_operations_menu(context)
+    return selected_item, path, create_target, folder_value
 
+
+def _configure_tree_context_menu_icons(owner, menu, path):
     favorite_add_item = menu.Append(-1, tr("favorite_add_menu_item"))
     favorite_remove_item = menu.Append(-1, tr("favorite_remove_menu_item"))
     menu.AppendSeparator()
@@ -524,7 +525,15 @@ def on_tree_right_click(owner, event):
     favorite_remove_item.Enable(can_manage_favorite and is_favorite_folder)
     optimize_item.Enable(bool(path and _is_folder_or_single_pdf(path)))
     adjust_item.Enable(bool(path and _is_folder_or_single_pdf(path)))
+    return {
+        "favorite_add": favorite_add_item,
+        "favorite_remove": favorite_remove_item,
+        "optimize": optimize_item,
+        "adjust": adjust_item,
+    }
 
+
+def _bind_tree_context_menu_actions(owner, menu, path, create_target):
     def handle_open(_):
         if path:
             filelist.open_path_or_file(owner, path)
@@ -605,8 +614,8 @@ def on_tree_right_click(owner, event):
         owner.Bind(wx.EVT_MENU, handle_new_folder, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_new_folder")), None))
         owner.Bind(wx.EVT_MENU, handle_refresh, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_refresh")), None))
         owner.Bind(wx.EVT_MENU, handle_print, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_print")), None))
-        owner.Bind(wx.EVT_MENU, handle_add_to_favorite, favorite_add_item)
-        owner.Bind(wx.EVT_MENU, handle_remove_from_favorite, favorite_remove_item)
+        owner.Bind(wx.EVT_MENU, handle_add_to_favorite, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("favorite_add_menu_item")), None))
+        owner.Bind(wx.EVT_MENU, handle_remove_from_favorite, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("favorite_remove_menu_item")), None))
         owner.Bind(wx.EVT_MENU, handle_copy, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_copy")), None))
         owner.Bind(wx.EVT_MENU, handle_cut, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_cut")), None))
         owner.Bind(wx.EVT_MENU, handle_paste, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_paste")), None))
@@ -616,9 +625,11 @@ def on_tree_right_click(owner, event):
         owner.Bind(wx.EVT_MENU, handle_add_to_archive, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_add_to_archive")), None))
         owner.Bind(wx.EVT_MENU, handle_extract_from_archive_here, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_extract_from_archive_here")), None))
         owner.Bind(wx.EVT_MENU, handle_extract_from_archive_into, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("context_extract_from_archive_into")), None))
-        owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
-        owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
+        owner.Bind(wx.EVT_MENU, handle_optimize_all, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("tree_optimize_all_pdf")), None))
+        owner.Bind(wx.EVT_MENU, handle_adjust_all, next((item for item in menu.GetMenuItems() if item.GetItemLabel() == tr("tree_adjust_page_width_all_pdf")), None))
 
+
+def _show_tree_context_menu(owner, menu, event):
     popup_window = owner.tree
     if event is not None:
         try:
@@ -630,6 +641,16 @@ def on_tree_right_click(owner, event):
 
     popup_window.PopupMenu(menu)
     menu.Destroy()
+
+
+def on_tree_right_click(owner, event):
+    _, path, create_target, folder_value = _get_tree_context_menu_target(owner, event)
+    context = menu_utils.FileCommandContext(owner=owner, source="tree", current_folder=folder_value, selected_paths=[path] if isinstance(path, str) and path else [], target_path=path)
+    menu = menu_utils.build_file_operations_menu(context)
+    items = _configure_tree_context_menu_icons(owner, menu, path)
+    _bind_tree_context_menu_actions(owner, menu, path, create_target)
+    _show_tree_context_menu(owner, menu, event)
+    return items
 
 
 def optimize_all_pdf_in_path(owner, path):
