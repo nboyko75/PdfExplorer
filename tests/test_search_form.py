@@ -55,6 +55,10 @@ class TreeContextMenuTests(unittest.TestCase):
 
         owner.tree.PopupMenu.assert_called_once()
 
+    def test_can_paste_into_directory_rejects_none_target(self):
+        owner = types.SimpleNamespace(file_clipboard_paths=["C:/temp/source.txt"], file_clipboard_mode=filelist_module.CLIPBOARD_MODE_COPY)
+        self.assertFalse(filelist_module._can_paste_into_directory(owner, None))
+
 
 class SearchFilesTests(unittest.TestCase):
     def setUp(self):

@@ -1295,6 +1295,24 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_rename.assert_called_once_with(expected_old, expected_new)
         mocked_refresh.assert_not_called()
 
+    def test_tree_rename_refreshes_folder_subtree_after_renaming(self):
+        filelist = __import__("controls.filelist", fromlist=["_refresh_renamed_tree_item"])
+        item = mock.MagicMock()
+        item.IsOk.return_value = True
+        owner = types.SimpleNamespace(tree=mock.MagicMock())
+        old_path = os.path.join("C:/current", "old_folder")
+        new_path = os.path.join("C:/current", "new_folder")
+
+        with mock.patch.object(filelist, "_find_tree_item_without_expanding", return_value=item), \
+             mock.patch.object(filelist.tree_utils, "refresh_tree_subtree") as mocked_refresh_subtree, \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: os.path.normpath(path) == os.path.normpath(new_path)):
+            result = filelist._refresh_renamed_tree_item(owner, old_path, new_path)
+
+        self.assertTrue(result)
+        owner.tree.SetItemText.assert_called_once_with(item, "new_folder")
+        owner.tree.SetItemData.assert_called_once_with(item, new_path)
+        mocked_refresh_subtree.assert_called_once_with(owner, item, new_path)
+
     def test_list_rename_keeps_renamed_item_selected(self):
         filelist = __import__("controls.filelist", fromlist=["on_list_rename", "_refresh_after_fs_change", "select_list_item_by_path"])
         owner = types.SimpleNamespace(

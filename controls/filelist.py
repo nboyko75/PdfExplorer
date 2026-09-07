@@ -909,6 +909,11 @@ def _refresh_renamed_tree_item(owner, old_path, new_path):
     try:
         owner.tree.SetItemText(item, os.path.basename(new_path))
         owner.tree.SetItemData(item, new_path)
+        if os.path.isdir(new_path):
+            try:
+                tree_utils.refresh_tree_subtree(owner, item, new_path)
+            except Exception:
+                pass
         return True
     except Exception:
         return False

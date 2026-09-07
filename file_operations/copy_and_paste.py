@@ -121,6 +121,8 @@ def _get_clipboard_mode(owner):
 
 
 def _can_paste_into_directory(owner, target_dir):
+    if not isinstance(target_dir, str) or not target_dir:
+        return False
     return bool(os.path.isdir(target_dir) and _get_clipboard_mode(owner) and _get_clipboard_paths(owner))
 
 

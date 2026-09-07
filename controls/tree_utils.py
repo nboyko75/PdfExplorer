@@ -491,8 +491,9 @@ def on_tree_right_click(owner, event):
     create_target = _resolve_tree_new_folder_target(owner, path)
     is_root_node = selected_item and selected_item.IsOk() and selected_item == owner.tree.GetRootItem()
     can_create_new_folder = create_target is not None and not is_root_node
-    paste_target = path if path else getattr(owner.path_box, "GetValue", lambda: "")()
-    can_paste = filelist._can_paste_into_directory(owner, filelist._resolve_paste_target_directory(paste_target))
+    paste_target = path if isinstance(path, str) and path else getattr(owner.path_box, "GetValue", lambda: "")()
+    paste_dir = filelist._resolve_paste_target_directory(paste_target) if isinstance(paste_target, str) and paste_target else None
+    can_paste = filelist._can_paste_into_directory(owner, paste_dir)
     icon_manager = image_utils.ensure_owner_icon_manager(owner)
 
     menu = wx.Menu()
