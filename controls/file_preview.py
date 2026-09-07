@@ -754,6 +754,45 @@ def refresh_preview_for_page_view_mode(owner, path=None):
         return
 
 
+def show_pdf_preview(owner, path):
+    update_preview_toolbar_visibility(owner, is_pdf=True, is_image=False)
+    show_pdf_feed(owner, path)
+
+
+def show_image_preview(owner, path):
+    update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
+    image_utils.show_image_preview(owner, path, tr)
+
+
+def show_text_preview(owner, path):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            owner.preview_text.SetValue(handle.read())
+        set_preview_mode(owner, "text")
+        update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
+        owner.filePreview.Layout()
+    except Exception as exc:
+        owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
+        set_preview_mode(owner, "text")
+        owner.filePreview.Layout()
+
+
+def show_office_preview(owner, path):
+    try:
+        cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
+        with cursor_context:
+            preview_pdf_path = _resolve_preview_pdf_path(path)
+            if preview_pdf_path is None:
+                raise RuntimeError(tr("unable_preview_file"))
+            show_pdf_feed(owner, preview_pdf_path)
+            update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
+            update_pdf_save_button_state(owner)
+    except Exception as exc:
+        owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
+        set_preview_mode(owner, "text")
+        owner.filePreview.Layout()
+
+
 def sync_pdf_page_view_mode_controls(owner):
     current_mode = getattr(owner, "pdf_page_view_mode", PAGE_VIEW_MODE_1_TALL)
     if current_mode in FIXED_PAGE_VIEW_MODES:
@@ -1445,6 +1484,15 @@ def is_office_preview_allowed(owner, path):
     return bool(office_preview_value)
 
 
+PREVIEW_HANDLERS = [
+    (lambda owner, path: is_pdf_file(path), show_pdf_preview),
+    (lambda owner, path: image_utils.can_preview_image(path), show_image_preview),
+    (lambda owner, path: can_preview_html(path), show_html_preview),
+    (lambda owner, path: can_preview_text_file(path), show_text_preview),
+    (lambda owner, path: is_office_preview_allowed(owner, path), show_office_preview),
+]
+
+
 def on_preview_checkbox_toggle(event):
     owner = _get_preview_owner_from_event(event)
     if owner is None:
@@ -1487,7 +1535,6 @@ def show_file_preview(owner, path):
         _sync_preview_tab_for_path(owner, path)
 
     if not getattr(owner, "preview_enabled", True):
-        image_utils.stop_image_animation(owner)
         owner.current_preview_path = path
         set_preview_mode(owner, "empty")
         if hasattr(owner, "office_preview_checkbox"):
@@ -1511,7 +1558,6 @@ def show_file_preview(owner, path):
                     return
                 break
 
-    image_utils.stop_image_animation(owner)
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     owner.selected_pdf_page_panel = None
@@ -1535,53 +1581,16 @@ def show_file_preview(owner, path):
         owner.filePreview.Layout()
         return
 
-    if is_pdf_file(path):
-        update_preview_toolbar_visibility(owner, is_pdf=True, is_image=False)
-        show_pdf_feed(owner, path)
-        return
-
-    if image_utils.can_preview_image(path):
-        update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
-        image_utils.show_image_preview(owner, path, tr)
-        return
-
-    if can_preview_html(path):
-        update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
-        owner.current_html_zoom = max(0.2, min(float(getattr(owner, "current_html_zoom", 1.0)), 4.0))
-        show_html_preview(owner, path)
-        return
-
-    if can_preview_text_file(path):
+    for predicate, handler in PREVIEW_HANDLERS:
+        if not predicate(owner, path):
+            continue
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as handle:
-                text = handle.read()
-            owner.preview_text.SetValue(text)
-            set_preview_mode(owner, "text")
-            update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-            owner.filePreview.Layout()
-            return
+            handler(owner, path)
         except Exception as exc:
             owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
             set_preview_mode(owner, "text")
             owner.filePreview.Layout()
-            return
-
-    if can_preview_office:
-        try:
-            cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
-            with cursor_context:
-                preview_pdf_path = _resolve_preview_pdf_path(path)
-                if preview_pdf_path is None:
-                    raise RuntimeError(tr("unable_preview_file"))
-                show_pdf_feed(owner, preview_pdf_path)
-                update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
-                update_pdf_save_button_state(owner)
-                return
-        except Exception as exc:
-            owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
-            set_preview_mode(owner, "text")
-            owner.filePreview.Layout()
-            return
+        return
 
     update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
     owner.preview_text.SetValue("")

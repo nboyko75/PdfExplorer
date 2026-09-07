@@ -56,6 +56,42 @@ class PreviewModeHelpersTests(unittest.TestCase):
         self.assertEqual(owner.current_preview_mode, "text")
 
 
+class PreviewDispatchTests(unittest.TestCase):
+    def test_show_file_preview_uses_preview_handlers_dispatch(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            preview_tabs=[],
+            preview_active_tab_index=None,
+            current_preview_path=None,
+            selected_pdf_page_panel=None,
+            current_image_preview=None,
+            current_image_zoom=1.0,
+            current_html_zoom=1.0,
+            preview_text=types.SimpleNamespace(SetValue=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+        called = []
+
+        with mock.patch.object(file_preview, "set_preview_mode") as mocked_set_mode, \
+             mock.patch.object(file_preview, "_prune_deleted_preview_tabs"), \
+             mock.patch.object(file_preview, "_sync_preview_tab_for_path"), \
+             mock.patch.object(file_preview, "_reset_pdf_view_mode_for_new_file"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "show_pdf_preview") as mocked_show_pdf_preview, \
+             mock.patch.object(file_preview.os.path, "exists", return_value=True), \
+             mock.patch.object(file_preview.os.path, "isfile", return_value=True), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False):
+            file_preview.PREVIEW_HANDLERS = [(lambda owner, path: path.endswith(".pdf"), lambda owner, path: called.append(path))]
+            file_preview.show_file_preview(owner, "sample.pdf")
+
+        self.assertEqual(called, ["sample.pdf"])
+        mocked_set_mode.assert_called_with(owner, "empty")
+        mocked_show_pdf_preview.assert_not_called()
+
+
 class FilePreviewManualZoomTests(unittest.TestCase):
     def test_manual_zoom_scales_target_width_in_wide_layout(self):
         file_preview = _import_file_preview_with_mocked_wx()
