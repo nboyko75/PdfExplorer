@@ -1175,6 +1175,57 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_refresh.assert_not_called()
         mocked_select_list.assert_called_once_with(owner, expected_new)
 
+    def test_list_rename_updates_item_path_mapping(self):
+        filelist = __import__("controls.filelist", fromlist=["on_list_rename", "_refresh_after_fs_change", "select_list_item_by_path"])
+        owner = types.SimpleNamespace(
+            list=mock.MagicMock(),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"),
+            _list_item_paths={0: os.path.join("C:/current", "old.txt"), 1: os.path.join("C:/current", "other.txt")},
+            load_folder=mock.MagicMock(),
+            tree=mock.MagicMock(),
+            current_preview_path=None,
+        )
+        owner.list.GetFirstSelected.return_value = 0
+        owner.list.GetNextSelected.return_value = filelist.wx.NOT_FOUND
+        owner.list.GetItemCount.return_value = 1
+        owner.list.GetItemText.side_effect = ["old.txt", "old.txt"]
+
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = filelist.wx.ID_OK
+        dialog.GetValue.return_value = "new.txt"
+
+        with mock.patch.object(filelist.os, "rename") as mocked_rename, \
+             mock.patch.object(filelist.wx, "TextEntryDialog", return_value=dialog), \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh, \
+             mock.patch.object(filelist, "select_list_item_by_path") as mocked_select_list:
+            filelist.on_list_rename(owner, None)
+
+        self.assertEqual(owner._list_item_paths[0], os.path.join("C:/current", "new.txt"))
+        mocked_rename.assert_called_once_with(os.path.join("C:/current", "old.txt"), os.path.join("C:/current", "new.txt"))
+        mocked_refresh.assert_not_called()
+        mocked_select_list.assert_called_once_with(owner, os.path.join("C:/current", "new.txt"))
+
+    def test_handle_rename_refresh_updates_path_box_when_current_folder_is_renamed(self):
+        filelist = __import__("controls.filelist", fromlist=["_handle_rename_refresh", "select_list_item_by_path"])
+        old_path = os.path.join("C:/current", "old_folder")
+        new_path = os.path.join("C:/current", "new_folder")
+        path_box = types.SimpleNamespace(GetValue=lambda: old_path, SetValue=mock.MagicMock())
+        owner = types.SimpleNamespace(
+            path_box=path_box,
+            tree=mock.MagicMock(),
+            list=mock.MagicMock(),
+            current_preview_path=None,
+            load_folder=mock.MagicMock(),
+        )
+
+        with mock.patch.object(filelist, "_refresh_renamed_list_item"), \
+             mock.patch.object(filelist, "_refresh_renamed_tree_item"), \
+             mock.patch.object(filelist, "select_list_item_by_path"):
+            filelist._handle_rename_refresh(owner, old_path, new_path)
+
+        path_box.SetValue.assert_called_once_with(new_path)
+        owner.load_folder.assert_called_once_with(new_path)
+
     def test_rename_dialog_uses_localized_ok_and_cancel_labels(self):
         filelist = __import__("controls.filelist", fromlist=["_prompt_rename_name", "create_new_folder"])
         owner = types.SimpleNamespace()

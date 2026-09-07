@@ -842,8 +842,18 @@ def _handle_rename_refresh(owner, old_path, new_path):
 
     if hasattr(owner, "path_box") and hasattr(owner.path_box, "GetValue"):
         current_folder = owner.path_box.GetValue()
-        if isinstance(current_folder, str) and os.path.normpath(os.path.dirname(new_path)) == os.path.normpath(current_folder):
-            select_list_item_by_path(owner, new_path)
+        if isinstance(current_folder, str):
+            normalized_old_path = os.path.normpath(old_path)
+            normalized_new_path = os.path.normpath(new_path)
+            normalized_current_folder = os.path.normpath(current_folder)
+
+            if normalized_old_path == normalized_current_folder:
+                if hasattr(owner.path_box, "SetValue"):
+                    owner.path_box.SetValue(new_path)
+                if hasattr(owner, "load_folder"):
+                    owner.load_folder(new_path)
+            elif os.path.normpath(os.path.dirname(normalized_new_path)) == normalized_current_folder:
+                select_list_item_by_path(owner, new_path)
 
     current_preview_path = getattr(owner, "current_preview_path", None)
     if current_preview_path and os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(os.path.normpath(old_path)):
@@ -871,6 +881,15 @@ def _refresh_renamed_list_item(owner, old_path, new_path):
         if owner.list.GetItemText(index) != old_name:
             continue
         owner.list.SetItem(index, 0, new_name)
+        item_paths = getattr(owner, "_list_item_paths", None)
+        if isinstance(item_paths, dict):
+            for item_index, item_path in list(item_paths.items()):
+                if isinstance(item_path, str) and os.path.normpath(item_path) == os.path.normpath(old_path):
+                    item_paths[item_index] = new_path
+                    return True
+            item_paths[index] = new_path
+        else:
+            owner._list_item_paths = {index: new_path}
         return True
 
     return False
