@@ -472,6 +472,57 @@ def on_tree_begin_drag(owner, event):
     drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
+def on_tree_copy(owner, path=None):
+    tree_path = path or filelist._resolve_tree_selection_path(owner)
+    if not tree_path or not os.path.exists(tree_path):
+        return
+    filelist._set_clipboard(owner, [tree_path], filelist.CLIPBOARD_MODE_COPY)
+
+
+def on_tree_cut(owner, path=None):
+    tree_path = path or filelist._resolve_tree_selection_path(owner)
+    if not tree_path or not os.path.exists(tree_path):
+        return
+    filelist._set_clipboard(owner, [tree_path], filelist.CLIPBOARD_MODE_CUT)
+
+
+def on_tree_paste(owner, path=None):
+    target_path = path or filelist._resolve_tree_selection_path(owner)
+    filelist.paste_into_path(owner, target_path)
+
+
+def on_tree_rename(owner, path=None):
+    tree_path = path or filelist._resolve_tree_selection_path(owner)
+    if not tree_path:
+        return
+
+    current_name = os.path.basename(tree_path)
+    result, new_name = filelist._prompt_rename_name(owner, current_name)
+    if result != wx.ID_OK or not new_name or new_name == current_name:
+        return
+
+    new_path = os.path.join(os.path.dirname(tree_path), new_name)
+    try:
+        os.rename(tree_path, new_path)
+        filelist._handle_rename_refresh(owner, tree_path, new_path)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+
+
+def on_tree_delete(owner, path=None):
+    tree_path = path or filelist._resolve_tree_selection_path(owner)
+    if not tree_path or not os.path.exists(tree_path):
+        return
+    filelist.delete_paths(owner, [tree_path], permanent=False)
+
+
+def on_tree_delete_permanent(owner, path=None):
+    tree_path = path or filelist._resolve_tree_selection_path(owner)
+    if not tree_path or not os.path.exists(tree_path):
+        return
+    filelist.delete_paths(owner, [tree_path], permanent=True)
+
+
 def _get_tree_context_menu_target(owner, event):
     selected_item = owner.tree.GetSelection()
     if event is not None:
@@ -573,22 +624,22 @@ def _bind_tree_context_menu_actions(owner, menu, path, create_target):
             owner._update_main_menu_state()
 
     def handle_copy(_):
-        filelist.on_tree_copy(owner, path)
+        on_tree_copy(owner, path)
 
     def handle_cut(_):
-        filelist.on_tree_cut(owner, path)
+        on_tree_cut(owner, path)
 
     def handle_paste(_):
-        filelist.on_tree_paste(owner, path)
+        on_tree_paste(owner, path)
 
     def handle_rename(_):
-        filelist.on_tree_rename(owner, path)
+        on_tree_rename(owner, path)
 
     def handle_delete(_):
-        filelist.on_tree_delete(owner, path)
+        on_tree_delete(owner, path)
 
     def handle_delete_permanent(_):
-        filelist.on_tree_delete_permanent(owner, path)
+        on_tree_delete_permanent(owner, path)
 
     def handle_add_to_archive(_):
         if path:
@@ -645,12 +696,16 @@ def _show_tree_context_menu(owner, menu, event):
 
 def on_tree_right_click(owner, event):
     _, path, create_target, folder_value = _get_tree_context_menu_target(owner, event)
-    context = menu_utils.FileCommandContext(owner=owner, source="tree", current_folder=folder_value, selected_paths=[path] if isinstance(path, str) and path else [], target_path=path)
+    context = menu_utils.FileCommandContext(
+        owner=owner,
+        source="tree",
+        current_folder=folder_value,
+        selected_paths=[path] if isinstance(path, str) and path else [],
+        target_path=path,
+        new_folder_target=create_target,
+    )
     menu = menu_utils.build_file_operations_menu(context)
-    items = _configure_tree_context_menu_icons(owner, menu, path)
-    _bind_tree_context_menu_actions(owner, menu, path, create_target)
     _show_tree_context_menu(owner, menu, event)
-    return items
 
 
 def optimize_all_pdf_in_path(owner, path):

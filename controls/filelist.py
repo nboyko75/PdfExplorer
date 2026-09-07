@@ -12,7 +12,7 @@ if not hasattr(wx, "DATADOBJECT_PREFERRED"):
     wx.DATADOBJECT_PREFERRED = 0
 
 from controls import tree_control
-from common.menu_utils import FILE_COMMANDS, FileCommandContext, MenuCommandContext, _build_menu_command_context, append_menu_command, build_file_operations_menu
+from common.menu_utils import FILE_COMMANDS, FileCommandContext, MenuCommandContext, bind_command, build_file_operations_menu
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 from file_operations.office_preview import is_office_file_open
@@ -219,6 +219,16 @@ def build_list_panel(owner, parent_splitter):
     update_list_toolbar_buttons(owner)
 
 
+def build_list_command_context(owner, source="list"):
+    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") and owner.path_box is not None else ""
+    return FileCommandContext(
+        owner=owner,
+        source=source,
+        current_folder=current_folder,
+        selected_paths=get_selected_list_paths(owner),
+    )
+
+
 def bind_list_events(owner):
     owner.list.Bind(wx.EVT_LIST_ITEM_SELECTED, owner.on_list_select)
     owner.list.Bind(wx.EVT_LIST_ITEM_DESELECTED, owner.on_list_deselect)
@@ -227,16 +237,17 @@ def bind_list_events(owner):
     owner.list.Bind(wx.EVT_LIST_COL_CLICK, owner.on_list_column_click)
     owner.list.Bind(wx.EVT_LIST_BEGIN_DRAG, owner.on_list_begin_drag)
 
-    owner.list_scan_btn.Bind(wx.EVT_BUTTON, owner.on_list_scan)
-    owner.list_open_btn.Bind(wx.EVT_BUTTON, owner.on_list_open)
-    owner.list_rename_btn.Bind(wx.EVT_BUTTON, owner.on_list_rename)
-    owner.list_up_btn.Bind(wx.EVT_BUTTON, owner.on_folder_up)
-    owner.list_new_folder_btn.Bind(wx.EVT_BUTTON, owner.on_list_new_folder)
-    owner.list_print_btn.Bind(wx.EVT_BUTTON, owner.on_list_print)
-    owner.list_copy_btn.Bind(wx.EVT_BUTTON, owner.on_list_copy)
-    owner.list_cut_btn.Bind(wx.EVT_BUTTON, owner.on_list_cut)
-    owner.list_paste_btn.Bind(wx.EVT_BUTTON, owner.on_list_paste)
-    owner.list_delete_btn.Bind(wx.EVT_BUTTON, owner.on_list_delete)
+    context_factory = lambda: build_list_command_context(owner, source="toolbar")
+    bind_command(owner.list_scan_btn, owner, FILE_COMMANDS["scan"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_open_btn, owner, FILE_COMMANDS["open"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_rename_btn, owner, FILE_COMMANDS["rename"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_up_btn, owner, FILE_COMMANDS["folder_up"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_new_folder_btn, owner, FILE_COMMANDS["new_folder"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_print_btn, owner, FILE_COMMANDS["print"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_copy_btn, owner, FILE_COMMANDS["copy"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_cut_btn, owner, FILE_COMMANDS["cut"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_paste_btn, owner, FILE_COMMANDS["paste"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_delete_btn, owner, FILE_COMMANDS["delete"], wx.EVT_BUTTON, context_factory)
     ## owner.list_delete_permanent_btn.Bind(wx.EVT_BUTTON, owner.on_list_delete_permanent)
 
 
@@ -1102,54 +1113,27 @@ def paste_into_path(owner, target_path):
 
 
 def on_tree_copy(owner, path=None):
-    tree_path = path or _resolve_tree_selection_path(owner)
-    if not tree_path or not os.path.exists(tree_path):
-        return
-    _set_clipboard(owner, [tree_path], copy_and_paste.CLIPBOARD_MODE_COPY)
+    return tree_control.on_tree_copy(owner, path)
 
 
 def on_tree_cut(owner, path=None):
-    tree_path = path or _resolve_tree_selection_path(owner)
-    if not tree_path or not os.path.exists(tree_path):
-        return
-    _set_clipboard(owner, [tree_path], copy_and_paste.CLIPBOARD_MODE_CUT)
+    return tree_control.on_tree_cut(owner, path)
 
 
 def on_tree_paste(owner, path=None):
-    target_path = path or _resolve_tree_selection_path(owner)
-    paste_into_path(owner, target_path)
+    return tree_control.on_tree_paste(owner, path)
 
 
 def on_tree_rename(owner, path=None):
-    tree_path = path or _resolve_tree_selection_path(owner)
-    if not tree_path:
-        return
-
-    current_name = os.path.basename(tree_path)
-    result, new_name = _prompt_rename_name(owner, current_name)
-    if result != wx.ID_OK or not new_name or new_name == current_name:
-        return
-
-    new_path = os.path.join(os.path.dirname(tree_path), new_name)
-    try:
-        os.rename(tree_path, new_path)
-        _handle_rename_refresh(owner, tree_path, new_path)
-    except Exception as exc:
-        wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+    return tree_control.on_tree_rename(owner, path)
 
 
 def on_tree_delete(owner, path=None):
-    tree_path = path or _resolve_tree_selection_path(owner)
-    if not tree_path or not os.path.exists(tree_path):
-        return
-    delete_paths(owner, [tree_path], permanent=False)
+    return tree_control.on_tree_delete(owner, path)
 
 
 def on_tree_delete_permanent(owner, path=None):
-    tree_path = path or _resolve_tree_selection_path(owner)
-    if not tree_path or not os.path.exists(tree_path):
-        return
-    delete_paths(owner, [tree_path], permanent=True)
+    return tree_control.on_tree_delete_permanent(owner, path)
 
 
 def handle_file_ops_shortcut(owner, event):
@@ -1190,28 +1174,28 @@ def handle_file_ops_shortcut(owner, event):
         if list_has_focus:
             on_list_copy(owner, None)
         else:
-            on_tree_copy(owner)
+            tree_control.on_tree_copy(owner)
         return True
 
     if key_code == ord("X"):
         if list_has_focus:
             on_list_cut(owner, None)
         else:
-            on_tree_cut(owner)
+            tree_control.on_tree_cut(owner)
         return True
 
     if key_code == ord("V"):
         if list_has_focus:
             on_list_paste(owner, None)
         else:
-            on_tree_paste(owner)
+            tree_control.on_tree_paste(owner)
         return True
 
     if key_code == ord("D"):
         if list_has_focus:
             on_list_delete(owner, None)
         else:
-            on_tree_delete(owner)
+            tree_control.on_tree_delete(owner)
         return True
 
     if key_code == ord("P"):
