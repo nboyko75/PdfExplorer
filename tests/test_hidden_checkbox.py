@@ -700,6 +700,24 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         mock_show_preview.assert_called_once_with(owner, "C:/$Recycle.Bin/S-1-5-21/Deleted file.docx")
         mock_restore.assert_not_called()
 
+    def test_shift_range_selection_does_not_preview_non_focused_items(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.list = mock.MagicMock()
+        owner.list.GetSelectedCount.return_value = 3
+        owner.list.GetItemState.side_effect = lambda index, mask: wx.LIST_STATE_FOCUSED if index == 5 else 0
+        owner._list_item_paths = {0: "C:/Temp/alpha.pdf", 5: "C:/Temp/omega.pdf"}
+        owner.current_preview_path = "C:/Temp/alpha.pdf"
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "C:/Temp")
+
+        with mock.patch.object(file_preview, "confirm_preview_change", return_value=True) as mock_confirm, \
+             mock.patch.object(file_preview, "show_file_preview") as mock_show_preview:
+            event = mock.MagicMock()
+            event.GetIndex.return_value = 0
+            filelist.on_list_select(owner, event)
+
+        mock_confirm.assert_not_called()
+        mock_show_preview.assert_not_called()
+
     def test_restore_recycle_bin_removes_matching_preview_tabs(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.preview_tabs = [

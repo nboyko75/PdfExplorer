@@ -8,6 +8,13 @@ from localization import tr
 CLIPBOARD_MODE_COPY = "copy"
 CLIPBOARD_MODE_CUT = "cut"
 
+_OVERWRITE_DECISION = None
+
+
+def _reset_overwrite_decision():
+    global _OVERWRITE_DECISION
+    _OVERWRITE_DECISION = None
+
 
 def _unique_preserving_order(paths):
     unique_paths = []
@@ -127,16 +134,42 @@ def _can_paste_into_directory(owner, target_dir):
 
 
 def _confirm_overwrite_existing_path(owner, target_path):
+    global _OVERWRITE_DECISION
+
     if not isinstance(target_path, str) or not target_path:
         return False
 
-    dialog = wx.MessageDialog(
-        owner,
-        tr("scan_overwrite_existing_prompt", path=target_path),
-        tr("context_paste"),
-        style=wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
-    )
-    dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
+    if _OVERWRITE_DECISION is True:
+        return True
+    if _OVERWRITE_DECISION is False:
+        return False
+
+    yes_to_all_id = getattr(wx, "ID_YES_TO_ALL", wx.ID_YES + 1000)
+    no_to_all_id = getattr(wx, "ID_NO_TO_ALL", wx.ID_NO + 1000)
+
+    dialog = wx.Dialog(owner, title=tr("context_paste"))
+    message = wx.StaticText(dialog, label=tr("scan_overwrite_existing_prompt", path=target_path))
+    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+    buttons = [
+        (wx.ID_YES, tr("confirm_yes")),
+        (yes_to_all_id, tr("confirm_yes_to_all")),
+        (wx.ID_NO, tr("confirm_no")),
+        (no_to_all_id, tr("confirm_no_to_all")),
+        (wx.ID_CANCEL, tr("cancel_button")),
+    ]
+
+    for button_id, label in buttons:
+        button = wx.Button(dialog, button_id, label)
+        button.Bind(wx.EVT_BUTTON, lambda event, result=button_id: dialog.EndModal(result))
+        button_sizer.Add(button, 0, wx.LEFT | wx.RIGHT, 5)
+
+    content_sizer = wx.BoxSizer(wx.VERTICAL)
+    content_sizer.Add(message, 0, wx.ALL | wx.EXPAND, 12)
+    content_sizer.Add(button_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 8)
+    dialog.SetSizerAndFit(content_sizer)
+    dialog.CentreOnParent()
+
     try:
         result = dialog.ShowModal()
     finally:
@@ -146,6 +179,15 @@ def _confirm_overwrite_existing_path(owner, target_path):
         return True
     if result == wx.ID_NO:
         return False
+    if result == yes_to_all_id:
+        _OVERWRITE_DECISION = True
+        return True
+    if result == no_to_all_id:
+        _OVERWRITE_DECISION = False
+        return False
+    if result == wx.ID_CANCEL:
+        _OVERWRITE_DECISION = None
+        return None
     return None
 
 
@@ -285,102 +327,108 @@ def paste_into_path(
     unique_preserving_order_callback=None,
     build_non_conflicting_path_callback=None,
 ):
-    if refresh_callback is None:
-        refresh_callback = _get_refresh_callback(owner)
-    if update_toolbar_callback is None:
-        update_toolbar_callback = _get_update_toolbar_callback(owner)
-    if confirm_overwrite_callback is None:
-        confirm_overwrite_callback = _confirm_overwrite_existing_path
-    if can_paste_into_directory_callback is None:
-        can_paste_into_directory_callback = _can_paste_into_directory
-    if resolve_target_directory_callback is None:
-        resolve_target_directory_callback = _resolve_paste_target_directory
-    if get_clipboard_mode_callback is None:
-        get_clipboard_mode_callback = _get_clipboard_mode
-    if get_clipboard_paths_callback is None:
-        get_clipboard_paths_callback = _get_clipboard_paths
-    if unique_preserving_order_callback is None:
-        unique_preserving_order_callback = _unique_preserving_order
-    if build_non_conflicting_path_callback is None:
-        build_non_conflicting_path_callback = _build_non_conflicting_path
+    _reset_overwrite_decision()
+    try:
+        if refresh_callback is None:
+            refresh_callback = _get_refresh_callback(owner)
+        if update_toolbar_callback is None:
+            update_toolbar_callback = _get_update_toolbar_callback(owner)
+        if confirm_overwrite_callback is None:
+            confirm_overwrite_callback = _confirm_overwrite_existing_path
+        if can_paste_into_directory_callback is None:
+            can_paste_into_directory_callback = _can_paste_into_directory
+        if resolve_target_directory_callback is None:
+            resolve_target_directory_callback = _resolve_paste_target_directory
+        if get_clipboard_mode_callback is None:
+            get_clipboard_mode_callback = _get_clipboard_mode
+        if get_clipboard_paths_callback is None:
+            get_clipboard_paths_callback = _get_clipboard_paths
+        if unique_preserving_order_callback is None:
+            unique_preserving_order_callback = _unique_preserving_order
+        if build_non_conflicting_path_callback is None:
+            build_non_conflicting_path_callback = _build_non_conflicting_path
 
-    target_dir = resolve_target_directory_callback(target_path)
-    if not can_paste_into_directory_callback(owner, target_dir):
-        return
+        target_dir = resolve_target_directory_callback(target_path)
+        if not can_paste_into_directory_callback(owner, target_dir):
+            return
 
-    clipboard_mode = get_clipboard_mode_callback(owner)
-    source_paths = unique_preserving_order_callback(get_clipboard_paths_callback(owner))
-    errors = []
-    affected_dirs = [target_dir]
-    moved_preview_target = None
-    pending_cut_paths = []
+        clipboard_mode = get_clipboard_mode_callback(owner)
+        source_paths = unique_preserving_order_callback(get_clipboard_paths_callback(owner))
+        errors = []
+        affected_dirs = [target_dir]
+        moved_preview_target = None
+        pending_cut_paths = []
+        operation_aborted = False
 
-    if clipboard_mode == CLIPBOARD_MODE_CUT:
+        if clipboard_mode == CLIPBOARD_MODE_CUT:
+            for source_path in source_paths:
+                normalized_source = os.path.normpath(source_path)
+                if os.path.exists(normalized_source):
+                    source_dir = os.path.dirname(normalized_source)
+                    if source_dir and os.path.isdir(source_dir):
+                        affected_dirs.append(source_dir)
+
+        affected_dirs = unique_preserving_order_callback(affected_dirs)
+
         for source_path in source_paths:
             normalized_source = os.path.normpath(source_path)
-            if os.path.exists(normalized_source):
-                source_dir = os.path.dirname(normalized_source)
-                if source_dir and os.path.isdir(source_dir):
-                    affected_dirs.append(source_dir)
-
-    affected_dirs = unique_preserving_order_callback(affected_dirs)
-
-    for source_path in source_paths:
-        normalized_source = os.path.normpath(source_path)
-        if not os.path.exists(normalized_source):
-            continue
-
-        source_name = os.path.basename(normalized_source.rstrip("\\/"))
-        destination_path = os.path.join(target_dir, source_name)
-        overwrite_target = False
-
-        if os.path.normcase(os.path.normpath(destination_path)) == os.path.normcase(normalized_source):
-            continue
-
-        if os.path.exists(destination_path):
-            overwrite_choice = confirm_overwrite_callback(owner, destination_path)
-            if overwrite_choice is None:
+            if not os.path.exists(normalized_source):
                 continue
-            if overwrite_choice is False:
-                destination_path = build_non_conflicting_path_callback(destination_path)
-            else:
-                overwrite_target = True
 
-        try:
-            if clipboard_mode == CLIPBOARD_MODE_COPY:
-                if os.path.isdir(normalized_source):
-                    if overwrite_target and os.path.exists(destination_path):
-                        shutil.rmtree(destination_path)
-                    shutil.copytree(normalized_source, destination_path)
+            source_name = os.path.basename(normalized_source.rstrip("\\/"))
+            destination_path = os.path.join(target_dir, source_name)
+            overwrite_target = False
+
+            if os.path.normcase(os.path.normpath(destination_path)) == os.path.normcase(normalized_source):
+                continue
+
+            if os.path.exists(destination_path):
+                overwrite_choice = confirm_overwrite_callback(owner, destination_path)
+                if overwrite_choice is None:
+                    operation_aborted = True
+                    break
+                if overwrite_choice is False:
+                    destination_path = build_non_conflicting_path_callback(destination_path)
+                else:
+                    overwrite_target = True
+
+            try:
+                if clipboard_mode == CLIPBOARD_MODE_COPY:
+                    if os.path.isdir(normalized_source):
+                        if overwrite_target and os.path.exists(destination_path):
+                            shutil.rmtree(destination_path)
+                        shutil.copytree(normalized_source, destination_path)
+                    else:
+                        if overwrite_target and os.path.exists(destination_path):
+                            os.remove(destination_path)
+                        shutil.copy2(normalized_source, destination_path)
                 else:
                     if overwrite_target and os.path.exists(destination_path):
-                        os.remove(destination_path)
-                    shutil.copy2(normalized_source, destination_path)
-            else:
-                if overwrite_target and os.path.exists(destination_path):
-                    if os.path.isdir(destination_path):
-                        shutil.rmtree(destination_path)
-                    else:
-                        os.remove(destination_path)
-                shutil.move(normalized_source, destination_path)
+                        if os.path.isdir(destination_path):
+                            shutil.rmtree(destination_path)
+                        else:
+                            os.remove(destination_path)
+                    shutil.move(normalized_source, destination_path)
 
-            current_preview_path = getattr(owner, "current_preview_path", None)
-            if clipboard_mode == CLIPBOARD_MODE_CUT and current_preview_path:
-                if os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(normalized_source):
-                    moved_preview_target = destination_path
-        except Exception as exc:
-            errors.append(f"{normalized_source}: {exc}")
-            if clipboard_mode == CLIPBOARD_MODE_CUT:
-                pending_cut_paths.append(normalized_source)
+                current_preview_path = getattr(owner, "current_preview_path", None)
+                if clipboard_mode == CLIPBOARD_MODE_CUT and current_preview_path:
+                    if os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(normalized_source):
+                        moved_preview_target = destination_path
+            except Exception as exc:
+                errors.append(f"{normalized_source}: {exc}")
+                if clipboard_mode == CLIPBOARD_MODE_CUT:
+                    pending_cut_paths.append(normalized_source)
 
-    if clipboard_mode == CLIPBOARD_MODE_CUT:
-        owner.file_clipboard_paths = pending_cut_paths
-        owner.file_clipboard_mode = CLIPBOARD_MODE_CUT if pending_cut_paths else None
+        if clipboard_mode == CLIPBOARD_MODE_CUT:
+            owner.file_clipboard_paths = pending_cut_paths
+            owner.file_clipboard_mode = CLIPBOARD_MODE_CUT if pending_cut_paths else None
 
-    if refresh_callback is not None:
-        refresh_callback(owner, affected_dirs=affected_dirs, preferred_preview_path=moved_preview_target)
-    if update_toolbar_callback is not None:
-        update_toolbar_callback(owner)
+        if refresh_callback is not None and not operation_aborted:
+            refresh_callback(owner, affected_dirs=affected_dirs, preferred_preview_path=moved_preview_target)
+        if update_toolbar_callback is not None:
+            update_toolbar_callback(owner)
 
-    if errors:
-        wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+        if errors:
+            wx.MessageBox("\n".join(errors), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+    finally:
+        _reset_overwrite_decision()

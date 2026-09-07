@@ -62,6 +62,8 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "options_cancel_button": "Cancel",
     "confirm_yes": "Yes",
     "confirm_no": "No",
+    "confirm_yes_to_all": "Yes to all",
+    "confirm_no_to_all": "No to all",
     "options_value_true": "True",
     "options_value_false": "False",
     "options_value_empty": "Empty",

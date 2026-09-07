@@ -44,6 +44,8 @@ TRANSLATIONS = {
     "options_cancel_button": "Annuler",
     "confirm_yes": "Oui",
     "confirm_no": "Non",
+    "confirm_yes_to_all": "Oui à tout",
+    "confirm_no_to_all": "Non à tout",
     "options_value_true": "Oui",
     "options_value_false": "Non",
     "options_value_empty": "Vide",

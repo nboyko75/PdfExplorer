@@ -1032,14 +1032,12 @@ class FileExplorer(wx.Frame):
 
     def on_list_select(self, event):
         filelist.on_list_select(self, event)
-        self._update_main_menu_state()
 
     def on_list_begin_drag(self, event):
         filelist.on_list_begin_drag(self, event)
 
     def on_list_deselect(self, event):
         filelist.on_list_deselect(self, event)
-        self._update_main_menu_state()
 
     def on_right_click(self, event):
         filelist.on_right_click(self, event)

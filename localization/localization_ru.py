@@ -44,6 +44,8 @@ TRANSLATIONS = {
     "options_cancel_button": "Отмена",
     "confirm_yes": "Да",
     "confirm_no": "Нет",
+    "confirm_yes_to_all": "Да для всех",
+    "confirm_no_to_all": "Нет для всех",
     "options_value_true": "Да",
     "options_value_false": "Нет",
     "options_value_empty": "Пусто",

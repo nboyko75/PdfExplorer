@@ -392,12 +392,45 @@ def select_list_item_by_path(owner, path):
     return False
 
 
+def _schedule_list_selection_state_update(owner, delay_ms=40):
+    """Coalesce the event burst produced by Ctrl/Shift range selection."""
+    pending = getattr(owner, "_list_selection_state_update", None)
+    if pending is not None:
+        try:
+            pending.Stop()
+        except Exception:
+            pass
+
+    def apply_stable_selection_state():
+        owner._list_selection_state_update = None
+        update_list_toolbar_buttons(owner)
+        update_main_menu = getattr(owner, "_update_main_menu_state", None)
+        if callable(update_main_menu):
+            update_main_menu()
+
+    owner._list_selection_state_update = wx.CallLater(
+        max(1, int(delay_ms)),
+        apply_stable_selection_state,
+    )
+
+
 def on_list_select(owner, event):
     if getattr(owner, "_restoring_list_selection", False):
-        update_list_toolbar_buttons(owner)
+        _schedule_list_selection_state_update(owner)
         return
 
     index = event.GetIndex()
+    if owner.list is not None:
+        get_selected_count = getattr(owner.list, "GetSelectedItemCount", None)
+        if not callable(get_selected_count):
+            get_selected_count = getattr(owner.list, "GetSelectedCount", lambda: 0)
+        selected_count = get_selected_count()
+        if selected_count > 1:
+            focused_state = owner.list.GetItemState(index, wx.LIST_STATE_FOCUSED)
+            if not (focused_state & wx.LIST_STATE_FOCUSED):
+                _schedule_list_selection_state_update(owner)
+                return
+
     item_paths = getattr(owner, "_list_item_paths", {})
     path = item_paths.get(index)
     if not isinstance(path, str) or not path:
@@ -407,15 +440,15 @@ def on_list_select(owner, event):
     previous_path = owner.current_preview_path
     if not file_preview.confirm_preview_change(owner, path):
         wx.CallAfter(file_preview.restore_list_selection, owner, previous_path)
-        wx.CallAfter(update_list_toolbar_buttons, owner)
+        _schedule_list_selection_state_update(owner)
         return
 
     file_preview.show_file_preview(owner, path)
-    update_list_toolbar_buttons(owner)
+    _schedule_list_selection_state_update(owner)
 
 
 def on_list_deselect(owner, _):
-    update_list_toolbar_buttons(owner)
+    _schedule_list_selection_state_update(owner)
 
 
 def _remove_restored_preview_tabs(owner, restored_paths):

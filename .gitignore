@@ -10,3 +10,4 @@ pdf/
 *.zip
 pytest_print_check.txt
 failure_output.txt
+verification_shift_preview.py
