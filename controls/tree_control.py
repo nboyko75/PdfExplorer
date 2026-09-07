@@ -488,7 +488,6 @@ def on_tree_right_click(owner, event):
 
     path = _resolve_tree_context_path(owner, event)
     create_target = _resolve_tree_new_folder_target(owner, path)
-    is_root_node = selected_item and selected_item.IsOk() and selected_item == owner.tree.GetRootItem()
     current_folder = getattr(owner, "path_box", None)
     folder_value = current_folder.GetValue() if current_folder is not None and hasattr(current_folder, "GetValue") else ""
     context = menu_utils.FileCommandContext(owner=owner, source="tree", current_folder=folder_value, selected_paths=[path] if isinstance(path, str) and path else [], target_path=path)

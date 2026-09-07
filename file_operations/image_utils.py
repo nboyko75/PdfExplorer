@@ -369,16 +369,12 @@ def show_image_preview(owner, path, tr_func):
     except Exception as exc:
         owner.current_image_preview = None
         owner.preview_text.SetValue(tr_func("unable_preview_file", exc=exc))
-        owner.preview_text.Show(True)
-        owner.pdf_pages_panel.Hide()
-        owner.pdf_preview_container.Hide()
-        owner.filePreview.Layout()
+        from controls.file_preview import set_preview_mode
+        set_preview_mode(owner, "text")
         return
 
-    owner.preview_text.Show(False)
-    owner.pdf_pages_panel.Hide()
-    owner.pdf_preview_container.Show(True)
-    owner.filePreview.Layout()
+    from controls.file_preview import set_preview_mode
+    set_preview_mode(owner, "single")
     refresh_image_preview_bitmap(owner)
     if animation is not None:
         # Reuse the already decoded frames instead of opening a potentially

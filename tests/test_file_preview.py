@@ -39,6 +39,22 @@ class PreviewModeHelpersTests(unittest.TestCase):
         stop_animation.assert_called_once_with(owner)
         self.assertEqual(owner.current_preview_mode, "text")
 
+    def test_set_preview_mode_stops_gif_when_leaving_image_mode(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Show=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Show=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            current_preview_mode="single",
+        )
+
+        with mock.patch.object(file_preview.image_utils, "stop_image_animation") as stop_animation:
+            file_preview.set_preview_mode(owner, "text")
+
+        stop_animation.assert_called_once_with(owner)
+        self.assertEqual(owner.current_preview_mode, "text")
+
 
 class FilePreviewManualZoomTests(unittest.TestCase):
     def test_manual_zoom_scales_target_width_in_wide_layout(self):

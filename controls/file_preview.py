@@ -78,7 +78,6 @@ def set_preview_mode(owner, mode):
 
     if mode_name != "single":
         try:
-            import file_operations.image_utils as image_utils
             image_utils.stop_image_animation(owner)
         except Exception:
             pass
@@ -747,10 +746,7 @@ def refresh_preview_for_page_view_mode(owner, path=None):
             return
         except Exception as exc:
             owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
-            owner.preview_text.Show(True)
-            owner.pdf_pages_panel.Hide()
-            owner.pdf_preview_container.Hide()
-            owner.filePreview.Layout()
+            set_preview_mode(owner, "text")
             return
 
     if can_preview_html(current_path):
@@ -1212,9 +1208,7 @@ def show_html_preview(owner, path):
     if html_preview is None:
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
             owner.preview_text.SetValue(handle.read())
-        owner.preview_text.Show(True)
-        owner.pdf_preview_container.Hide()
-        owner.filePreview.Layout()
+        set_preview_mode(owner, "text")
         return
 
     try:
@@ -1245,7 +1239,7 @@ def show_html_preview(owner, path):
             html_preview.SetPage(handle.read(), "")
         html_preview.SetZoom(zoom_percent)
 
-    owner.pdf_preview_container.Show(True)
+    set_preview_mode(owner, "single")
     owner.pdf_preview_container.Layout()
     if hasattr(owner, "filePreview"):
         owner.filePreview.Layout()
