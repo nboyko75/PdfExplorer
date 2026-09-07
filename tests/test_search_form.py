@@ -60,6 +60,20 @@ class TreeContextMenuTests(unittest.TestCase):
         self.assertFalse(filelist_module._can_paste_into_directory(owner, None))
 
 
+class NavigationSortingHelpersTests(unittest.TestCase):
+    def test_sort_file_rows_uses_shared_sort_key(self):
+        import controls.navigation_utils as navigation_utils
+
+        rows = [
+            {"name": "zeta.txt", "name_ci": "zeta.txt", "original_index": 2, "type_ci": "txt", "size_kb": 20, "modified_ts": 20, "is_dir": False},
+            {"name": "alpha.txt", "name_ci": "alpha.txt", "original_index": 0, "type_ci": "txt", "size_kb": 10, "modified_ts": 10, "is_dir": False},
+            {"name": "beta", "name_ci": "beta", "original_index": 1, "type_ci": "folder", "size_kb": None, "modified_ts": 15, "is_dir": True},
+        ]
+
+        sorted_rows = navigation_utils._sort_file_rows(rows, 0, 1)
+        self.assertEqual([row["name"] for row in sorted_rows], ["beta", "alpha.txt", "zeta.txt"])
+
+
 class SearchFilesTests(unittest.TestCase):
     def setUp(self):
         load_locale("en")

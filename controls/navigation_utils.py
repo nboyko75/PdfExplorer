@@ -89,6 +89,46 @@ def open_recycle_bin(owner, add_history=True):
     return open_path(owner, RECYCLE_BIN_PATH, add_history=add_history)
 
 
+def _make_row_sort_key(sort_column):
+    def _row_sort_key(row):
+        if sort_column == 0:
+            return (row["name_ci"], row["original_index"])
+        if sort_column == 1:
+            return (row["type_ci"], row["name_ci"], row["original_index"])
+        if sort_column == 2:
+            return (
+                row["size_kb"] is None,
+                row["size_kb"] if row["size_kb"] is not None else -1,
+                row["name_ci"],
+                row["original_index"],
+            )
+        if sort_column == 3:
+            return (
+                row["modified_ts"] is None,
+                row["modified_ts"] if row["modified_ts"] is not None else -1,
+                row["name_ci"],
+                row["original_index"],
+            )
+        return row["original_index"]
+
+    return _row_sort_key
+
+
+def _sort_file_rows(rows, sort_column, sort_direction):
+    if not rows:
+        return []
+
+    folders = [row for row in rows if row.get("is_dir")]
+    files = [row for row in rows if not row.get("is_dir")]
+
+    if sort_column is not None and sort_direction in (-1, 1):
+        reverse = sort_direction < 0
+        folders = sorted(folders, key=_make_row_sort_key(sort_column), reverse=reverse)
+        files = sorted(files, key=_make_row_sort_key(sort_column), reverse=reverse)
+
+    return folders + files
+
+
 def load_folder(owner, path):
     owner.list.DeleteAllItems()
     owner._list_item_paths = {}
@@ -148,37 +188,7 @@ def load_folder(owner, path):
 
         sort_column = getattr(owner, "list_sort_column", None)
         sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
-
-        def _row_sort_key(row):
-            if sort_column == 0:
-                return (row["name_ci"], row["original_index"])
-            if sort_column == 1:
-                return (row["type_ci"], row["name_ci"], row["original_index"])
-            if sort_column == 2:
-                return (
-                    row["size_kb"] is None,
-                    row["size_kb"] if row["size_kb"] is not None else -1,
-                    row["name_ci"],
-                    row["original_index"],
-                )
-            if sort_column == 3:
-                return (
-                    row["modified_ts"] is None,
-                    row["modified_ts"] if row["modified_ts"] is not None else -1,
-                    row["name_ci"],
-                    row["original_index"],
-                )
-            return row["original_index"]
-
-        folders = [row for row in row_data if row["is_dir"]]
-        files = [row for row in row_data if not row["is_dir"]]
-
-        if sort_column is not None and sort_direction in (-1, 1):
-            reverse = sort_direction < 0
-            folders = sorted(folders, key=_row_sort_key, reverse=reverse)
-            files = sorted(files, key=_row_sort_key, reverse=reverse)
-
-        row_data = folders + files
+        row_data = _sort_file_rows(row_data, sort_column, sort_direction)
 
         for row in row_data:
             item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
@@ -256,37 +266,7 @@ def load_folder(owner, path):
 
     sort_column = getattr(owner, "list_sort_column", None)
     sort_direction = int(getattr(owner, "list_sort_direction", 0) or 0)
-
-    def _row_sort_key(row):
-        if sort_column == 0:
-            return (row["name_ci"], row["original_index"])
-        if sort_column == 1:
-            return (row["type_ci"], row["name_ci"], row["original_index"])
-        if sort_column == 2:
-            return (
-                row["size_kb"] is None,
-                row["size_kb"] if row["size_kb"] is not None else -1,
-                row["name_ci"],
-                row["original_index"],
-            )
-        if sort_column == 3:
-            return (
-                row["modified_ts"] is None,
-                row["modified_ts"] if row["modified_ts"] is not None else -1,
-                row["name_ci"],
-                row["original_index"],
-            )
-        return row["original_index"]
-
-    folders = [row for row in row_data if row["is_dir"]]
-    files = [row for row in row_data if not row["is_dir"]]
-
-    if sort_column is not None and sort_direction in (-1, 1):
-        reverse = sort_direction < 0
-        folders = sorted(folders, key=_row_sort_key, reverse=reverse)
-        files = sorted(files, key=_row_sort_key, reverse=reverse)
-
-    row_data = folders + files
+    row_data = _sort_file_rows(row_data, sort_column, sort_direction)
 
     for row in row_data:
         item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])

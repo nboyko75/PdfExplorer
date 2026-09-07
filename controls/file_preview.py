@@ -58,6 +58,34 @@ TEXT_FILE_EXTENSIONS = {
     ".sql", ".ddl", ".dml",
 }
 
+def set_preview_mode(owner, mode):
+    """Show only the requested preview panel and stop GIF animation when leaving image mode."""
+    if owner is None:
+        return
+
+    mode_name = mode if isinstance(mode, str) else "empty"
+    if mode_name not in {"text", "pages", "single", "empty"}:
+        mode_name = "empty"
+
+    if hasattr(owner, "preview_text"):
+        owner.preview_text.Show(mode_name == "text")
+    if hasattr(owner, "pdf_pages_panel"):
+        owner.pdf_pages_panel.Show(mode_name == "pages")
+    if hasattr(owner, "pdf_preview_container"):
+        owner.pdf_preview_container.Show(mode_name == "single")
+    if hasattr(owner, "filePreview"):
+        owner.filePreview.Layout()
+
+    if mode_name != "single":
+        try:
+            import file_operations.image_utils as image_utils
+            image_utils.stop_image_animation(owner)
+        except Exception:
+            pass
+
+    owner.current_preview_mode = mode_name
+
+
 def _get_preview_tab_label(path):
     if not path:
         return ""
@@ -1175,8 +1203,7 @@ def _apply_html_zoom(owner, html_preview):
 
 
 def show_html_preview(owner, path):
-    owner.preview_text.Show(False)
-    owner.pdf_pages_panel.Hide()
+    set_preview_mode(owner, "empty")
 
     if hasattr(owner, "pdf_preview") and owner.pdf_preview is not None:
         owner.pdf_preview.Hide()
@@ -1383,8 +1410,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
 
             update_pdf_save_button_state(owner)
 
-    owner.preview_text.Show(False)
-    owner.pdf_pages_panel.Show(True)
+    set_preview_mode(owner, "pages")
     owner.pdf_pages_panel.Layout()
     owner.pdf_pages_panel.FitInside()
     owner.filePreview.Layout()
@@ -1469,9 +1495,7 @@ def show_file_preview(owner, path):
     if not getattr(owner, "preview_enabled", True):
         image_utils.stop_image_animation(owner)
         owner.current_preview_path = path
-        owner.preview_text.Show(False)
-        owner.pdf_pages_panel.Hide()
-        owner.pdf_preview_container.Hide()
+        set_preview_mode(owner, "empty")
         if hasattr(owner, "office_preview_checkbox"):
             owner.office_preview_checkbox.Enable(False)
         owner.filePreview.Layout()
@@ -1500,9 +1524,7 @@ def show_file_preview(owner, path):
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0
     owner.current_html_zoom = 1.0
-    owner.preview_text.Show(False)
-    owner.pdf_pages_panel.Hide()
-    owner.pdf_preview_container.Hide()
+    set_preview_mode(owner, "empty")
 
     can_preview_office = is_office_preview_allowed(owner, path)
     if not can_preview_office:
@@ -1540,17 +1562,13 @@ def show_file_preview(owner, path):
             with open(path, "r", encoding="utf-8", errors="replace") as handle:
                 text = handle.read()
             owner.preview_text.SetValue(text)
-            owner.preview_text.Show(True)
-            owner.pdf_pages_panel.Hide()
-            owner.pdf_preview_container.Hide()
+            set_preview_mode(owner, "text")
             update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
             owner.filePreview.Layout()
             return
         except Exception as exc:
             owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
-            owner.preview_text.Show(True)
-            owner.pdf_pages_panel.Hide()
-            owner.pdf_preview_container.Hide()
+            set_preview_mode(owner, "text")
             owner.filePreview.Layout()
             return
 
@@ -1567,15 +1585,13 @@ def show_file_preview(owner, path):
                 return
         except Exception as exc:
             owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
-            owner.preview_text.Show(True)
-            owner.pdf_pages_panel.Hide()
-            owner.pdf_preview_container.Hide()
+            set_preview_mode(owner, "text")
             owner.filePreview.Layout()
             return
 
     update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
     owner.preview_text.SetValue("")
-    owner.preview_text.Show(False)
+    set_preview_mode(owner, "empty")
     owner.filePreview.Layout()
 
 
