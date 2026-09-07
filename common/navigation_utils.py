@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from datetime import datetime
 
 import file_operations.image_utils as image_utils
@@ -6,6 +7,28 @@ from common.system import is_hidden
 from file_operations.recycle_bin import RECYCLE_BIN_PATH, get_recycle_bin_items, is_virtual_shell_path
 from localization import tr
 from common.window_tools import update_settings
+
+
+@dataclass
+class FileListRow:
+    name: str
+    type_name: str
+    size_text: str
+    size_kb: int | None
+    modified_text: str
+    modified_timestamp: float | None
+    is_directory: bool
+    image_index: int
+    path: str
+    original_index: int
+
+    @property
+    def name_ci(self):
+        return self.name.casefold()
+
+    @property
+    def type_ci(self):
+        return self.type_name.casefold()
 
 
 def save_last_folder(owner):
@@ -92,24 +115,24 @@ def open_recycle_bin(owner, add_history=True):
 def _make_row_sort_key(sort_column):
     def _row_sort_key(row):
         if sort_column == 0:
-            return (row["name_ci"], row["original_index"])
+            return (row.name_ci, row.original_index)
         if sort_column == 1:
-            return (row["type_ci"], row["name_ci"], row["original_index"])
+            return (row.type_ci, row.name_ci, row.original_index)
         if sort_column == 2:
             return (
-                row["size_kb"] is None,
-                row["size_kb"] if row["size_kb"] is not None else -1,
-                row["name_ci"],
-                row["original_index"],
+                row.size_kb is None,
+                row.size_kb if row.size_kb is not None else -1,
+                row.name_ci,
+                row.original_index,
             )
         if sort_column == 3:
             return (
-                row["modified_ts"] is None,
-                row["modified_ts"] if row["modified_ts"] is not None else -1,
-                row["name_ci"],
-                row["original_index"],
+                row.modified_timestamp is None,
+                row.modified_timestamp if row.modified_timestamp is not None else -1,
+                row.name_ci,
+                row.original_index,
             )
-        return row["original_index"]
+        return row.original_index
 
     return _row_sort_key
 
@@ -118,8 +141,8 @@ def _sort_file_rows(rows, sort_column, sort_direction):
     if not rows:
         return []
 
-    folders = [row for row in rows if row.get("is_dir")]
-    files = [row for row in rows if not row.get("is_dir")]
+    folders = [row for row in rows if getattr(row, "is_directory", False)]
+    files = [row for row in rows if not getattr(row, "is_directory", False)]
 
     if sort_column is not None and sort_direction in (-1, 1):
         reverse = sort_direction < 0
@@ -165,25 +188,23 @@ def load_folder(owner, path):
             preview_path = recovered_path or original_path or name
 
             row_data.append(
-                {
-                    "original_index": original_index,
-                    "name": name,
-                    "name_ci": name.casefold(),
-                    "type": tr("file_type_folder") if is_dir else tr("file_type_file"),
-                    "type_ci": (tr("file_type_folder") if is_dir else tr("file_type_file")).casefold(),
-                    "size": size,
-                    "size_kb": size_kb,
-                    "modified": modified,
-                    "modified_ts": modified_ts,
-                    "is_dir": is_dir,
-                    "image_index": image_utils.get_common_item_icon_index(
+                FileListRow(
+                    name=name,
+                    type_name=tr("file_type_folder") if is_dir else tr("file_type_file"),
+                    size_text=size,
+                    size_kb=size_kb,
+                    modified_text=modified,
+                    modified_timestamp=modified_ts,
+                    is_directory=is_dir,
+                    image_index=image_utils.get_common_item_icon_index(
                         owner,
                         recovered_path,
                         original_path or name,
                         is_dir=is_dir,
                     ),
-                    "full_path": preview_path,
-                }
+                    path=preview_path,
+                    original_index=original_index,
+                )
             )
 
         sort_column = getattr(owner, "list_sort_column", None)
@@ -191,11 +212,11 @@ def load_folder(owner, path):
         row_data = _sort_file_rows(row_data, sort_column, sort_direction)
 
         for row in row_data:
-            item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
-            owner._list_item_paths[item_index] = row["full_path"]
-            owner.list.SetItem(item_index, 1, row["type"])
-            owner.list.SetItem(item_index, 2, row["size"])
-            owner.list.SetItem(item_index, 3, row["modified"])
+            item_index = owner.list.InsertItem(owner.list.GetItemCount(), row.name, row.image_index)
+            owner._list_item_paths[item_index] = row.path
+            owner.list.SetItem(item_index, 1, row.type_name)
+            owner.list.SetItem(item_index, 2, row.size_text)
+            owner.list.SetItem(item_index, 3, row.modified_text)
 
         if hasattr(owner, "update_list_sort_header_icons"):
             owner.update_list_sort_header_icons()
@@ -248,20 +269,18 @@ def load_folder(owner, path):
             modified = ""
 
         row_data.append(
-            {
-                "original_index": original_index,
-                "name": name,
-                "name_ci": name.casefold(),
-                "type": typ,
-                "type_ci": typ.casefold(),
-                "size": size,
-                "size_kb": size_kb,
-                "modified": modified,
-                "modified_ts": modified_ts,
-                "is_dir": is_dir,
-                "image_index": image_index,
-                "full_path": full_path,
-            }
+            FileListRow(
+                name=name,
+                type_name=typ,
+                size_text=size,
+                size_kb=size_kb,
+                modified_text=modified,
+                modified_timestamp=modified_ts,
+                is_directory=is_dir,
+                image_index=image_index,
+                path=full_path,
+                original_index=original_index,
+            )
         )
 
     sort_column = getattr(owner, "list_sort_column", None)
@@ -269,11 +288,11 @@ def load_folder(owner, path):
     row_data = _sort_file_rows(row_data, sort_column, sort_direction)
 
     for row in row_data:
-        item_index = owner.list.InsertItem(owner.list.GetItemCount(), row["name"], row["image_index"])
-        owner._list_item_paths[item_index] = row["full_path"]
-        owner.list.SetItem(item_index, 1, row["type"])
-        owner.list.SetItem(item_index, 2, row["size"])
-        owner.list.SetItem(item_index, 3, row["modified"])
+        item_index = owner.list.InsertItem(owner.list.GetItemCount(), row.name, row.image_index)
+        owner._list_item_paths[item_index] = row.path
+        owner.list.SetItem(item_index, 1, row.type_name)
+        owner.list.SetItem(item_index, 2, row.size_text)
+        owner.list.SetItem(item_index, 3, row.modified_text)
 
     if hasattr(owner, "update_list_sort_header_icons"):
         owner.update_list_sort_header_icons()
