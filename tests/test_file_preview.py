@@ -19,6 +19,38 @@ def _import_file_preview_with_mocked_wx():
         return importlib.import_module("controls.file_preview")
 
 
+class PreviewDialogHelpersTests(unittest.TestCase):
+    def test_create_ok_cancel_row_builds_standard_button_row(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        parent = object()
+
+        with mock.patch.object(file_preview, "wx") as mock_wx:
+            mock_wx.Button.side_effect = lambda *args, **kwargs: mock.MagicMock()
+            mock_wx.ArtProvider.GetBitmap.return_value = mock.MagicMock(IsOk=mock.MagicMock(return_value=False))
+            sizer, ok_btn, cancel_btn = file_preview.create_ok_cancel_row(parent)
+
+        self.assertIsNotNone(sizer)
+        self.assertIsNotNone(ok_btn)
+        self.assertIsNotNone(cancel_btn)
+        self.assertEqual(mock_wx.Button.call_count, 2)
+
+    def test_show_persistent_dialog_restores_and_destroys_dialog(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = 1
+        dialog.GetSize.return_value = types.SimpleNamespace(x=600, y=400)
+        dialog.GetPosition.return_value = types.SimpleNamespace(x=10, y=20)
+
+        with mock.patch.object(file_preview, "_restore_dialog_geometry") as restore, \
+             mock.patch.object(file_preview, "_save_dialog_geometry") as save:
+            result = file_preview.show_persistent_dialog(dialog, "test_key")
+
+        self.assertEqual(result, 1)
+        restore.assert_called_once_with(dialog, "test_key")
+        save.assert_called_once_with(dialog, "test_key")
+        dialog.Destroy.assert_called_once_with()
+
+
 class PreviewModeHelpersTests(unittest.TestCase):
     def test_set_preview_mode_shows_only_requested_panel(self):
         file_preview = _import_file_preview_with_mocked_wx()

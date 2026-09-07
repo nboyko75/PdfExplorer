@@ -1,5 +1,5 @@
 import os
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 import wx
 
 from common.system import move_to_recycle_bin
@@ -1797,6 +1797,43 @@ def _save_dialog_geometry(dialog, settings_key):
     )
 
 
+def create_ok_cancel_row(parent):
+    ok_btn = wx.Button(parent, wx.ID_OK, tr("ok_button"))
+    cancel_btn = wx.Button(parent, wx.ID_CANCEL, tr("cancel_button"))
+
+    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
+    if ok_bmp.IsOk():
+        ok_btn.SetBitmap(ok_bmp)
+    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
+    if cancel_bmp.IsOk():
+        cancel_btn.SetBitmap(cancel_bmp)
+
+    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    button_sizer.AddStretchSpacer()
+    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
+    button_sizer.Add(cancel_btn, 0)
+    return button_sizer, ok_btn, cancel_btn
+
+
+def show_persistent_dialog(dialog, settings_key):
+    _restore_dialog_geometry(dialog, settings_key)
+    try:
+        return dialog.ShowModal()
+    finally:
+        _save_dialog_geometry(dialog, settings_key)
+        dialog.Destroy()
+
+
+@contextmanager
+def persistent_dialog(dialog, settings_key):
+    _restore_dialog_geometry(dialog, settings_key)
+    try:
+        yield dialog
+    finally:
+        _save_dialog_geometry(dialog, settings_key)
+        dialog.Destroy()
+
+
 def _build_pdf_import_destination_controls(panel, owner, page_count):
     destination_box = wx.StaticBox(
         panel,
@@ -1894,18 +1931,7 @@ def _show_import_pdf_dialog(owner, page_count):
     source_row.Add(source_text, 1, wx.RIGHT, 8)
     source_row.Add(browse_btn, 0)
 
-    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
-    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
-    if ok_bmp.IsOk():
-        ok_btn.SetBitmap(ok_bmp)
-    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
-    if cancel_bmp.IsOk():
-        cancel_btn.SetBitmap(cancel_bmp)
-    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    button_sizer.AddStretchSpacer()
-    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
-    button_sizer.Add(cancel_btn, 0)
+    button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
 
     root_sizer = wx.BoxSizer(wx.VERTICAL)
     root_sizer.Add(source_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 12)
@@ -1918,17 +1944,14 @@ def _show_import_pdf_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    _restore_dialog_geometry(dialog, "import_pdf_dialog_size")
+    with persistent_dialog(dialog, "import_pdf_dialog_size") as modal_dialog:
+        result = modal_dialog.ShowModal()
 
-    result = dialog.ShowModal()
-    _save_dialog_geometry(dialog, "import_pdf_dialog_size")
     if result != wx.ID_OK:
-        dialog.Destroy()
         return None
 
     source_path = source_text.GetValue().strip()
     if not source_path:
-        dialog.Destroy()
         wx.MessageBox(tr("import_pdf_source_required"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return None
 
@@ -1943,7 +1966,6 @@ def _show_import_pdf_dialog(owner, page_count):
         "source_path": source_path,
         "insert_at_index": insert_at_index,
     }
-    dialog.Destroy()
     return result
 
 
@@ -2022,18 +2044,7 @@ def _show_export_pages_dialog(owner, page_count):
 
     browse_btn.Bind(wx.EVT_BUTTON, browse_for_output)
 
-    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
-    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
-    if ok_bmp.IsOk():
-        ok_btn.SetBitmap(ok_bmp)
-    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
-    if cancel_bmp.IsOk():
-        cancel_btn.SetBitmap(cancel_bmp)
-    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    button_sizer.AddStretchSpacer()
-    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
-    button_sizer.Add(cancel_btn, 0)
+    button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
 
     root_sizer = wx.BoxSizer(wx.VERTICAL)
     root_sizer.Add(page_numbers_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 12)
@@ -2050,17 +2061,12 @@ def _show_export_pages_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    _restore_dialog_geometry(dialog, "export_pdf_pages_dialog_size")
-
-    result = dialog.ShowModal()
-    _save_dialog_geometry(dialog, "export_pdf_pages_dialog_size")
+    result = show_persistent_dialog(dialog, "export_pdf_pages_dialog_size")
     if result != wx.ID_OK:
-        dialog.Destroy()
         return None
 
     page_numbers_value = page_numbers_text.GetValue().strip()
     output_path = output_file_text.GetValue().strip()
-    dialog.Destroy()
     return {
         "page_numbers_value": page_numbers_value,
         "output_path": output_path,
@@ -2109,18 +2115,7 @@ def _show_import_from_scanner_dialog(owner, page_count):
     at_end_radio = destination_controls["at_end"]
     page_number_spin = destination_controls["page_number"]
 
-    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
-    ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
-    if ok_bmp.IsOk():
-        ok_btn.SetBitmap(ok_bmp)
-    cancel_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_CROSS_MARK", wx.ART_DELETE), wx.ART_BUTTON, (16, 16))
-    if cancel_bmp.IsOk():
-        cancel_btn.SetBitmap(cancel_bmp)
-    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    button_sizer.AddStretchSpacer()
-    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
-    button_sizer.Add(cancel_btn, 0)
+    button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
 
     root_sizer = wx.BoxSizer(wx.VERTICAL)
     root_sizer.Add(destination_sizer, 0, wx.EXPAND | wx.ALL, 12)
@@ -2131,12 +2126,10 @@ def _show_import_from_scanner_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    _restore_dialog_geometry(dialog, "import_pdf_dialog_size")
+    with persistent_dialog(dialog, "import_pdf_dialog_size") as modal_dialog:
+        result = modal_dialog.ShowModal()
 
-    result = dialog.ShowModal()
-    _save_dialog_geometry(dialog, "import_pdf_dialog_size")
     if result != wx.ID_OK:
-        dialog.Destroy()
         return None
 
     if at_begin_radio.GetValue():
@@ -2146,7 +2139,6 @@ def _show_import_from_scanner_dialog(owner, page_count):
     else:
         insert_at_index = page_count
 
-    dialog.Destroy()
     return {
         "insert_at_index": insert_at_index,
     }
@@ -2556,12 +2548,7 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no):
     fields.Add(destination_page_spin, 1, wx.EXPAND)
     fields.AddGrowableCol(1, 1)
 
-    ok_btn = wx.Button(panel, wx.ID_OK, tr("ok_button"))
-    cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("cancel_button"))
-    button_sizer = wx.BoxSizer(wx.HORIZONTAL)
-    button_sizer.AddStretchSpacer()
-    button_sizer.Add(ok_btn, 0, wx.RIGHT, 8)
-    button_sizer.Add(cancel_btn, 0)
+    button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
 
     root_sizer = wx.BoxSizer(wx.VERTICAL)
     root_sizer.Add(fields, 1, wx.EXPAND | wx.ALL, 12)
@@ -2572,8 +2559,10 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    if dialog.ShowModal() != wx.ID_OK:
-        dialog.Destroy()
+    with persistent_dialog(dialog, "move_page_dialog_size") as modal_dialog:
+        result_code = modal_dialog.ShowModal()
+
+    if result_code != wx.ID_OK:
         return None
 
     result = {
@@ -2581,7 +2570,6 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no):
         "destination_mode": destination_choice.GetSelection(),
         "destination_page_no": destination_page_spin.GetValue(),
     }
-    dialog.Destroy()
     return result
 
 
