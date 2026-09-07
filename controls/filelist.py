@@ -948,8 +948,12 @@ def create_new_folder(owner, target_path=None):
 
     default_name = _build_new_folder_name(target_dir, tr("context_new_folder"))
     dialog = wx.TextEntryDialog(owner, tr("context_new_folder"), tr("context_new_folder"), value=default_name)
-    if hasattr(dialog, "SetOKCancelLabels"):
-        dialog.SetOKCancelLabels(tr("ok_button"), tr("cancel_button"))
+    ok_button = dialog.FindWindow(wx.ID_OK)
+    if ok_button:
+        ok_button.SetLabel(tr("ok_button"))
+    cancel_button = dialog.FindWindow(wx.ID_CANCEL)
+    if cancel_button:
+        cancel_button.SetLabel(tr("cancel_button"))
     result = dialog.ShowModal()
     folder_name = dialog.GetValue().strip() if result == wx.ID_OK else ""
     dialog.Destroy()

@@ -319,8 +319,10 @@ class FileExplorer(wx.Frame):
             return
 
         current_path = self.path_box.GetValue() if hasattr(self, "path_box") and self.path_box is not None else ""
-        selected_items = filelist.get_selected_list_paths(self) if hasattr(self, "list") and self.list is not None else []
-        has_single_selection = len(selected_items) == 1 and os.path.exists(selected_items[0])
+        raw_selected_items = filelist.get_selected_list_paths(self) if hasattr(self, "list") and self.list is not None else []
+        selected_items = [path for path in raw_selected_items if isinstance(path, str) and path]
+        valid_selected_items = [path for path in selected_items if os.path.exists(path)]
+        has_single_selection = len(valid_selected_items) == 1 and os.path.exists(valid_selected_items[0])
         can_paste = bool(current_path and os.path.isdir(current_path) and filelist._can_paste_into_directory(self, current_path))
         current_preview = getattr(self, "current_preview_path", None)
 
@@ -329,14 +331,14 @@ class FileExplorer(wx.Frame):
         self.file_rename_item.Enable(has_single_selection)
         self.file_new_folder_item.Enable(bool(current_path and os.path.isdir(current_path)))
         self.file_refresh_item.Enable(True)
-        self.file_print_item.Enable(bool((selected_items and all(os.path.isfile(path) for path in selected_items)) or (current_preview and os.path.isfile(current_preview)) or (current_path and os.path.isfile(current_path))))
-        self.file_copy_item.Enable(bool(selected_items))
-        self.file_cut_item.Enable(bool(selected_items))
+        self.file_print_item.Enable(bool((valid_selected_items and all(os.path.isfile(path) for path in valid_selected_items)) or (current_preview and os.path.isfile(current_preview)) or (current_path and os.path.isfile(current_path))))
+        self.file_copy_item.Enable(bool(valid_selected_items))
+        self.file_cut_item.Enable(bool(valid_selected_items))
         self.file_paste_item.Enable(can_paste)
-        self.file_delete_item.Enable(bool(selected_items))
-        self.file_delete_permanent_item.Enable(bool(selected_items))
-        self.file_archive_item.Enable(bool(selected_items) and all(os.path.exists(path) and not filelist._is_archive_file(path) for path in selected_items))
-        can_extract_archive = len(selected_items) == 1 and os.path.exists(selected_items[0]) and filelist._is_archive_file(selected_items[0])
+        self.file_delete_item.Enable(bool(valid_selected_items))
+        self.file_delete_permanent_item.Enable(bool(valid_selected_items))
+        self.file_archive_item.Enable(bool(valid_selected_items) and all(os.path.exists(path) and not filelist._is_archive_file(path) for path in valid_selected_items))
+        can_extract_archive = len(valid_selected_items) == 1 and os.path.exists(valid_selected_items[0]) and filelist._is_archive_file(valid_selected_items[0])
         self.file_extract_archive_item.Enable(can_extract_archive)
         self.file_extract_archive_into_item.Enable(can_extract_archive)
 

@@ -533,6 +533,71 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         context = build_menu.call_args[0][0]
         self.assertEqual(context.selected_paths, ["C:/Temp/file.txt"])
 
+    def test_main_menu_ignores_blank_selection_entries_when_enabling_archive_and_open(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: tempfile.gettempdir())
+        owner.list = mock.MagicMock()
+        owner.list.GetItemCount.return_value = 1
+        owner.history = []
+        owner.history_index = 0
+        owner.current_preview_path = None
+        owner.show_hidden = False
+        owner.file_menu = object()
+        owner.file_scan_item = mock.Mock()
+        owner.file_open_item = mock.Mock()
+        owner.file_rename_item = mock.Mock()
+        owner.file_new_folder_item = mock.Mock()
+        owner.file_refresh_item = mock.Mock()
+        owner.file_print_item = mock.Mock()
+        owner.file_copy_item = mock.Mock()
+        owner.file_cut_item = mock.Mock()
+        owner.file_paste_item = mock.Mock()
+        owner.file_delete_item = mock.Mock()
+        owner.file_delete_permanent_item = mock.Mock()
+        owner.file_archive_item = mock.Mock()
+        owner.file_extract_archive_item = mock.Mock()
+        owner.file_extract_archive_into_item = mock.Mock()
+        owner.nav_back_item = mock.Mock()
+        owner.nav_forward_item = mock.Mock()
+        owner.nav_up_item = mock.Mock()
+        owner.nav_add_to_favourite_item = mock.Mock()
+        owner.nav_remove_from_favourite_item = mock.Mock()
+        owner.nav_search_item = mock.Mock()
+        owner.doc_import_item = mock.Mock()
+        owner.doc_import_scanner_item = mock.Mock()
+        owner.doc_export_item = mock.Mock()
+        owner.doc_save_item = mock.Mock()
+        owner.doc_cancel_item = mock.Mock()
+        owner.doc_zoom_in_item = mock.Mock()
+        owner.doc_zoom_out_item = mock.Mock()
+        owner.doc_1_page_wide_item = mock.Mock()
+        owner.doc_2_pages_wide_item = mock.Mock()
+        owner.doc_1_page_tall_item = mock.Mock()
+        owner.doc_manual_scale_item = mock.Mock()
+        owner.doc_rotate_all_left_item = mock.Mock()
+        owner.doc_rotate_left_item = mock.Mock()
+        owner.doc_rotate_right_item = mock.Mock()
+        owner.doc_rotate_all_right_item = mock.Mock()
+        owner.doc_move_page_item = mock.Mock()
+        owner.doc_remove_page_item = mock.Mock()
+        owner.doc_adjust_page_width_item = mock.Mock()
+        owner.doc_optimize_item = mock.Mock()
+        owner.doc_optimize_all_item = mock.Mock()
+        owner.doc_adjust_all_page_width_item = mock.Mock()
+        owner._is_favorite_path = mock.Mock(return_value=False)
+
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            valid_path = handle.name
+
+        try:
+            with mock.patch.object(filelist, "get_selected_list_paths", return_value=[valid_path, ""]):
+                owner._update_main_menu_state()
+
+            owner.file_open_item.Enable.assert_called_once_with(True)
+            owner.file_archive_item.Enable.assert_called_once_with(True)
+        finally:
+            os.unlink(valid_path)
+
     def test_recycle_bin_context_menu_includes_clear_all_item(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
