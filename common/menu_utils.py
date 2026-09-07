@@ -59,24 +59,7 @@ def _invoke_menu_command(command, context, event):
         return command.handler(context.owner, event)
 
 
-def append_menu_command(menu, owner, command, context=None):
-    if context is None:
-        context = _build_menu_command_context(owner)
-
-    label = tr(command.label_key)
-    if command.shortcut:
-        label = f"{label}\t{command.shortcut}"
-
-    item = menu.Append(wx.ID_ANY, label)
-
-    enabled = True
-    if command.can_execute is not None:
-        try:
-            enabled = bool(command.can_execute(context))
-        except TypeError:
-            enabled = bool(command.can_execute(context.owner, context))
-    item.Enable(enabled)
-
+def apply_command_icon(owner, item, command):
     icon_manager = getattr(owner, "icon_manager", None)
     if command.art_id:
         if icon_manager is not None and hasattr(icon_manager, "set_menu_icon"):
@@ -88,10 +71,35 @@ def append_menu_command(menu, owner, command, context=None):
     elif command.custom_icon:
         if icon_manager is not None and hasattr(icon_manager, "set_menu_icon2"):
             icon_manager.set_menu_icon2(item, command.custom_icon)
+    return item
 
-    if hasattr(owner, "Bind"):
+
+def append_command(menu, owner, command, context=None):
+    if context is None:
+        context = _build_menu_command_context(owner)
+
+    label = tr(command.label_key)
+    if command.shortcut:
+        label = f"{label}\t{command.shortcut}"
+
+    item = menu.Append(wx.ID_ANY, label)
+    apply_command_icon(owner, item, command)
+
+    enabled = True
+    if command.can_execute is not None:
+        try:
+            enabled = bool(command.can_execute(context))
+        except TypeError:
+            enabled = bool(command.can_execute(context.owner, context))
+    item.Enable(enabled)
+
+    if hasattr(owner, "Bind") and command.handler is not None:
         owner.Bind(wx.EVT_MENU, lambda event, command_ref=command, context_ref=context: _invoke_menu_command(command_ref, context_ref, event), item)
     return item
+
+
+def append_menu_command(menu, owner, command, context=None):
+    return append_command(menu, owner, command, context)
 
 
 def _dispatch_context_action(context, action_name, event):
