@@ -12,7 +12,7 @@ from unittest import mock
 import fitz
 import wx
 
-import controls.tree_utils as tree_utils_module
+import controls.tree_control as tree_utils_module
 from common import date_utils as common_date_utils
 import controls.filelist as filelist_module
 import controls.search_form as search_form_module
@@ -30,6 +30,7 @@ from localization import load_locale, tr
 
 class TreeContextMenuTests(unittest.TestCase):
     def test_tree_right_click_keeps_menu_insert_index_valid(self):
+        app = wx.App(False)
         owner = types.SimpleNamespace(
             tree=mock.Mock(),
             path_box=types.SimpleNamespace(GetValue=lambda: "C:/temp"),
@@ -62,7 +63,7 @@ class TreeContextMenuTests(unittest.TestCase):
 
 class NavigationSortingHelpersTests(unittest.TestCase):
     def test_sort_file_rows_uses_shared_sort_key(self):
-        import controls.navigation_utils as navigation_utils
+        import common.navigation_utils as navigation_utils
 
         rows = [
             {"name": "zeta.txt", "name_ci": "zeta.txt", "original_index": 2, "type_ci": "txt", "size_kb": 20, "modified_ts": 20, "is_dir": False},
@@ -859,7 +860,7 @@ class SearchFilesTests(unittest.TestCase):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_refresh_tree_selection_and_filelist_clears_stale_preview(self):
-        import controls.tree_utils as tree_utils
+        import controls.tree_control as tree_control
 
         owner = types.SimpleNamespace(
             path_box=types.SimpleNamespace(GetValue=lambda: "C:/temp"),
@@ -872,10 +873,10 @@ class SearchFilesTests(unittest.TestCase):
         owner.tree.GetRootItem.return_value = mock.Mock(IsOk=mock.Mock(return_value=False))
         owner.list.GetItemCount.return_value = 2
 
-        with mock.patch.object(tree_utils, "refresh_tree_root") as mocked_refresh_root, \
-             mock.patch.object(tree_utils, "refresh_tree_subtree") as mocked_refresh_subtree, \
-             mock.patch.object(tree_utils, "refresh_tree_selection") as mocked_refresh_tree_selection:
-            tree_utils.refresh_tree_selection_and_filelist(owner)
+        with mock.patch.object(tree_control, "refresh_tree_root") as mocked_refresh_root, \
+             mock.patch.object(tree_control, "refresh_tree_subtree") as mocked_refresh_subtree, \
+             mock.patch.object(tree_control, "refresh_tree_selection") as mocked_refresh_tree_selection:
+            tree_control.refresh_tree_selection_and_filelist(owner)
 
         owner.show_file_preview.assert_called_once_with(None)
         owner.list.SetItemState.assert_any_call(0, 0, wx.LIST_STATE_SELECTED | wx.LIST_STATE_FOCUSED)
@@ -1309,7 +1310,7 @@ class SearchFilesTests(unittest.TestCase):
         self.assertEqual(owner.load_folder_calls, [])
 
     def test_select_tree_item_by_path_does_not_set_file_path_in_path_box(self):
-        import controls.tree_utils as tree_utils
+        import controls.tree_control as tree_control
 
         file_path = os.path.join("D:\\", "Projects", "PdfExplorer", "notes.txt")
         folder_path = os.path.join("D:\\", "Projects", "PdfExplorer")
@@ -1365,12 +1366,12 @@ class SearchFilesTests(unittest.TestCase):
         )
 
         with mock.patch("os.path.isdir", side_effect=lambda path: os.path.normpath(path) == os.path.normpath(folder_path)):
-            tree_utils.select_tree_item_by_path(owner, file_path)
+            tree_control.select_tree_item_by_path(owner, file_path)
 
         self.assertEqual(owner.path_box.value, folder_path)
 
     def test_should_populate_tree_node_for_drive_root_with_placeholder_child(self):
-        import controls.tree_utils as tree_utils
+        import controls.tree_control as tree_control
 
         class FakeTreeItem:
             def __init__(self, value=None):
@@ -1397,7 +1398,7 @@ class SearchFilesTests(unittest.TestCase):
         owner = types.SimpleNamespace(tree=FakeTree(), show_hidden=False)
 
         with mock.patch("os.path.isdir", return_value=True):
-            self.assertTrue(tree_utils._should_populate_tree_node(owner, owner.tree.root, "D:\\"))
+            self.assertTrue(tree_control._should_populate_tree_node(owner, owner.tree.root, "D:\\"))
 
 
 if __name__ == "__main__":

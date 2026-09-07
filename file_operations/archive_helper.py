@@ -11,7 +11,7 @@ from pathlib import Path as FilePath
 import wx
 
 from file_operations import copy_and_paste
-from controls.window_tools import load_settings, update_settings
+from common.window_tools import load_settings, update_settings
 from localization import tr
 
 _ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab")
@@ -211,10 +211,10 @@ def _refresh_after_archive_change(owner, archive_path):
 
     try:
         if hasattr(owner, "tree"):
-            import controls.tree_utils as tree_utils
-            parent_item = tree_utils.find_tree_item_by_path(owner, archive_folder)
+            import controls.tree_control as tree_control
+            parent_item = tree_control.find_tree_item_by_path(owner, archive_folder)
             if parent_item is not None and hasattr(parent_item, "IsOk") and parent_item.IsOk():
-                tree_utils.refresh_tree_subtree(owner, parent_item, archive_folder)
+                tree_control.refresh_tree_subtree(owner, parent_item, archive_folder)
     except Exception:
         pass
 
@@ -556,10 +556,10 @@ def _extract_selected_archive_here(owner, path):
 
         try:
             if hasattr(owner, "tree"):
-                import controls.tree_utils as tree_utils
-                item = tree_utils.find_tree_item_by_path(owner, refresh_folder)
+                import controls.tree_control as tree_control
+                item = tree_control.find_tree_item_by_path(owner, refresh_folder)
                 if item is not None and hasattr(item, "IsOk") and item.IsOk():
-                    tree_utils.refresh_tree_subtree(owner, item, refresh_folder)
+                    tree_control.refresh_tree_subtree(owner, item, refresh_folder)
         except Exception:
             pass
 
@@ -608,10 +608,10 @@ def _extract_selected_archive_into(owner, path):
 
         try:
             if hasattr(owner, "tree"):
-                import controls.tree_utils as tree_utils
-                item = tree_utils.find_tree_item_by_path(owner, refresh_folder)
+                import controls.tree_control as tree_control
+                item = tree_control.find_tree_item_by_path(owner, refresh_folder)
                 if item is not None and hasattr(item, "IsOk") and item.IsOk():
-                    tree_utils.refresh_tree_subtree(owner, item, refresh_folder)
+                    tree_control.refresh_tree_subtree(owner, item, refresh_folder)
         except Exception:
             pass
 

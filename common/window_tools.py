@@ -8,7 +8,7 @@ from ctypes import wintypes
 import wx
 
 from common.dict_tools import OPTION_FIELDS, OPTION_GROUP_ORDER, OPTION_GROUP_TRANSLATION_KEYS, PERSISTED_LAYOUT_KEYS
-from controls.settings_utils import (
+from common.settings_utils import (
     get_option_group_label,
     quality_label_to_value,
     quality_value_to_label,

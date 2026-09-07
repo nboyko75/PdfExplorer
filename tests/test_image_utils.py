@@ -161,7 +161,7 @@ class ImageUtilsFallbackTests(unittest.TestCase):
         owner.standard_shortcuts_image_list.Add.assert_called_once_with(mock.ANY)
 
     def test_shortcut_link_uses_shell_icon_in_list_and_tree(self):
-        import controls.tree_utils as tree_utils
+        import controls.tree_control as tree_control
 
         owner = mock.Mock()
         owner.tree_images = mock.Mock()
@@ -171,9 +171,9 @@ class ImageUtilsFallbackTests(unittest.TestCase):
         owner.tree_images.Add.side_effect = [11]
 
         shortcut_path = r"C:\Users\User\Desktop\App.lnk"
-        with mock.patch.object(tree_utils.image_utils, "get_real_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))), \
-             mock.patch.object(tree_utils.image_utils, "create_extension_icon_bitmap") as mocked_create:
-            result = tree_utils.get_tree_icon_index(owner, shortcut_path, is_dir=False)
+        with mock.patch.object(tree_control.image_utils, "get_real_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))), \
+             mock.patch.object(tree_control.image_utils, "create_extension_icon_bitmap") as mocked_create:
+            result = tree_control.get_tree_icon_index(owner, shortcut_path, is_dir=False)
 
         self.assertEqual(result, 11)
         mocked_create.assert_not_called()
@@ -183,9 +183,9 @@ class ImageUtilsFallbackTests(unittest.TestCase):
         owner.list_shell_icon_indexes = {}
         owner.list_images.Add.side_effect = [12]
 
-        with mock.patch.object(tree_utils.image_utils, "get_real_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))), \
-             mock.patch.object(tree_utils.image_utils, "create_extension_icon_bitmap") as mocked_create_list:
-            result = tree_utils.image_utils.get_file_list_shell_icon_index(owner, shortcut_path)
+        with mock.patch.object(tree_control.image_utils, "get_real_shell_bitmap", return_value=mock.Mock(IsOk=mock.Mock(return_value=True))), \
+             mock.patch.object(tree_control.image_utils, "create_extension_icon_bitmap") as mocked_create_list:
+            result = tree_control.image_utils.get_file_list_shell_icon_index(owner, shortcut_path)
 
         self.assertEqual(result, 12)
         mocked_create_list.assert_not_called()

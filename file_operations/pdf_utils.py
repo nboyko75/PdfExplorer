@@ -1,6 +1,6 @@
 import os
 import wx
-from controls.window_tools import load_settings, update_settings
+from common.window_tools import load_settings, update_settings
 
 try:
     import fitz

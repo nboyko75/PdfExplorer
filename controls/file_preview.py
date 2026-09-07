@@ -10,10 +10,10 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     wx_html2 = None
 
 from localization import tr
-import controls.drag_and_drop as drag_and_drop
-from controls.drag_and_drop import PdfPageDropTarget
-import controls.drag_and_drop as pdf_dragdrop
-from controls.window_tools import load_settings, update_settings
+import common.drag_and_drop as drag_and_drop
+from common.drag_and_drop import PdfPageDropTarget
+import common.drag_and_drop as pdf_dragdrop
+from common.window_tools import load_settings, update_settings
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview

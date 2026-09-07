@@ -22,7 +22,7 @@ from common.search_match_utils import (
     _parse_size_kb,
 )
 from localization import tr
-from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
+from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 
 
 def _show_date_picker_popup(parent_dialog, field_control, trigger_button=None, date_picker_name=None):

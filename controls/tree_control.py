@@ -9,6 +9,7 @@ import file_operations.archive_helper as archive_helper
 import file_operations.image_utils as image_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
+import common.menu_utils as menu_utils
 
 
 def bind_tree_events(owner):
@@ -344,7 +345,7 @@ def init_tree(owner):
         owner.tree.AppendItem(item, tr("tree_expand_placeholder"))
 
     owner.tree.Expand(root)
-    owner.tree.SetDropTarget(__import__("controls.drag_and_drop", fromlist=["TreeDropTarget"]).TreeDropTarget(owner))
+    owner.tree.SetDropTarget(__import__("common.drag_and_drop", fromlist=["TreeDropTarget"]).TreeDropTarget(owner))
 
 
 def get_drives():
@@ -497,22 +498,25 @@ def on_tree_right_click(owner, event):
     icon_manager = image_utils.ensure_owner_icon_manager(owner)
 
     menu = wx.Menu()
-    open_item = menu.Append(-1, tr("context_open"))
+    current_folder = getattr(owner, "path_box", None)
+    folder_value = current_folder.GetValue() if current_folder is not None and hasattr(current_folder, "GetValue") else ""
+    menu_context = menu_utils._build_menu_command_context(owner, source="tree", current_folder=folder_value, selected_paths=[path] if isinstance(path, str) and path else [])
+    open_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["open"], menu_context)
     folder_up_item = menu.Append(-1, tr("folder_up_button"))
-    new_folder_item = menu.Append(-1, tr("context_new_folder"))
-    refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
-    print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
+    new_folder_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["new_folder"], menu_context)
+    refresh_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["refresh"], menu_context)
+    print_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["print"], menu_context)
     menu.AppendSeparator()
     favorite_add_item = menu.Append(-1, tr("favorite_add_menu_item"))
     favorite_remove_item = menu.Append(-1, tr("favorite_remove_menu_item"))
     menu.AppendSeparator()
 
-    copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
-    cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
-    paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
-    rename_item = menu.Append(-1, tr("context_rename"))
-    delete_item = menu.Append(-1, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
-    delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Del")
+    copy_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["copy"], menu_context)
+    cut_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["cut"], menu_context)
+    paste_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["paste"], menu_context)
+    rename_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["rename"], menu_context)
+    delete_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["delete"], menu_context)
+    delete_permanent_item = menu_utils.append_menu_command(menu, owner, menu_utils.FILE_COMMANDS["delete_permanent"], menu_context)
     menu.AppendSeparator()
 
     add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
@@ -664,24 +668,25 @@ def on_tree_right_click(owner, event):
     def handle_extract_from_archive_into(_):
         archive_helper._extract_selected_archive_into(owner, path)
 
-    owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
-    owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
-    owner.Bind(wx.EVT_MENU, handle_open, open_item)
-    owner.Bind(wx.EVT_MENU, handle_go_up, folder_up_item)
-    owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
-    owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
-    owner.Bind(wx.EVT_MENU, handle_print, print_item)
-    owner.Bind(wx.EVT_MENU, handle_add_to_favorite, favorite_add_item)
-    owner.Bind(wx.EVT_MENU, handle_remove_from_favorite, favorite_remove_item)
-    owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
-    owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
-    owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
-    owner.Bind(wx.EVT_MENU, handle_rename, rename_item)
-    owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
-    owner.Bind(wx.EVT_MENU, handle_delete_permanent, delete_permanent_item)
-    owner.Bind(wx.EVT_MENU, handle_add_to_archive, add_to_archive_item)
-    owner.Bind(wx.EVT_MENU, handle_extract_from_archive_here, extract_from_archive_item_here)
-    owner.Bind(wx.EVT_MENU, handle_extract_from_archive_into, extract_from_archive_into_item)
+    if hasattr(owner, "Bind"):
+        owner.Bind(wx.EVT_MENU, handle_optimize_all, optimize_item)
+        owner.Bind(wx.EVT_MENU, handle_adjust_all, adjust_item)
+        owner.Bind(wx.EVT_MENU, handle_open, open_item)
+        owner.Bind(wx.EVT_MENU, handle_go_up, folder_up_item)
+        owner.Bind(wx.EVT_MENU, handle_new_folder, new_folder_item)
+        owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
+        owner.Bind(wx.EVT_MENU, handle_print, print_item)
+        owner.Bind(wx.EVT_MENU, handle_add_to_favorite, favorite_add_item)
+        owner.Bind(wx.EVT_MENU, handle_remove_from_favorite, favorite_remove_item)
+        owner.Bind(wx.EVT_MENU, handle_copy, copy_item)
+        owner.Bind(wx.EVT_MENU, handle_cut, cut_item)
+        owner.Bind(wx.EVT_MENU, handle_paste, paste_item)
+        owner.Bind(wx.EVT_MENU, handle_rename, rename_item)
+        owner.Bind(wx.EVT_MENU, handle_delete, delete_item)
+        owner.Bind(wx.EVT_MENU, handle_delete_permanent, delete_permanent_item)
+        owner.Bind(wx.EVT_MENU, handle_add_to_archive, add_to_archive_item)
+        owner.Bind(wx.EVT_MENU, handle_extract_from_archive_here, extract_from_archive_item_here)
+        owner.Bind(wx.EVT_MENU, handle_extract_from_archive_into, extract_from_archive_into_item)
 
     popup_window = owner.tree
     if event is not None:

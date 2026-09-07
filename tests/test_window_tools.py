@@ -6,7 +6,7 @@ from unittest import mock
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-import controls.window_tools as window_tools
+import common.window_tools as window_tools
 
 
 class WindowToolsSettingsPathTests(unittest.TestCase):

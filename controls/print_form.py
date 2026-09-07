@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 from controls.file_preview import IMAGE_EXTENSIONS
 from localization import tr
-from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
+from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 import file_operations.office_preview as office_preview
 import file_operations.pdf_utils as pdf_utils
 

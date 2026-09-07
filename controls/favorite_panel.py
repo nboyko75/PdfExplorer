@@ -1,10 +1,10 @@
 import os
 import wx
 
-import controls.navigation_utils as navigation_utils
-from controls.settings_utils import get_option_group_label
+import common.navigation_utils as navigation_utils
+from common.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
-from controls.window_tools import (
+from common.window_tools import (
     set_column_image_on_left,
     get_windows_special_folder,
     get_windows_display_name,

@@ -6,19 +6,20 @@ import wx
 
 from file_operations.pdf_utils import discard_pdf_changes, get_unsaved_pdf_paths, is_pdf_file, move_pdf_page, save_pdf
 from localization import tr, load_locale, available_locales
-from controls.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
+from common.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
 from controls.options_form import show_options_form
 from controls.splitter_utils import normalize_shortcuts_sash
-import controls.tree_utils as tree_utils
-import controls.drag_and_drop as drag_and_drop
+import controls.tree_control as tree_control
+import common.drag_and_drop as drag_and_drop
 import controls.favorite_panel as favorite_panel
 import file_operations.image_utils as image_utils
-import controls.navigation_utils as navigation_utils
+import common.navigation_utils as navigation_utils
 import controls.file_preview as file_preview
 import controls.filelist as filelist
 import controls.scan_form as scan_form
 import controls.about_form as about_form
 import controls.help_form as help_form
+import common.menu_utils as menu_utils
 
 
 LANGUAGE_CHOICES = [
@@ -155,17 +156,17 @@ class FileExplorer(wx.Frame):
 
         self.file_menu = wx.Menu()
         self.file_scan_item = self.file_menu.Append(wx.ID_ANY, tr("scan"))
-        self.file_open_item = self.file_menu.Append(wx.ID_ANY, tr("context_open"))
-        self.file_rename_item = self.file_menu.Append(wx.ID_ANY, tr("context_rename"))
-        self.file_new_folder_item = self.file_menu.Append(wx.ID_ANY, tr("context_new_folder"))
-        self.file_refresh_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_refresh')}\tF5")
-        self.file_print_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_print')}\tCtrl+P")
+        self.file_open_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_rename_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["rename"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_new_folder_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["new_folder"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_refresh_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["refresh"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_print_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["print"], menu_utils._build_menu_command_context(self, source="main"))
         self.file_menu.AppendSeparator()
-        self.file_copy_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_copy')}\tCtrl+C")
-        self.file_cut_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_cut')}\tCtrl+X")
-        self.file_paste_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_paste')}\tCtrl+V")
-        self.file_delete_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
-        self.file_delete_permanent_item = self.file_menu.Append(wx.ID_ANY, f"{tr('context_delete')}\tShift+Del")
+        self.file_copy_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["copy"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_cut_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["cut"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_paste_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["paste"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_delete_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["delete"], menu_utils._build_menu_command_context(self, source="main"))
+        self.file_delete_permanent_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["delete_permanent"], menu_utils._build_menu_command_context(self, source="main"))
         self.file_menu.AppendSeparator()
         self.file_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_add_to_archive"))
         self.file_extract_archive_item = self.file_menu.Append(wx.ID_ANY, tr("context_extract_from_archive_here"))
@@ -320,8 +321,8 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda event: file_preview.on_preview_remove_page(event, owner=self), self.doc_remove_page_item)
         self.Bind(wx.EVT_MENU, file_preview.on_preview_adjust_page_width, self.doc_adjust_page_width_item)
         self.Bind(wx.EVT_MENU, file_preview.on_preview_optimize, self.doc_optimize_item)
-        self.Bind(wx.EVT_MENU, lambda event: tree_utils.optimize_all_pdf_in_path(self, self.path_box.GetValue() if hasattr(self, "path_box") else self.current_preview_path), self.doc_optimize_all_item)
-        self.Bind(wx.EVT_MENU, lambda event: tree_utils.adjust_page_width_all_pdf_in_path(self, self.path_box.GetValue() if hasattr(self, "path_box") else self.current_preview_path), self.doc_adjust_all_page_width_item)
+        self.Bind(wx.EVT_MENU, lambda event: tree_control.optimize_all_pdf_in_path(self, self.path_box.GetValue() if hasattr(self, "path_box") else self.current_preview_path), self.doc_optimize_all_item)
+        self.Bind(wx.EVT_MENU, lambda event: tree_control.adjust_page_width_all_pdf_in_path(self, self.path_box.GetValue() if hasattr(self, "path_box") else self.current_preview_path), self.doc_adjust_all_page_width_item)
 
         self.Bind(wx.EVT_MENU, self.on_app_manual, self.help_manual_item)
         self.Bind(wx.EVT_MENU, self.on_about, self.help_about_item)
@@ -397,7 +398,7 @@ class FileExplorer(wx.Frame):
         current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
         if current_folder and os.path.isdir(current_folder):
             self.load_folder(current_folder)
-            tree_utils.refresh_tree_selection_and_filelist(self)
+            tree_control.refresh_tree_selection_and_filelist(self)
         else:
             self.refresh_tree_placeholders()
 
@@ -472,10 +473,10 @@ class FileExplorer(wx.Frame):
 
         panel.SetSizer(main_sizer)
 
-        tree_utils.init_tree(self)
+        tree_control.init_tree(self)
 
     def init_tree_images(self):
-        return tree_utils.init_tree_images(self)
+        return tree_control.init_tree_images(self)
 
     def _normalize_favorite_path(self, path):
         if not isinstance(path, str):
@@ -612,16 +613,16 @@ class FileExplorer(wx.Frame):
             self._update_main_menu_state()
 
     def refresh_tree_placeholders(self):
-        return tree_utils.refresh_tree_placeholders(self)
+        return tree_control.refresh_tree_placeholders(self)
 
     def find_tree_item_by_path(self, path):
-        return tree_utils.find_tree_item_by_path(self, path)
+        return tree_control.find_tree_item_by_path(self, path)
 
     def _find_tree_child_path(self, parent, normalized_path):
-        return tree_utils.find_tree_child_path(self, parent, normalized_path)
+        return tree_control.find_tree_child_path(self, parent, normalized_path)
 
     def select_tree_item_by_path(self, path):
-        return tree_utils.select_tree_item_by_path(self, path)
+        return tree_control.select_tree_item_by_path(self, path)
 
     def save_last_folder(self):
         navigation_utils.save_last_folder(self)
@@ -904,7 +905,7 @@ class FileExplorer(wx.Frame):
                 current_folder = self.path_box.GetValue() if hasattr(self, "path_box") else ""
                 if current_folder and os.path.isdir(current_folder):
                     self.load_folder(current_folder)
-                tree_utils.refresh_tree_selection_and_filelist(self)
+                tree_control.refresh_tree_selection_and_filelist(self)
                 return
             if filelist.handle_file_ops_shortcut(self, event):
                 return
@@ -1017,28 +1018,28 @@ class FileExplorer(wx.Frame):
         self.search_box.Bind(wx.EVT_TEXT_ENTER, lambda e: self.refresh())
         self.hidden_chk.Bind(wx.EVT_CHECKBOX, self.on_toggle_hidden)
 
-        tree_utils.bind_tree_events(self)
+        tree_control.bind_tree_events(self)
         filelist.bind_list_events(self)
 
         file_preview.bind_preview_events(self)
         self.filePreview.Bind(wx.EVT_SIZE, self.on_preview_resize)
 
     def on_tree_expand(self, event):
-        return tree_utils.on_tree_expand(self, event)
+        return tree_control.on_tree_expand(self, event)
 
     def on_tree_select(self, event):
-        result = tree_utils.on_tree_select(self, event)
+        result = tree_control.on_tree_select(self, event)
         self._update_main_menu_state()
         return result
 
     def on_tree_activated(self, event):
-        return tree_utils.on_tree_activated(self, event)
+        return tree_control.on_tree_activated(self, event)
 
     def on_tree_begin_drag(self, event):
-        return tree_utils.on_tree_begin_drag(self, event)
+        return tree_control.on_tree_begin_drag(self, event)
 
     def on_tree_right_click(self, event):
-        return tree_utils.on_tree_right_click(self, event)
+        return tree_control.on_tree_right_click(self, event)
 
     def on_list_select(self, event):
         filelist.on_list_select(self, event)
@@ -1134,13 +1135,13 @@ class FileExplorer(wx.Frame):
         self.show_hidden = bool(self.hidden_chk.GetValue())
         update_settings({"show_hidden": self.show_hidden})
 
-        tree_utils.refresh_tree_root(self)
+        tree_control.refresh_tree_root(self)
         if hasattr(self, "path_box") and hasattr(self, "select_tree_item_by_path"):
             current_path = self.path_box.GetValue()
             if isinstance(current_path, str) and current_path:
                 self.select_tree_item_by_path(os.path.dirname(current_path))
         if hasattr(self, "tree") and self.tree is not None:
-            tree_utils.refresh_tree_selection_and_filelist(self)
+            tree_control.refresh_tree_selection_and_filelist(self)
         if hasattr(self, "refresh"):
             self.refresh()
 

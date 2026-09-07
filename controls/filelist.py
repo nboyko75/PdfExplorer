@@ -11,8 +11,8 @@ from common.system import move_to_recycle_bin
 if not hasattr(wx, "DATADOBJECT_PREFERRED"):
     wx.DATADOBJECT_PREFERRED = 0
 
-from controls import tree_utils
-from controls import tree_utils
+from controls import tree_control
+from common.menu_utils import FILE_COMMANDS, MenuCommandContext, _build_menu_command_context, append_menu_command
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 from file_operations.office_preview import is_office_file_open
@@ -20,9 +20,9 @@ import file_operations.copy_and_paste as copy_and_paste
 import file_operations.image_utils as image_utils
 import file_operations.archive_helper as archive_helper
 import controls.file_preview as file_preview
-import controls.drag_and_drop as drag_and_drop
+import common.drag_and_drop as drag_and_drop
 import controls.print_form as print_form
-from controls.window_tools import load_settings, update_settings
+from common.window_tools import load_settings, update_settings
 
 CLIPBOARD_MODE_COPY = copy_and_paste.CLIPBOARD_MODE_COPY
 CLIPBOARD_MODE_CUT = copy_and_paste.CLIPBOARD_MODE_CUT
@@ -486,9 +486,9 @@ def on_right_click(owner, event):
         if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
             owner.load_folder(current_folder)
         try:
-            import controls.tree_utils as tree_utils
+            import controls.tree_control as tree_control
             if hasattr(owner, "tree") and owner.tree is not None:
-                tree_utils.refresh_tree_selection_and_filelist(owner)
+                tree_control.refresh_tree_selection_and_filelist(owner)
         except Exception:
             pass
 
@@ -539,50 +539,6 @@ def on_right_click(owner, event):
         menu.Destroy()
         return
 
-    scan_item = menu.Append(-1, tr("scan"))
-    open_item = menu.Append(-1, tr("context_open"))
-    folder_up_item = menu.Append(-1, tr("folder_up_button"))
-    new_folder_item = menu.Append(-1, tr("context_new_folder"))
-    refresh_item = menu.Append(-1, f"{tr('context_refresh')}\tF5")
-    print_item = menu.Append(-1, f"{tr('context_print')}\tCtrl+P")
-    menu.AppendSeparator()
-    copy_item = menu.Append(-1, f"{tr('context_copy')}\tCtrl+C")
-    cut_item = menu.Append(-1, f"{tr('context_cut')}\tCtrl+X")
-    paste_item = menu.Append(-1, f"{tr('context_paste')}\tCtrl+V")
-    rename_item = menu.Append(-1, tr("context_rename"))
-    delete_item = menu.Append(-1, f"{tr('context_remove_to_recycle_bin')}\tCtrl+D")
-    delete_permanent_item = menu.Append(-1, f"{tr('context_delete')}\tShift+Del")
-    menu.AppendSeparator()
-
-    add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
-    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
-    extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
-
-    refresh_bmp = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
-    if refresh_bmp.IsOk():
-        refresh_item.SetBitmap(refresh_bmp)
-
-    print_bmp = wx.ArtProvider.GetBitmap(wx.ART_PRINT, wx.ART_MENU, (16, 16))
-    if print_bmp.IsOk():
-        print_item.SetBitmap(print_bmp)
-
-    if icon_manager:
-        icon_manager.set_menu_icon2(scan_item, "scan")
-        icon_manager.set_menu_icon2(open_item, "file_view")
-        icon_manager.set_menu_icon(folder_up_item, art_id=wx.ART_GO_UP)
-        icon_manager.set_menu_icon(rename_item, art_id=wx.ART_EDIT)
-        icon_manager.set_menu_icon(new_folder_item, art_id=wx.ART_FOLDER)
-        icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
-        icon_manager.set_menu_icon(print_item, art_id=wx.ART_PRINT)
-        icon_manager.set_menu_icon2(copy_item, "copy")
-        icon_manager.set_menu_icon(cut_item, art_id=wx.ART_CUT)
-        icon_manager.set_menu_icon(paste_item, art_id=wx.ART_PASTE)
-        icon_manager.set_menu_icon2(delete_item, "recycle_bin")
-        icon_manager.set_menu_icon(delete_permanent_item, art_id=wx.ART_DELETE)
-        icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
-        icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
-        icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
-
     selected_paths = get_selected_list_paths(owner)
     valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and os.path.exists(path)]
     can_act_on_selection = bool(valid_selected_paths)
@@ -592,6 +548,36 @@ def on_right_click(owner, event):
     can_paste = _can_paste_into_directory(owner, current_folder)
     can_add_to_archive = bool(valid_selected_paths and all(not _is_archive_file(path) for path in valid_selected_paths))
     can_extract_from_archive = bool(len(valid_selected_paths) == 1 and _is_archive_file(valid_selected_paths[0]))
+
+    menu_context = _build_menu_command_context(owner, source="list", current_folder=current_folder, selected_paths=valid_selected_paths)
+    menu.AppendSeparator()
+    refresh_item = append_menu_command(menu, owner, FILE_COMMANDS["refresh"], menu_context)
+    print_item = append_menu_command(menu, owner, FILE_COMMANDS["print"], menu_context)
+    menu.AppendSeparator()
+    copy_item = append_menu_command(menu, owner, FILE_COMMANDS["copy"], menu_context)
+    cut_item = append_menu_command(menu, owner, FILE_COMMANDS["cut"], menu_context)
+    paste_item = append_menu_command(menu, owner, FILE_COMMANDS["paste"], menu_context)
+    rename_item = append_menu_command(menu, owner, FILE_COMMANDS["rename"], menu_context)
+    delete_item = append_menu_command(menu, owner, FILE_COMMANDS["delete"], menu_context)
+    delete_permanent_item = append_menu_command(menu, owner, FILE_COMMANDS["delete_permanent"], menu_context)
+    menu.AppendSeparator()
+
+    add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
+    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
+    extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
+
+    if icon_manager:
+        icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
+        icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
+        icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
+
+    scan_item = append_menu_command(menu, owner, FILE_COMMANDS["scan"], menu_context)
+    open_item = append_menu_command(menu, owner, FILE_COMMANDS["open"], menu_context)
+    folder_up_item = menu.Append(-1, tr("folder_up_button"))
+    new_folder_item = append_menu_command(menu, owner, FILE_COMMANDS["new_folder"], menu_context)
+    if icon_manager:
+        icon_manager.set_menu_icon(folder_up_item, art_id=wx.ART_GO_UP)
+    owner.Bind(wx.EVT_MENU, owner.on_folder_up, folder_up_item)
 
     scan_item.Enable(True)
     open_item.Enable(can_act_on_single_selection)
@@ -609,18 +595,6 @@ def on_right_click(owner, event):
     extract_from_archive_item.Enable(can_extract_from_archive)
     extract_from_archive_into_item.Enable(can_extract_from_archive)
 
-    owner.Bind(wx.EVT_MENU, owner.on_list_scan, scan_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_open, open_item)
-    owner.Bind(wx.EVT_MENU, owner.on_folder_up, folder_up_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_rename, rename_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_new_folder, new_folder_item)
-    owner.Bind(wx.EVT_MENU, handle_refresh, refresh_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_print, print_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_copy, copy_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_cut, cut_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_paste, paste_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_delete, delete_item)
-    owner.Bind(wx.EVT_MENU, owner.on_list_delete_permanent, delete_permanent_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _archive_selected_path(owner, valid_selected_paths), add_to_archive_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_here(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
     owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_into(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_into_item)
@@ -700,7 +674,7 @@ def _refresh_tree_node(owner, folder_path):
     try:
         item = _find_tree_item_without_expanding(owner, folder_path)
         if item is not None and item.IsOk():
-            tree_utils.populate_tree_node(owner, item, folder_path)
+            tree_control.populate_tree_node(owner, item, folder_path)
     except Exception:
         pass
 
@@ -911,7 +885,7 @@ def _refresh_renamed_tree_item(owner, old_path, new_path):
         owner.tree.SetItemData(item, new_path)
         if os.path.isdir(new_path):
             try:
-                tree_utils.refresh_tree_subtree(owner, item, new_path)
+                tree_control.refresh_tree_subtree(owner, item, new_path)
             except Exception:
                 pass
         return True
@@ -1091,8 +1065,8 @@ def on_list_clear_recycle_bin(owner, _):
             wx.CallAfter(owner.load_folder, current_folder)
         if hasattr(owner, "tree") and owner.tree is not None:
             try:
-                import controls.tree_utils as tree_utils
-                tree_utils.refresh_tree_selection_and_filelist(owner)
+                import controls.tree_control as tree_control
+                tree_control.refresh_tree_selection_and_filelist(owner)
             except Exception:
                 pass
         file_preview._prune_deleted_preview_tabs(owner)

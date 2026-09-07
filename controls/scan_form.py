@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     ImageOps = None
 
 from localization import tr
-from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
+from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 import controls.file_preview as file_preview
 
 

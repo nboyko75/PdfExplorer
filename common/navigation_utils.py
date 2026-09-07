@@ -5,7 +5,7 @@ import file_operations.image_utils as image_utils
 from common.system import is_hidden
 from file_operations.recycle_bin import RECYCLE_BIN_PATH, get_recycle_bin_items, is_virtual_shell_path
 from localization import tr
-from controls.window_tools import update_settings
+from common.window_tools import update_settings
 
 
 def save_last_folder(owner):

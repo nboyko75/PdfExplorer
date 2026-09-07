@@ -6,14 +6,14 @@ import sys
 import wx
 
 from common.dict_tools import OPTION_FIELDS, OPTION_GROUP_ORDER
-from controls.settings_utils import (
+from common.settings_utils import (
     get_option_group_label,
     quality_label_to_value,
     quality_value_to_label,
     get_locale_value_label,
     normalize_setting_value,
 )
-from controls.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
+from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 from localization import tr
 
 

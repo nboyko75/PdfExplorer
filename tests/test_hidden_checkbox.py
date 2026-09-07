@@ -32,7 +32,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             tree=object(),
         )
 
-        with mock.patch.object(main.tree_utils, "refresh_tree_selection_and_filelist") as mocked_refresh_tree:
+        with mock.patch.object(main.tree_control, "refresh_tree_selection_and_filelist") as mocked_refresh_tree:
             main.FileExplorer.on_toggle_hidden(owner, None)
 
         self.assertTrue(owner.show_hidden)
@@ -696,8 +696,8 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.tree.GetSelection.return_value = item
         owner.tree.GetItemData.return_value = "D:/Projects"
 
-        with mock.patch.object(main.tree_utils, "refresh_tree_subtree") as mocked_refresh_tree_subtree:
-            main.tree_utils.refresh_tree_selection_and_filelist(owner)
+        with mock.patch.object(main.tree_control, "refresh_tree_subtree") as mocked_refresh_tree_subtree:
+            main.tree_control.refresh_tree_selection_and_filelist(owner)
 
         owner.load_folder.assert_called_once_with("D:\\Projects")
         mocked_refresh_tree_subtree.assert_called_once_with(owner, item, "D:\\Projects")
@@ -722,7 +722,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             Skip=lambda: None,
         )
 
-        with mock.patch.object(main.tree_utils, "refresh_tree_selection_and_filelist") as mocked_refresh_list:
+        with mock.patch.object(main.tree_control, "refresh_tree_selection_and_filelist") as mocked_refresh_list:
             main.FileExplorer.on_key(owner, event)
 
         owner.load_folder.assert_called_once_with("D:/Projects")
@@ -753,9 +753,9 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         ]
         owner.tree.IsExpanded.side_effect = lambda item: item is expanded_child
 
-        with mock.patch.object(main.tree_utils, "populate_tree_node") as mocked_populate, \
-             mock.patch.object(main.tree_utils.os.path, "isdir", return_value=True):
-            main.tree_utils.refresh_tree_subtree(owner, root, "D:/Projects")
+        with mock.patch.object(main.tree_control, "populate_tree_node") as mocked_populate, \
+             mock.patch.object(main.tree_control.os.path, "isdir", return_value=True):
+            main.tree_control.refresh_tree_subtree(owner, root, "D:/Projects")
 
         self.assertEqual(mocked_populate.call_count, 2)
         self.assertEqual(mocked_populate.call_args_list[0].args[2], os.path.normpath("D:/Projects"))
@@ -782,13 +782,13 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner.list.SetItem.assert_any_call(0, 1, "pdf")
 
     def test_drop_targets_share_common_base_class(self):
-        import controls.drag_and_drop as drag_and_drop_module
+        import common.drag_and_drop as drag_and_drop_module
 
         self.assertTrue(issubclass(drag_and_drop_module.FileListDropTarget, drag_and_drop_module.BaseFileSystemDropTarget))
         self.assertTrue(issubclass(drag_and_drop_module.TreeDropTarget, drag_and_drop_module.BaseFileSystemDropTarget))
 
     def test_drag_and_drop_refresh_delegates_to_filelist_refresh(self):
-        import controls.drag_and_drop as drag_and_drop_module
+        import common.drag_and_drop as drag_and_drop_module
 
         owner = object()
         called = {}
@@ -809,7 +809,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertEqual(called["preview"], "D:/Temp/file.txt")
 
     def test_internal_drag_payload_is_persisted_in_text_data(self):
-        import controls.drag_and_drop as drag_and_drop_module
+        import common.drag_and_drop as drag_and_drop_module
 
         owner = types.SimpleNamespace()
         target = drag_and_drop_module.FileListDropTarget(owner)
@@ -850,7 +850,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertEqual(fake_owner.file_clipboard_mode, copy_and_paste.CLIPBOARD_MODE_COPY)
 
     def test_drop_target_reports_drag_result_without_side_effects(self):
-        import controls.drag_and_drop as drag_and_drop_module
+        import common.drag_and_drop as drag_and_drop_module
 
         owner = types.SimpleNamespace(
             path_box=types.SimpleNamespace(GetValue=lambda: "D:/Temp"),
@@ -870,7 +870,7 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
     def test_non_conflicting_path_helper_is_single_shared_implementation(self):
         import file_operations.copy_and_paste as copy_and_paste_module
-        import controls.drag_and_drop as drag_and_drop_module
+        import common.drag_and_drop as drag_and_drop_module
 
         self.assertIs(drag_and_drop_module._build_non_conflicting_path, copy_and_paste_module._build_non_conflicting_path)
 
