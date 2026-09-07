@@ -12,7 +12,7 @@ if not hasattr(wx, "DATADOBJECT_PREFERRED"):
     wx.DATADOBJECT_PREFERRED = 0
 
 from controls import tree_control
-from common.menu_utils import FILE_COMMANDS, MenuCommandContext, _build_menu_command_context, append_menu_command
+from common.menu_utils import FILE_COMMANDS, FileCommandContext, MenuCommandContext, _build_menu_command_context, append_menu_command, build_file_operations_menu
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
 from file_operations.office_preview import is_office_file_open
@@ -539,66 +539,8 @@ def on_right_click(owner, event):
         menu.Destroy()
         return
 
-    selected_paths = get_selected_list_paths(owner)
-    valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and os.path.exists(path)]
-    can_act_on_selection = bool(valid_selected_paths)
-    can_act_on_single_selection = len(valid_selected_paths) == 1
-    can_create_in_current_folder = os.path.isdir(current_folder)
-    can_go_up = bool(current_folder and os.path.isdir(current_folder) and os.path.dirname(current_folder))
-    can_paste = _can_paste_into_directory(owner, current_folder)
-    can_add_to_archive = bool(valid_selected_paths and all(not _is_archive_file(path) for path in valid_selected_paths))
-    can_extract_from_archive = bool(len(valid_selected_paths) == 1 and _is_archive_file(valid_selected_paths[0]))
-
-    menu_context = _build_menu_command_context(owner, source="list", current_folder=current_folder, selected_paths=valid_selected_paths)
-    menu.AppendSeparator()
-    refresh_item = append_menu_command(menu, owner, FILE_COMMANDS["refresh"], menu_context)
-    print_item = append_menu_command(menu, owner, FILE_COMMANDS["print"], menu_context)
-    menu.AppendSeparator()
-    copy_item = append_menu_command(menu, owner, FILE_COMMANDS["copy"], menu_context)
-    cut_item = append_menu_command(menu, owner, FILE_COMMANDS["cut"], menu_context)
-    paste_item = append_menu_command(menu, owner, FILE_COMMANDS["paste"], menu_context)
-    rename_item = append_menu_command(menu, owner, FILE_COMMANDS["rename"], menu_context)
-    delete_item = append_menu_command(menu, owner, FILE_COMMANDS["delete"], menu_context)
-    delete_permanent_item = append_menu_command(menu, owner, FILE_COMMANDS["delete_permanent"], menu_context)
-    menu.AppendSeparator()
-
-    add_to_archive_item = menu.Append(-1, tr("context_add_to_archive"))
-    extract_from_archive_item = menu.Append(-1, tr("context_extract_from_archive_here"))
-    extract_from_archive_into_item = menu.Append(-1, tr("context_extract_from_archive_into"))
-
-    if icon_manager:
-        icon_manager.set_menu_icon2(add_to_archive_item, "add_to_archive")
-        icon_manager.set_menu_icon2(extract_from_archive_item, "extract_from_archive")
-        icon_manager.set_menu_icon2(extract_from_archive_into_item, "extract_from_archive")
-
-    scan_item = append_menu_command(menu, owner, FILE_COMMANDS["scan"], menu_context)
-    open_item = append_menu_command(menu, owner, FILE_COMMANDS["open"], menu_context)
-    folder_up_item = menu.Append(-1, tr("folder_up_button"))
-    new_folder_item = append_menu_command(menu, owner, FILE_COMMANDS["new_folder"], menu_context)
-    if icon_manager:
-        icon_manager.set_menu_icon(folder_up_item, art_id=wx.ART_GO_UP)
-    owner.Bind(wx.EVT_MENU, owner.on_folder_up, folder_up_item)
-
-    scan_item.Enable(True)
-    open_item.Enable(can_act_on_single_selection)
-    folder_up_item.Enable(can_go_up)
-    rename_item.Enable(can_act_on_single_selection)
-    new_folder_item.Enable(can_create_in_current_folder)
-    refresh_item.Enable(True)
-    print_item.Enable(can_act_on_single_selection)
-    copy_item.Enable(can_act_on_selection)
-    cut_item.Enable(can_act_on_selection)
-    paste_item.Enable(can_paste)
-    delete_item.Enable(can_act_on_selection)
-    delete_permanent_item.Enable(can_act_on_selection)
-    add_to_archive_item.Enable(can_add_to_archive)
-    extract_from_archive_item.Enable(can_extract_from_archive)
-    extract_from_archive_into_item.Enable(can_extract_from_archive)
-
-    owner.Bind(wx.EVT_MENU, lambda _event: _archive_selected_path(owner, valid_selected_paths), add_to_archive_item)
-    owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_here(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_item)
-    owner.Bind(wx.EVT_MENU, lambda _event: _extract_selected_archive_into(owner, valid_selected_paths[0]) if valid_selected_paths else None, extract_from_archive_into_item)
-
+    menu_context = MenuCommandContext(owner=owner, source="list", current_folder=current_folder, selected_paths=valid_selected_paths, target_path=None)
+    menu = build_file_operations_menu(menu_context)
     owner.list.PopupMenu(menu)
     menu.Destroy()
 
