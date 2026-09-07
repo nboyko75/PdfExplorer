@@ -539,6 +539,8 @@ def on_right_click(owner, event):
         menu.Destroy()
         return
 
+    selected_paths = get_selected_list_paths(owner)
+    valid_selected_paths = [path for path in selected_paths if isinstance(path, str) and path]
     menu_context = MenuCommandContext(owner=owner, source="list", current_folder=current_folder, selected_paths=valid_selected_paths, target_path=None)
     menu = build_file_operations_menu(menu_context)
     owner.list.PopupMenu(menu)

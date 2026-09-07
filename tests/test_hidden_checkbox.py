@@ -510,6 +510,29 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_restore.Enable.assert_called_once_with(True)
         fake_delete.Enable.assert_called_once_with(True)
 
+    def test_non_recycle_context_menu_uses_selected_paths(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.path_box = types.SimpleNamespace(GetValue=lambda: "C:/Temp")
+        owner.list = mock.MagicMock()
+        owner.list.HitTest.return_value = (0, mock.MagicMock())
+        owner.list.GetItemState.return_value = 0
+        owner.list.GetFirstSelected.return_value = 0
+        owner.list.GetNextSelected.return_value = wx.NOT_FOUND
+        owner.list.GetItemText.return_value = "file.txt"
+        owner.list.GetItemCount.return_value = 1
+        owner.list.PopupMenu = mock.Mock()
+        owner.Bind = mock.Mock()
+        owner.load_folder = mock.Mock()
+        owner._list_item_paths = {0: "C:/Temp/file.txt"}
+
+        with mock.patch.object(filelist, "build_file_operations_menu", return_value=mock.MagicMock()) as build_menu:
+            with mock.patch.object(filelist, "get_selected_list_paths", return_value=["C:/Temp/file.txt"]):
+                filelist.on_right_click(owner, mock.MagicMock())
+
+        build_menu.assert_called_once()
+        context = build_menu.call_args[0][0]
+        self.assertEqual(context.selected_paths, ["C:/Temp/file.txt"])
+
     def test_recycle_bin_context_menu_includes_clear_all_item(self):
         owner = main.FileExplorer.__new__(main.FileExplorer)
         owner.path_box = types.SimpleNamespace(GetValue=lambda: "shell:RecycleBinFolder")
