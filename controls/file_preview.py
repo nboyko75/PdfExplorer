@@ -257,6 +257,28 @@ def _close_preview_tab(owner, tab_index):
     show_file_preview(owner, owner.preview_tabs[owner.preview_active_tab_index].get("path"))
 
 
+def _path_has_missing_parent(path):
+    if not isinstance(path, str) or not path:
+        return False
+
+    normalized_path = os.path.normpath(path)
+    parent_path = os.path.dirname(normalized_path)
+    while parent_path and os.path.normpath(parent_path) != os.path.normpath(os.path.dirname(parent_path)):
+        if not os.path.exists(parent_path):
+            return True
+        parent_path = os.path.dirname(parent_path)
+
+    return False
+
+
+def _is_existing_path_with_valid_parents(path):
+    if not isinstance(path, str) or not path:
+        return False
+    if not os.path.exists(path):
+        return False
+    return not _path_has_missing_parent(path)
+
+
 def _is_office_preview_path(path):
     if not isinstance(path, str):
         return False
@@ -290,9 +312,13 @@ def _prune_deleted_preview_tabs(owner):
         tab_path = tab.get("path")
         if not tab_path:
             continue
-        if os.path.exists(tab_path):
+        if _is_existing_path_with_valid_parents(tab_path):
             valid_tabs.append(tab)
     owner.preview_tabs = valid_tabs
+
+    current_preview_path = getattr(owner, "current_preview_path", None)
+    if isinstance(current_preview_path, str) and current_preview_path and not _is_existing_path_with_valid_parents(current_preview_path):
+        owner.current_preview_path = None
 
     if not owner.preview_tabs:
         owner.preview_active_tab_index = None
@@ -1527,7 +1553,7 @@ def on_office_preview_checkbox_toggle(event):
 def show_file_preview(owner, path):
     _ensure_preview_tab_state(owner)
 
-    if path is not None and not os.path.exists(path):
+    if path is not None and not _is_existing_path_with_valid_parents(path):
         path = None
 
     _prune_deleted_preview_tabs(owner)

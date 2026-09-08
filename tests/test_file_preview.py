@@ -664,6 +664,31 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(owner.preview_active_tab_index, 0)
         self.assertIsNone(owner.current_preview_path)
 
+    def test_prune_deleted_preview_tabs_removes_stale_paths_with_missing_parent_folder(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="C:/folder/deleted/file.pdf",
+            preview_tabs=[
+                {"path": "C:/folder/deleted/file.pdf", "pinned": False},
+                {"path": "keep.pdf", "pinned": False},
+            ],
+            preview_active_tab_index=1,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", side_effect=lambda path: path == "keep.pdf"), \
+             mock.patch.object(file_preview, "_normalize_preview_tabs") as mocked_normalize, \
+             mock.patch.object(file_preview, "_render_preview_tab_bar") as mocked_render:
+            file_preview._prune_deleted_preview_tabs(owner)
+
+        self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["keep.pdf"])
+        self.assertEqual(owner.preview_active_tab_index, 0)
+        self.assertIsNone(owner.current_preview_path)
+        mocked_normalize.assert_called_once_with(owner)
+        mocked_render.assert_called_once_with(owner)
+
     def test_refresh_after_fs_change_prunes_deleted_preview_tabs(self):
         filelist = __import__("controls.filelist", fromlist=["_refresh_after_fs_change"])
         owner = types.SimpleNamespace(
