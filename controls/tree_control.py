@@ -193,7 +193,6 @@ def select_tree_item_by_path(owner, path):
     owner._syncing_tree_from_path = True
     try:
         owner.tree.SelectItem(item)
-        owner.tree.Expand(item)
         owner.tree.EnsureVisible(item)
     finally:
         if not previous_syncing:

@@ -128,7 +128,6 @@ class FileExplorer(wx.Frame):
         last_folder = settings.get("last_folder")
         if not opened_initial_path and last_folder and os.path.isdir(last_folder):
             self.open_path(last_folder, add_history=False)
-            wx.CallAfter(self.select_tree_item_by_path, last_folder)
         elif not opened_initial_path:
             self.open_path(os.path.expanduser("~"))
 
