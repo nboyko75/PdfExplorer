@@ -608,6 +608,80 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual([tab["path"] for tab in owner.preview_tabs], ["pinned.pdf"])
         self.assertEqual(owner.preview_active_tab_index, 0)
 
+    def test_show_file_preview_keeps_existing_preview_when_folder_is_selected(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            current_preview_path="current.pdf",
+            preview_tabs=[
+                {"path": "current.pdf", "pinned": False, "caption": "current.pdf", "hint": "current.pdf"},
+                {"path": "other.pdf", "pinned": False, "caption": "other.pdf", "hint": "other.pdf"},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/folder"),
+            load_folder=mock.MagicMock(),
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", side_effect=lambda path: path in {"C:/folder", "current.pdf", "other.pdf"}), \
+             mock.patch("controls.file_preview.os.path.isdir", side_effect=lambda path: path == "C:/folder"), \
+             mock.patch("controls.file_preview.os.path.isfile", side_effect=lambda path: path in {"current.pdf", "other.pdf"}), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
+             mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_html", return_value=False), \
+             mock.patch.object(file_preview, "can_preview_text_file", return_value=False):
+            file_preview.show_file_preview(owner, "C:/folder")
+
+        self.assertEqual(owner.current_preview_path, "current.pdf")
+        self.assertEqual(set(tab["path"] for tab in owner.preview_tabs), {"current.pdf", "other.pdf"})
+
+    def test_show_file_preview_keeps_previous_preview_for_nonpreviewable_file(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            current_preview_path="current.pdf",
+            preview_tabs=[
+                {"path": "current.pdf", "pinned": False, "caption": "current.pdf", "hint": "current.pdf"},
+                {"path": "other.pdf", "pinned": False, "caption": "other.pdf", "hint": "other.pdf"},
+            ],
+            preview_active_tab_index=0,
+            preview_tab_pane=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            preview_tab_sizer=types.SimpleNamespace(Clear=mock.MagicMock(), Add=mock.MagicMock()),
+            preview_content_panel=types.SimpleNamespace(Layout=mock.MagicMock(), Refresh=mock.MagicMock()),
+            preview_text=types.SimpleNamespace(Show=mock.MagicMock(), SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Hide=mock.MagicMock(), Show=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/folder"),
+            load_folder=mock.MagicMock(),
+            busy_cursor=lambda: file_preview.nullcontext(),
+        )
+
+        with mock.patch("controls.file_preview.os.path.exists", side_effect=lambda path: path in {"current.pdf", "other.pdf", "unsupported.bin"}), \
+             mock.patch("controls.file_preview.os.path.isdir", return_value=False), \
+             mock.patch("controls.file_preview.os.path.isfile", side_effect=lambda path: path in {"current.pdf", "other.pdf", "unsupported.bin"}), \
+             mock.patch.object(file_preview, "_is_previewable_path", return_value=False), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"):
+            file_preview.show_file_preview(owner, "unsupported.bin")
+
+        self.assertEqual(owner.current_preview_path, "current.pdf")
+        self.assertEqual(set(tab["path"] for tab in owner.preview_tabs), {"current.pdf", "other.pdf"})
+
     def test_show_file_preview_removes_tabs_for_deleted_files(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(

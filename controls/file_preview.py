@@ -156,9 +156,12 @@ def _render_preview_tab_bar(owner):
         return
 
     active_index = owner.preview_active_tab_index
-    if active_index is None or active_index < 0 or active_index >= len(owner.preview_tabs):
-        active_index = 0
-        owner.preview_active_tab_index = 0
+    if (
+        active_index is not None
+        and (active_index < 0 or active_index >= len(owner.preview_tabs))
+    ):
+        active_index = None
+        owner.preview_active_tab_index = None
 
     for index, tab in enumerate(owner.preview_tabs):
         caption = _get_preview_tab_label(tab.get("path"))
@@ -307,29 +310,41 @@ def _is_previewable_path(owner, path):
 
 def _prune_deleted_preview_tabs(owner):
     _ensure_preview_tab_state(owner)
+
+    old_tabs = list(owner.preview_tabs)
     valid_tabs = []
-    for tab in getattr(owner, "preview_tabs", []):
+
+    for tab in old_tabs:
         tab_path = tab.get("path")
-        if not tab_path:
-            continue
-        if _is_existing_path_with_valid_parents(tab_path):
+        if tab_path and _is_existing_path_with_valid_parents(tab_path):
             valid_tabs.append(tab)
+
+    tabs_changed = len(valid_tabs) != len(old_tabs)
     owner.preview_tabs = valid_tabs
 
     current_preview_path = getattr(owner, "current_preview_path", None)
-    if isinstance(current_preview_path, str) and current_preview_path and not _is_existing_path_with_valid_parents(current_preview_path):
+    if (
+        isinstance(current_preview_path, str)
+        and current_preview_path
+        and not _is_existing_path_with_valid_parents(current_preview_path)
+    ):
         owner.current_preview_path = None
 
     if not owner.preview_tabs:
         owner.preview_active_tab_index = None
-        return
+    else:
+        active_index = getattr(owner, "preview_active_tab_index", 0)
+        if active_index is None or active_index < 0:
+            active_index = 0
 
-    active_index = getattr(owner, "preview_active_tab_index", 0)
-    if active_index is None or active_index < 0:
-        active_index = 0
-    owner.preview_active_tab_index = max(0, min(active_index, len(owner.preview_tabs) - 1))
-    _normalize_preview_tabs(owner)
-    _render_preview_tab_bar(owner)
+        owner.preview_active_tab_index = min(
+            active_index,
+            len(owner.preview_tabs) - 1,
+        )
+        _normalize_preview_tabs(owner)
+
+    if tabs_changed:
+        _render_preview_tab_bar(owner)
 
 
 def _sync_preview_tab_for_path(owner, path):
@@ -340,17 +355,9 @@ def _sync_preview_tab_for_path(owner, path):
     if os.path.isdir(path):
         owner.preview_tabs = [
             tab for tab in owner.preview_tabs
-            if tab.get("pinned", False) or not tab.get("path") or not os.path.isdir(tab["path"])
+            if tab.get("pinned", False)
         ]
-        owner.preview_tabs = [
-            tab for tab in owner.preview_tabs
-            if tab.get("pinned", False) or not tab.get("path") or not os.path.isdir(tab["path"])
-        ]
-        if owner.preview_tabs:
-            owner.preview_active_tab_index = max(0, len(owner.preview_tabs) - 1)
-        else:
-            owner.preview_active_tab_index = None
-        _normalize_preview_tabs(owner)
+        owner.preview_active_tab_index = None
         _render_preview_tab_bar(owner)
         return
 
@@ -1565,6 +1572,57 @@ def show_file_preview(owner, path):
         path = None
 
     _prune_deleted_preview_tabs(owner)
+
+    clear_for_selection = (
+        path is not None
+        and (
+            os.path.isdir(path)
+            or (
+                os.path.isfile(path)
+                and not _is_previewable_path(owner, path)
+            )
+        )
+    )
+
+    if clear_for_selection:
+        preview_panel = getattr(owner, "preview_content_panel", None)
+
+        if preview_panel is not None:
+            preview_panel.Freeze()
+
+        try:
+            owner.current_preview_path = None
+            owner.selected_pdf_page_panel = None
+            owner.current_image_preview = None
+
+            # Remove every unpinned tab, including the first tab.
+            owner.preview_tabs = [
+                tab for tab in owner.preview_tabs
+                if tab.get("pinned", False)
+            ]
+            owner.preview_active_tab_index = None
+
+            set_preview_mode(owner, "empty")
+            update_preview_toolbar_visibility(
+                owner,
+                is_pdf=False,
+                is_image=False,
+            )
+            _render_preview_tab_bar(owner)
+
+            if hasattr(owner, "office_preview_checkbox"):
+                owner.office_preview_checkbox.Enable(
+                    bool(getattr(owner, "preview_enabled", True))
+                )
+
+            if preview_panel is not None:
+                preview_panel.Layout()
+        finally:
+            if preview_panel is not None:
+                preview_panel.Thaw()
+
+        return
+
     if path is not None:
         _sync_preview_tab_for_path(owner, path)
 
