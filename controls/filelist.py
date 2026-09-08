@@ -1093,6 +1093,15 @@ def delete_paths(owner, paths, permanent=False):
     current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
     affected_dirs = [current_folder] if current_folder else []
     removed_current_preview = False
+    deleted_displayed_folder = None
+
+    for path in unique_paths:
+        if os.path.isdir(path):
+            normalized_current_folder = os.path.normpath(current_folder) if isinstance(current_folder, str) and current_folder else None
+            normalized_path = os.path.normpath(path)
+            if normalized_current_folder is not None and normalized_current_folder == normalized_path:
+                deleted_displayed_folder = normalized_path
+            break
 
     try:
         for path in unique_paths:
@@ -1122,6 +1131,12 @@ def delete_paths(owner, paths, permanent=False):
                 errors.append(f"{path}: {exc}")
 
         _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
+
+        if deleted_displayed_folder is not None and hasattr(owner, "load_folder"):
+            parent_folder = os.path.dirname(deleted_displayed_folder)
+            if parent_folder and os.path.isdir(parent_folder):
+                owner.load_folder(parent_folder)
+
         if removed_current_preview:
             file_preview.show_file_preview(owner, None)
         else:

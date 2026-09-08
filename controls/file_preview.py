@@ -105,6 +105,14 @@ def _ensure_preview_tab_state(owner):
         owner.preview_active_tab_index = None
 
 
+def _clear_preview_content_state(owner):
+    owner.selected_pdf_page_panel = None
+    owner.current_image_preview = None
+    owner.current_image_zoom = 1.0
+    owner.current_html_zoom = 1.0
+    set_preview_mode(owner, "empty")
+
+
 def _normalize_preview_tabs(owner):
     _ensure_preview_tab_state(owner)
     if not owner.preview_tabs:
@@ -313,21 +321,42 @@ def _prune_deleted_preview_tabs(owner):
 
     old_tabs = list(owner.preview_tabs)
     valid_tabs = []
+    removed_displayed_tab = False
+
+    current_preview_path = getattr(owner, "current_preview_path", None)
+    normalized_current_path = (
+        os.path.normcase(os.path.normpath(current_preview_path))
+        if isinstance(current_preview_path, str) and current_preview_path
+        else None
+    )
 
     for tab in old_tabs:
         tab_path = tab.get("path")
-        if tab_path and _is_existing_path_with_valid_parents(tab_path):
+        if not tab_path:
+            continue
+        if _is_existing_path_with_valid_parents(tab_path):
             valid_tabs.append(tab)
+            continue
+        if (
+            normalized_current_path is not None
+            and os.path.normcase(os.path.normpath(tab_path)) == normalized_current_path
+        ):
+            removed_displayed_tab = True
 
     tabs_changed = len(valid_tabs) != len(old_tabs)
     owner.preview_tabs = valid_tabs
 
-    current_preview_path = getattr(owner, "current_preview_path", None)
     if (
         isinstance(current_preview_path, str)
         and current_preview_path
         and not _is_existing_path_with_valid_parents(current_preview_path)
     ):
+        owner.current_preview_path = None
+        removed_displayed_tab = True
+
+    if removed_displayed_tab:
+        _clear_preview_content_state(owner)
+        update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
         owner.current_preview_path = None
 
     if not owner.preview_tabs:
@@ -343,7 +372,7 @@ def _prune_deleted_preview_tabs(owner):
         )
         _normalize_preview_tabs(owner)
 
-    if tabs_changed:
+    if tabs_changed or removed_displayed_tab:
         _render_preview_tab_bar(owner)
 
 
@@ -1652,11 +1681,7 @@ def show_file_preview(owner, path):
 
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
-    owner.selected_pdf_page_panel = None
-    owner.current_image_preview = None
-    owner.current_image_zoom = 1.0
-    owner.current_html_zoom = 1.0
-    set_preview_mode(owner, "empty")
+    _clear_preview_content_state(owner)
 
     can_preview_office = is_office_preview_allowed(owner, path)
     if not can_preview_office:
