@@ -340,8 +340,16 @@ def _sync_preview_tab_for_path(owner, path):
     if os.path.isdir(path):
         owner.preview_tabs = [
             tab for tab in owner.preview_tabs
-            if not tab.get("path") or not os.path.isdir(tab["path"])
+            if tab.get("pinned", False) or not tab.get("path") or not os.path.isdir(tab["path"])
         ]
+        owner.preview_tabs = [
+            tab for tab in owner.preview_tabs
+            if tab.get("pinned", False) or not tab.get("path") or not os.path.isdir(tab["path"])
+        ]
+        if owner.preview_tabs:
+            owner.preview_active_tab_index = max(0, len(owner.preview_tabs) - 1)
+        else:
+            owner.preview_active_tab_index = None
         _normalize_preview_tabs(owner)
         _render_preview_tab_bar(owner)
         return
