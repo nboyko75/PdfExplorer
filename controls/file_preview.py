@@ -246,14 +246,33 @@ def _close_preview_tab(owner, tab_index):
     if tab_index < 0 or tab_index >= len(owner.preview_tabs):
         return
 
+    closed_tab = owner.preview_tabs[tab_index]
+    closed_path = closed_tab.get("path")
+    current_preview_path = getattr(owner, "current_preview_path", None)
+    is_closing_active_tab = False
+
+    if closed_path and current_preview_path:
+        is_closing_active_tab = (
+            os.path.normcase(os.path.normpath(closed_path))
+            == os.path.normcase(os.path.normpath(current_preview_path))
+        )
+    elif owner.preview_active_tab_index == tab_index:
+        is_closing_active_tab = True
+
     active_index = owner.preview_active_tab_index
     del owner.preview_tabs[tab_index]
 
     if not owner.preview_tabs:
         owner.preview_active_tab_index = None
-        current_preview_path = getattr(owner, "current_preview_path", None)
-        if current_preview_path:
-            owner.current_preview_path = None
+        owner.current_preview_path = None
+        _clear_preview_content_state(owner)
+        _render_preview_tab_bar(owner)
+        return
+
+    if is_closing_active_tab:
+        owner.preview_active_tab_index = None
+        owner.current_preview_path = None
+        _clear_preview_content_state(owner)
         _render_preview_tab_bar(owner)
         return
 

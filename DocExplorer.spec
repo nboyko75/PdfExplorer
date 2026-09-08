@@ -41,7 +41,11 @@ a = Analysis(
     [str(project_dir / 'main.py')],
     pathex=[str(project_dir), str(venv_site_packages)],
     binaries=[],
-    datas=[('images', 'images'), ('localization', 'localization'), ('docs/DocExplorer_User_Manual.pdf', 'docs')] + pymupdf_datas,
+    datas=[
+        (str(project_dir / "images"), "images"),
+        (str(project_dir / "localization"), "localization"),
+        (str(project_dir / "docs" / "DocExplorer_User_Manual.pdf"), "docs"),
+    ] + pymupdf_datas,
     hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -71,5 +75,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['D:\\Projects\\PdfExplorer\\images\\main.ico'],
+    icon=[str(project_dir / "images" / "main.ico")],
 )

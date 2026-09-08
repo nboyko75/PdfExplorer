@@ -13,8 +13,6 @@ set "PYINSTALLER_EXE=D:\Python\Python310\Scripts\pyinstaller.exe"
 if not exist "%IMAGES_DIST_DIR%" (
 	mkdir "%IMAGES_DIST_DIR%"
 )
-copy /Y "%IMAGES_PROJECT_DIR%\*.*" "%IMAGES_DIST_DIR%" >nul
-echo images are copied to "%IMAGES_DIST_DIR%"
 
 if not exist "%LOCALIZATION_DIST_DIR%" (
 	mkdir "%LOCALIZATION_DIST_DIR%"
