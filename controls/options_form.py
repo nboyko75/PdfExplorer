@@ -38,6 +38,30 @@ def _apply_dialog_geometry(dialog, settings):
     )
 
 
+def _restart_application():
+    """Start a fresh application instance without reusing PyInstaller's temp dir."""
+    if getattr(sys, "frozen", False):
+        restart_args = [sys.executable, *sys.argv[1:]]
+    else:
+        restart_args = [sys.executable, os.path.abspath(sys.argv[0]), *sys.argv[1:]]
+
+    restart_environment = os.environ.copy()
+    # A child of a PyInstaller one-file process otherwise inherits the parent's
+    # _MEI application directory. The parent removes that directory while it is
+    # closing, which can make bundled resources disappear during child startup.
+    restart_environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+
+    popen_kwargs = {
+        "cwd": os.path.dirname(os.path.abspath(sys.executable)),
+        "env": restart_environment,
+        "close_fds": True,
+    }
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+    subprocess.Popen(restart_args, **popen_kwargs)
+
+
 class OptionsDialog(wx.Dialog):
     def __init__(self, owner):
         super().__init__(owner, title=tr("options_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -273,9 +297,7 @@ class OptionsDialog(wx.Dialog):
                         self.owner.refresh_locale()
 
                     try:
-                        app_executable = sys.executable
-                        restart_args = [app_executable, *sys.argv[1:]]
-                        subprocess.Popen(restart_args, cwd=os.getcwd())
+                        _restart_application()
                         self.owner.Hide()
                         self.owner.Destroy()
                         if hasattr(wx, "GetApp") and wx.GetApp() is not None:
