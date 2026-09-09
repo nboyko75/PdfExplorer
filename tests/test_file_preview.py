@@ -19,6 +19,39 @@ def _import_file_preview_with_mocked_wx():
         return importlib.import_module("controls.file_preview")
 
 
+class OfficeEditorCloseTests(unittest.TestCase):
+    def test_close_does_not_quit_office_application(self):
+        from file_operations import office_editor
+
+        editor = office_editor.EmbeddedOfficeEditor(panel=mock.Mock())
+        document = mock.Mock()
+        application = mock.Mock()
+        editor.kind = "word"
+        editor.document = document
+        editor.application = application
+        editor.hwnd = 1234
+        editor._com_initialized = True
+
+        mock_win32con = mock.Mock()
+        mock_win32con.SW_HIDE = 7
+
+        with mock.patch.object(office_editor, "win32gui", mock.Mock()) as mock_win32gui, \
+             mock.patch.object(office_editor, "win32con", mock_win32con), \
+             mock.patch.object(office_editor, "pythoncom", mock.Mock()) as mock_pythoncom:
+            mock_win32gui.IsWindow.return_value = True
+            editor.close(save_changes=False)
+
+        self.assertIsNone(editor.document)
+        self.assertIsNone(editor.application)
+        self.assertIsNone(editor.hwnd)
+        document.Close.assert_called_once_with(SaveChanges=0)
+        application.Quit.assert_not_called()
+        self.assertFalse(editor._com_initialized)
+        mock_win32gui.SetParent.assert_called_once_with(1234, 0)
+        mock_win32gui.ShowWindow.assert_called_once_with(1234, mock_win32con.SW_HIDE)
+        mock_pythoncom.CoUninitialize.assert_called_once_with()
+
+
 class PreviewDialogHelpersTests(unittest.TestCase):
     def test_create_ok_cancel_row_builds_standard_button_row(self):
         file_preview = _import_file_preview_with_mocked_wx()
@@ -1026,6 +1059,39 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(mocked_show_file_preview.call_count, 2)
         mocked_show_file_preview.assert_any_call(owner, None)
         mocked_show_file_preview.assert_any_call(owner, "report.docx")
+
+    def test_office_file_keeps_selected_path_until_preview_is_enabled(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            current_preview_path=None,
+            preview_tabs=[],
+            preview_active_tab_index=None,
+            preview_text=types.SimpleNamespace(SetValue=mock.MagicMock()),
+            pdf_pages_panel=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), Layout=mock.MagicMock()),
+            pdf_preview_container=types.SimpleNamespace(Show=mock.MagicMock(), Hide=mock.MagicMock(), Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+            office_preview_checkbox=types.SimpleNamespace(Enable=mock.MagicMock(), GetValue=lambda: True),
+            selected_pdf_page_panel=None,
+            current_image_preview=None,
+        )
+
+        with mock.patch.object(file_preview, "confirm_preview_change", return_value=True), \
+             mock.patch.object(file_preview, "close_office_editor"), \
+             mock.patch.object(file_preview, "_prune_deleted_preview_tabs"), \
+             mock.patch.object(file_preview, "_sync_preview_tab_for_path"), \
+             mock.patch.object(file_preview, "_reset_pdf_view_mode_for_new_file"), \
+             mock.patch.object(file_preview, "update_page_buttons_state"), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+             mock.patch.object(file_preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=False), \
+             mock.patch.object(file_preview.os.path, "isdir", return_value=False), \
+             mock.patch.object(file_preview.os.path, "isfile", return_value=True), \
+             mock.patch.object(file_preview, "_is_previewable_path", return_value=False):
+            file_preview.show_file_preview(owner, "report.docx")
+
+        self.assertEqual(owner.current_preview_path, "report.docx")
 
     def test_preview_toggle_checkbox_defaults_to_checked(self):
         file_preview = _import_file_preview_with_mocked_wx()

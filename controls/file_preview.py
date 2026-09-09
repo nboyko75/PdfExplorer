@@ -1738,7 +1738,10 @@ def show_file_preview(owner, path):
 
         try:
             close_office_editor(owner, save_changes=False)
-            owner.current_preview_path = None
+            if path is not None and os.path.isfile(path):
+                owner.current_preview_path = path
+            else:
+                owner.current_preview_path = None
             owner.selected_pdf_page_panel = None
             owner.current_image_preview = None
 

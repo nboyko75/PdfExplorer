@@ -214,14 +214,24 @@ class EmbeddedOfficeEditor:
 
     def close(self, save_changes=False):
         document = self.document
-        application = self.application
         kind = self.kind
+        hwnd = self.hwnd
 
         self.path = None
         self.kind = None
         self.document = None
         self.application = None
         self.hwnd = None
+
+        if hwnd is not None and win32gui is not None and win32gui.IsWindow(hwnd):
+            try:
+                win32gui.SetParent(hwnd, 0)
+            except Exception:
+                pass
+            try:
+                win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+            except Exception:
+                pass
 
         try:
             if document is not None:
@@ -237,11 +247,7 @@ class EmbeddedOfficeEditor:
                     document.Close(SaveChanges=bool(save_changes))
         except Exception:
             pass
-        try:
-            if application is not None:
-                application.Quit()
-        except Exception:
-            pass
+
         if self._com_initialized and pythoncom is not None:
             try:
                 pythoncom.CoUninitialize()
