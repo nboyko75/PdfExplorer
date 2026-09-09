@@ -1370,6 +1370,71 @@ class SearchFilesTests(unittest.TestCase):
 
         self.assertEqual(owner.path_box.value, folder_path)
 
+    def test_find_tree_item_by_path_does_not_expand_similar_sibling_prefixes(self):
+        import controls.tree_control as tree_control
+
+        class FakeTreeItem:
+            def __init__(self, value=None):
+                self.value = value
+                self.expanded = False
+
+            def IsOk(self):
+                return self.value is not False
+
+        class FakeTree:
+            def __init__(self):
+                self.root = FakeTreeItem("root")
+                self.first = FakeTreeItem(r"D:\Projects\Folder 1")
+                self.second = FakeTreeItem(r"D:\Projects\Folder 10")
+                self.child = FakeTreeItem(r"D:\Projects\Folder 10\Sub")
+                self.selection = None
+                self.expanded_items = []
+
+            def GetRootItem(self):
+                return self.root
+
+            def GetFirstChild(self, item):
+                if item is self.root:
+                    return self.first, 0
+                if item is self.first:
+                    return FakeTreeItem(False), None
+                if item is self.second:
+                    return self.child, None
+                return FakeTreeItem(False), None
+
+            def GetNextChild(self, item, cookie):
+                if item is self.root and cookie == 0:
+                    return self.second, 1
+                return FakeTreeItem(False), None
+
+            def GetItemData(self, item):
+                if item is self.first:
+                    return self.first.value
+                if item is self.second:
+                    return self.second.value
+                if item is self.child:
+                    return self.child.value
+                return None
+
+            def Expand(self, item):
+                self.expanded_items.append(item.value)
+                item.expanded = True
+
+            def SelectItem(self, item):
+                self.selection = item
+
+            def EnsureVisible(self, item):
+                pass
+
+        owner = types.SimpleNamespace(tree=FakeTree(), show_hidden=False, _syncing_tree_from_path=False)
+
+        with mock.patch.object(tree_control, "_should_populate_tree_node", return_value=False):
+            item = tree_control.find_tree_item_by_path(owner, r"D:\Projects\Folder 10\Sub")
+
+        self.assertIsNotNone(item)
+        self.assertNotIn(r"D:\Projects\Folder 1", owner.tree.expanded_items)
+        self.assertIn(r"D:\Projects\Folder 10", owner.tree.expanded_items)
+
     def test_should_populate_tree_node_for_drive_root_with_placeholder_child(self):
         import controls.tree_control as tree_control
 

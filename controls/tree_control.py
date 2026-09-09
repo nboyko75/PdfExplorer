@@ -106,6 +106,24 @@ def refresh_tree_placeholders(owner):
     visit(root)
 
 
+def _is_child_path(parent_path, child_path):
+    if not isinstance(parent_path, str) or not isinstance(child_path, str):
+        return False
+
+    normalized_parent = os.path.normcase(normalize_tree_path(parent_path))
+    normalized_child = os.path.normcase(normalize_tree_path(child_path))
+    if not normalized_parent or not normalized_child:
+        return False
+
+    if normalized_child == normalized_parent:
+        return True
+
+    if normalized_parent.endswith(os.sep):
+        return normalized_child.startswith(normalized_parent)
+
+    return normalized_child.startswith(normalized_parent + os.sep)
+
+
 def _should_populate_tree_node(owner, item, item_path):
     if not item or not item.IsOk():
         return False
@@ -139,7 +157,7 @@ def find_tree_item_by_path(owner, path):
             item_normalized = os.path.normpath(item_path)
             if item_normalized == normalized:
                 return child
-            if normalized.startswith(item_normalized):
+            if _is_child_path(item_normalized, normalized):
                 if _should_populate_tree_node(owner, child, item_path):
                     populate_tree_node(owner, child, item_path)
                 owner.tree.Expand(child)
@@ -163,7 +181,7 @@ def find_tree_child_path(owner, parent, normalized_path):
             item_normalized = os.path.normpath(item_path)
             if item_normalized == normalized_path:
                 return child
-            if normalized_path.startswith(item_normalized):
+            if _is_child_path(item_normalized, normalized_path):
                 if _should_populate_tree_node(owner, child, item_path):
                     populate_tree_node(owner, child, item_path)
                 owner.tree.Expand(child)
