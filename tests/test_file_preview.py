@@ -233,6 +233,49 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         owner.preview_page_view_mode_btn.Show.assert_called_once_with(True)
 
+    def test_office_preview_hides_toolbar_actions_but_keeps_checkboxes(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            current_preview_path="sample.docx",
+            preview_save_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_cancel_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_rotate_menu_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_optimize_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_adjust_page_width_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_import_from_file_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_export_pages_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_move_page_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_remove_page_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_page_view_mode_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_zoom_in_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_zoom_out_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_load_all_btn=types.SimpleNamespace(Show=mock.MagicMock()),
+            preview_toolbar=types.SimpleNamespace(Layout=mock.MagicMock()),
+            filePreview=types.SimpleNamespace(Layout=mock.MagicMock()),
+        )
+
+        with mock.patch("controls.file_preview.os.path.isfile", return_value=True), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=True), \
+             mock.patch.object(file_preview, "update_pdf_save_button_state"):
+            file_preview.update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
+
+        for name in (
+            "preview_save_btn",
+            "preview_cancel_btn",
+            "preview_rotate_menu_btn",
+            "preview_optimize_btn",
+            "preview_adjust_page_width_btn",
+            "preview_import_from_file_btn",
+            "preview_export_pages_btn",
+            "preview_move_page_btn",
+            "preview_remove_page_btn",
+            "preview_page_view_mode_btn",
+            "preview_zoom_in_btn",
+            "preview_zoom_out_btn",
+            "preview_load_all_btn",
+        ):
+            getattr(owner, name).Show.assert_called_once_with(False)
+
     def test_refresh_preview_for_page_view_mode_reloads_image_preview(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(current_preview_path="sample.png")
@@ -275,24 +318,30 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(False)
         owner.preview_optimize_btn.Enable.assert_called_once_with(False)
 
-    def test_manual_zoom_works_for_office_preview(self):
+    def test_office_preview_zoom_actions_are_disabled(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
             current_preview_path="sample.docx",
             pdf_preview_zoom=1.0,
             pdf_page_view_mode=file_preview.PAGE_VIEW_MODE_1_WIDE,
             busy_cursor=lambda: file_preview.nullcontext(),
+            preview_zoom_in_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
+            preview_zoom_out_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
         )
 
         with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
-             mock.patch.object(file_preview.office_preview, "can_preview_office", return_value=True), \
-             mock.patch.object(file_preview.office_preview, "convert_office_to_preview_pdf", return_value="converted.pdf"), \
+             mock.patch.object(file_preview, "is_office_preview_allowed", return_value=True), \
+             mock.patch.object(file_preview.office_preview, "convert_office_to_preview_pdf", return_value="converted.pdf") as mocked_convert, \
              mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed:
             file_preview.on_preview_zoom_in(types.SimpleNamespace())
+            file_preview.on_preview_zoom_out(types.SimpleNamespace())
 
-        self.assertEqual(owner.pdf_preview_zoom, 1.25)
-        self.assertEqual(owner.pdf_page_view_mode, file_preview.PAGE_VIEW_MODE_MANUAL)
-        mocked_show_pdf_feed.assert_called_once_with(owner, "converted.pdf")
+        self.assertEqual(owner.pdf_preview_zoom, 1.0)
+        self.assertEqual(owner.pdf_page_view_mode, file_preview.PAGE_VIEW_MODE_1_WIDE)
+        mocked_convert.assert_not_called()
+        mocked_show_pdf_feed.assert_not_called()
+        owner.preview_zoom_in_btn.Enable.assert_called_once_with(False)
+        owner.preview_zoom_out_btn.Enable.assert_called_once_with(False)
 
     def test_show_file_preview_refreshes_same_office_file_when_enabled(self):
         file_preview = _import_file_preview_with_mocked_wx()

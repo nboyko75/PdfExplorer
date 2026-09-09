@@ -356,19 +356,23 @@ class FileExplorer(wx.Frame):
         is_image_preview = bool(current_preview and image_utils.can_preview_image(current_preview))
         is_office_preview = bool(current_preview and file_preview.is_office_preview_allowed(self, current_preview))
         is_html_preview = bool(current_preview and file_preview.can_preview_html(current_preview))
-        is_previewable = bool(current_preview) and (is_pdf_preview or is_image_preview or is_office_preview or is_html_preview)
+        is_previewable = bool(current_preview) and (is_pdf_preview or is_image_preview or is_html_preview)
+        is_office_editing = bool(
+            is_office_preview
+            and getattr(self, "current_preview_mode", None) == "office"
+        )
 
         self.doc_import_item.Enable(is_pdf_preview)
         self.doc_import_scanner_item.Enable(is_pdf_preview)
         self.doc_export_item.Enable(is_pdf_preview)
-        self.doc_save_item.Enable(is_pdf_preview and file_preview.has_unsaved_pdf_changes(self.current_preview_path))
-        self.doc_cancel_item.Enable(is_pdf_preview and file_preview.has_unsaved_pdf_changes(self.current_preview_path))
-        self.doc_zoom_in_item.Enable(is_previewable)
-        self.doc_zoom_out_item.Enable(is_previewable)
-        self.doc_1_page_wide_item.Enable(is_previewable)
-        self.doc_2_pages_wide_item.Enable(is_previewable)
-        self.doc_1_page_tall_item.Enable(is_previewable)
-        self.doc_manual_scale_item.Enable(is_previewable)
+        self.doc_save_item.Enable((not is_office_preview) and (is_office_editing or (is_pdf_preview and file_preview.has_unsaved_pdf_changes(self.current_preview_path))))
+        self.doc_cancel_item.Enable((not is_office_preview) and (is_office_editing or (is_pdf_preview and file_preview.has_unsaved_pdf_changes(self.current_preview_path))))
+        self.doc_zoom_in_item.Enable(is_previewable and not is_office_preview and not is_office_preview)
+        self.doc_zoom_out_item.Enable(is_previewable and not is_office_preview)
+        self.doc_1_page_wide_item.Enable(is_previewable and not is_office_preview)
+        self.doc_2_pages_wide_item.Enable(is_previewable and not is_office_preview)
+        self.doc_1_page_tall_item.Enable(is_previewable and not is_office_preview)
+        self.doc_manual_scale_item.Enable(is_previewable and not is_office_preview)
         self.doc_rotate_all_left_item.Enable(is_pdf_preview)
         self.doc_rotate_left_item.Enable(is_pdf_preview or is_image_preview)
         self.doc_rotate_right_item.Enable(is_pdf_preview or is_image_preview)
@@ -702,6 +706,10 @@ class FileExplorer(wx.Frame):
                 self.favorite_panel.GetSizer().Layout()
 
     def on_close(self, event):
+        if not file_preview.confirm_preview_change(self, None):
+            event.Veto()
+            return
+
         unsaved_pdf_paths = get_unsaved_pdf_paths()
         if unsaved_pdf_paths:
             dialog = wx.MessageDialog(
@@ -732,6 +740,7 @@ class FileExplorer(wx.Frame):
                 return
 
         try:
+            file_preview.close_office_editor(self, save_changes=False)
             self.save_splitter_positions()
             self.save_list_view_state()
             save_window_geometry(self)

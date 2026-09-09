@@ -10,6 +10,8 @@ pywin32_hiddenimports = [
     "win32com",
     "win32com.client",
     "win32com.client.dynamic",
+    "win32con",
+    "win32gui",
 ]
 
 pywin32_hiddenimports += collect_submodules("win32com")

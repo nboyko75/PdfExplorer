@@ -17,6 +17,7 @@ from common.window_tools import load_settings, update_settings
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview
+import file_operations.office_editor as office_editor
 import file_operations.pdf_utils as pdf_utils
 
 
@@ -64,7 +65,7 @@ def set_preview_mode(owner, mode):
         return
 
     mode_name = mode if isinstance(mode, str) else "empty"
-    if mode_name not in {"text", "pages", "single", "empty"}:
+    if mode_name not in {"text", "pages", "single", "office", "empty"}:
         mode_name = "empty"
 
     if hasattr(owner, "preview_text"):
@@ -73,6 +74,8 @@ def set_preview_mode(owner, mode):
         owner.pdf_pages_panel.Show(mode_name == "pages")
     if hasattr(owner, "pdf_preview_container"):
         owner.pdf_preview_container.Show(mode_name == "single")
+    if hasattr(owner, "office_editor_panel"):
+        owner.office_editor_panel.Show(mode_name == "office")
     if hasattr(owner, "filePreview"):
         owner.filePreview.Layout()
 
@@ -90,6 +93,12 @@ def _get_preview_tab_label(path):
         return ""
     name = os.path.basename(path)
     return name[:20]
+
+
+def _normalize_preview_path(path):
+    if not isinstance(path, str) or not path:
+        return None
+    return os.path.normcase(os.path.normpath(path))
 
 
 def _get_preview_tab_hint(path):
@@ -111,6 +120,20 @@ def _clear_preview_content_state(owner):
     owner.current_image_zoom = 1.0
     owner.current_html_zoom = 1.0
     set_preview_mode(owner, "empty")
+
+
+def _get_office_editor(owner):
+    editor = getattr(owner, "embedded_office_editor", None)
+    if editor is None and hasattr(owner, "office_editor_panel"):
+        editor = office_editor.EmbeddedOfficeEditor(owner.office_editor_panel)
+        owner.embedded_office_editor = editor
+    return editor
+
+
+def close_office_editor(owner, save_changes=False):
+    editor = getattr(owner, "embedded_office_editor", None)
+    if editor is not None:
+        editor.close(save_changes=save_changes)
 
 
 def _normalize_preview_tabs(owner):
@@ -214,8 +237,10 @@ def _select_preview_tab(owner, tab_index):
     if tab_index < 0 or tab_index >= len(owner.preview_tabs):
         return
 
-    owner.preview_active_tab_index = tab_index
     path = owner.preview_tabs[tab_index].get("path")
+    if not confirm_preview_change(owner, path):
+        return
+    owner.preview_active_tab_index = tab_index
     if path:
         show_file_preview(owner, path)
     else:
@@ -259,10 +284,14 @@ def _close_preview_tab(owner, tab_index):
     elif owner.preview_active_tab_index == tab_index:
         is_closing_active_tab = True
 
+    if is_closing_active_tab and not confirm_preview_change(owner, None):
+        return
+
     active_index = owner.preview_active_tab_index
     del owner.preview_tabs[tab_index]
 
     if not owner.preview_tabs:
+        close_office_editor(owner, save_changes=False)
         owner.preview_active_tab_index = None
         owner.current_preview_path = None
         _clear_preview_content_state(owner)
@@ -270,6 +299,7 @@ def _close_preview_tab(owner, tab_index):
         return
 
     if is_closing_active_tab:
+        close_office_editor(owner, save_changes=False)
         owner.preview_active_tab_index = None
         owner.current_preview_path = None
         _clear_preview_content_state(owner)
@@ -554,6 +584,10 @@ def build_file_preview_pane(owner, file_splitter):
     owner.pdf_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
     owner.filePreview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
 
+    owner.office_editor_panel = wx.Panel(owner.filePreview, style=wx.BORDER_NONE)
+    owner.office_editor_panel.Hide()
+    owner.embedded_office_editor = None
+
     owner.preview_tab_pane = wx.Panel(owner.preview_content_panel)
     owner.preview_tab_pane.Hide()
     owner.preview_tab_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -564,6 +598,7 @@ def build_file_preview_pane(owner, file_splitter):
     preview_sizer.Add(owner.preview_text, 1, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.pdf_pages_panel, 1, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.pdf_preview_container, 1, wx.EXPAND | wx.ALL, 5)
+    preview_sizer.Add(owner.office_editor_panel, 1, wx.EXPAND | wx.ALL, 5)
     owner.filePreview.SetSizer(preview_sizer)
 
     content_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -603,7 +638,10 @@ def bind_preview_events(owner):
 
 def confirm_preview_change(owner, next_path):
     current_path = getattr(owner, "current_preview_path", None)
-    if not is_pdf_file(current_path) or not has_unsaved_pdf_changes(current_path):
+    editor = getattr(owner, "embedded_office_editor", None)
+    office_dirty = bool(editor is not None and editor.is_dirty())
+    pdf_dirty = bool(is_pdf_file(current_path) and has_unsaved_pdf_changes(current_path))
+    if not pdf_dirty and not office_dirty:
         return True
 
     if next_path and os.path.normpath(next_path) == os.path.normpath(current_path):
@@ -624,9 +662,13 @@ def confirm_preview_change(owner, next_path):
 
     try:
         if result == wx.ID_YES:
-            save_pdf(current_path)
+            if office_dirty:
+                editor.save()
+            else:
+                save_pdf(current_path)
         else:
-            discard_pdf_changes(current_path)
+            if pdf_dirty:
+                discard_pdf_changes(current_path)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
         return False
@@ -720,7 +762,7 @@ def update_page_buttons_state(owner):
     can_preview_html_file = is_current_path and can_preview_html(current_path)
     ## can_preview_text = is_current_path and can_preview_text_file(current_path)
     can_preview_office = is_current_path and is_office_preview_allowed(owner, current_path)
-    can_zoom_preview = is_pdf_preview or can_rotate_image or can_preview_html_file or can_preview_office
+    can_zoom_preview = is_pdf_preview or can_rotate_image or can_preview_html_file
     can_act_on_pdf = is_pdf_preview
 
     owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
@@ -737,7 +779,11 @@ def update_page_buttons_state(owner):
 
     load_all_btn = getattr(owner, "preview_load_all_btn", None)
     if load_all_btn is not None:
-        load_all_btn.Enable(_is_preview_page_limit_active(current_path, owner=owner) and (is_pdf_preview or is_office_preview_allowed(owner, current_path) or can_preview_html(current_path)))
+        load_all_btn.Enable(
+            not can_preview_office
+            and _is_preview_page_limit_active(current_path, owner=owner)
+            and (is_pdf_preview or can_preview_html(current_path))
+        )
     # === COPILOT PROTECTED: BEGIN ===
     ## don't remove these lines, they prevent superfluous office doc calls at update_load_all_btn_state
     ## update_load_all_btn_state is called on file select only to avoid duplicate calls
@@ -748,8 +794,7 @@ def update_page_buttons_state(owner):
 def update_load_all_btn_state(owner):
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
     is_previewable_non_pdf = bool(owner.current_preview_path) and (
-        is_office_preview_allowed(owner, owner.current_preview_path)
-        or can_preview_html(owner.current_preview_path)
+        can_preview_html(owner.current_preview_path)
     )
     page_limit_active = _is_preview_page_limit_active(owner.current_preview_path, owner=owner)
     load_all_btn = getattr(owner, "preview_load_all_btn", None)
@@ -759,6 +804,16 @@ def update_load_all_btn_state(owner):
 
 
 def update_pdf_save_button_state(owner):
+    editor = getattr(owner, "embedded_office_editor", None)
+    is_office_preview = bool(getattr(owner, "current_preview_path", None) and is_office_preview_allowed(owner, owner.current_preview_path))
+    if editor is not None and getattr(owner, "current_preview_mode", None) == "office":
+        owner.preview_save_btn.Enable(False)
+        owner.preview_cancel_btn.Enable(False)
+        return
+    if is_office_preview:
+        owner.preview_save_btn.Enable(False)
+        owner.preview_cancel_btn.Enable(False)
+        return
     can_save = is_pdf_file(owner.current_preview_path)
     can_cancel = is_pdf_file(owner.current_preview_path) and has_unsaved_pdf_changes(owner.current_preview_path)
     owner.preview_save_btn.Enable(can_save)
@@ -779,9 +834,34 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
         )
     )
 
+    is_office = bool(current_path and is_office_preview_allowed(owner, current_path))
     show_pdf_only = is_pdf
-    show_pdf_or_image = is_pdf or is_image or previewable_by_path
-    show_preview_layout = is_pdf or is_image or previewable_by_path
+    show_pdf_or_image = (is_pdf or is_image or previewable_by_path) and not is_office
+    show_preview_layout = (is_pdf or is_image or previewable_by_path) and not is_office
+
+    if is_office:
+        for attr_name in (
+            "preview_save_btn",
+            "preview_cancel_btn",
+            "preview_rotate_menu_btn",
+            "preview_optimize_btn",
+            "preview_adjust_page_width_btn",
+            "preview_import_from_file_btn",
+            "preview_export_pages_btn",
+            "preview_move_page_btn",
+            "preview_remove_page_btn",
+            "preview_page_view_mode_btn",
+            "preview_zoom_in_btn",
+            "preview_zoom_out_btn",
+            "preview_load_all_btn",
+        ):
+            control = getattr(owner, attr_name, None)
+            if control is not None and hasattr(control, "Show"):
+                control.Show(False)
+        owner.preview_toolbar.Layout()
+        owner.filePreview.Layout()
+        update_pdf_save_button_state(owner)
+        return
 
     owner.preview_save_btn.Show(show_pdf_only)
     owner.preview_cancel_btn.Show(show_pdf_only)
@@ -870,10 +950,12 @@ def show_office_preview(owner, path):
     try:
         cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
         with cursor_context:
-            preview_pdf_path = _resolve_preview_pdf_path(path)
-            if preview_pdf_path is None:
-                raise RuntimeError(tr("unable_preview_file"))
-            show_pdf_feed(owner, preview_pdf_path)
+            editor = _get_office_editor(owner)
+            if editor is None:
+                raise RuntimeError("The Microsoft Office editor could not be created.")
+            editor.open(path)
+            set_preview_mode(owner, "office")
+            wx.CallAfter(editor.resize)
             update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
             update_pdf_save_button_state(owner)
     except Exception as exc:
@@ -993,8 +1075,9 @@ def build_save_menu(owner, menu):
         save_as_item.SetBitmap(save_as_bitmap)
 
     is_pdf_preview = is_pdf_file(owner.current_preview_path)
-    save_item.Enable(is_pdf_preview and has_unsaved_pdf_changes(owner.current_preview_path))
-    save_as_item.Enable(is_pdf_preview)
+    is_office_preview = bool(owner.current_preview_path and is_office_preview_allowed(owner, owner.current_preview_path))
+    save_item.Enable(is_pdf_preview and has_unsaved_pdf_changes(owner.current_preview_path) and not is_office_preview)
+    save_as_item.Enable(is_pdf_preview and not is_office_preview)
 
     owner.Bind(wx.EVT_MENU, on_preview_save, save_item)
     owner.Bind(wx.EVT_MENU, on_preview_save_as, save_as_item)
@@ -1588,6 +1671,9 @@ def on_preview_checkbox_toggle(event):
         return
 
     checkbox = event.GetEventObject()
+    if not checkbox.GetValue() and not confirm_preview_change(owner, None):
+        checkbox.SetValue(True)
+        return
     owner.preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
     if hasattr(owner, "office_preview_checkbox"):
         owner.office_preview_checkbox.Enable(owner.preview_enabled)
@@ -1601,6 +1687,9 @@ def on_office_preview_checkbox_toggle(event):
         return
 
     checkbox = event.GetEventObject()
+    if not checkbox.GetValue() and not confirm_preview_change(owner, None):
+        checkbox.SetValue(True)
+        return
     owner.office_preview_enabled = bool(getattr(checkbox, "GetValue", lambda: False)())
     update_settings({"office_preview_enabled": owner.office_preview_enabled})
 
@@ -1608,8 +1697,10 @@ def on_office_preview_checkbox_toggle(event):
     if not getattr(owner, "preview_enabled", True) or not current_preview_path:
         return
 
-    if owner.office_preview_enabled:
-        show_file_preview(owner, None)
+    # Force rebuilding the current preview because the path itself did not
+    # change and the normal same-path optimization would otherwise return.
+    close_office_editor(owner, save_changes=False)
+    owner.current_preview_path = None
     show_file_preview(owner, current_preview_path)
 
 
@@ -1618,6 +1709,13 @@ def show_file_preview(owner, path):
 
     if path is not None and not _is_existing_path_with_valid_parents(path):
         path = None
+
+    current_path_before_change = getattr(owner, "current_preview_path", None)
+    normalized_current = _normalize_preview_path(current_path_before_change)
+    normalized_requested = _normalize_preview_path(path)
+    if normalized_current != normalized_requested:
+        if not confirm_preview_change(owner, path):
+            return
 
     _prune_deleted_preview_tabs(owner)
 
@@ -1639,6 +1737,7 @@ def show_file_preview(owner, path):
             preview_panel.Freeze()
 
         try:
+            close_office_editor(owner, save_changes=False)
             owner.current_preview_path = None
             owner.selected_pdf_page_panel = None
             owner.current_image_preview = None
@@ -1698,6 +1797,8 @@ def show_file_preview(owner, path):
                     return
                 break
 
+    if normalized_previous != normalized_path:
+        close_office_editor(owner, save_changes=False)
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     _clear_preview_content_state(owner)
@@ -1810,6 +1911,16 @@ def _refresh_preview_after_pdf_save(owner, saved_path):
 
 def on_preview_save(event):
     owner = _get_preview_owner_from_event(event)
+    editor = getattr(owner, "embedded_office_editor", None) if owner else None
+    if editor is not None and getattr(owner, "current_preview_mode", None) == "office":
+        try:
+            editor.save()
+            update_pdf_save_button_state(owner)
+            if hasattr(owner, "load_folder") and hasattr(owner, "path_box"):
+                owner.load_folder(owner.path_box.GetValue())
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        return
     if not owner or not is_pdf_file(owner.current_preview_path):
         wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return
@@ -1824,6 +1935,17 @@ def on_preview_save(event):
 
 def on_preview_cancel(event):
     owner = _get_preview_owner_from_event(event)
+    editor = getattr(owner, "embedded_office_editor", None) if owner else None
+    if editor is not None and getattr(owner, "current_preview_mode", None) == "office":
+        path = owner.current_preview_path
+        try:
+            editor.close(save_changes=False)
+            editor.open(path)
+            set_preview_mode(owner, "office")
+            update_pdf_save_button_state(owner)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        return
     if not owner or not is_pdf_file(owner.current_preview_path):
         wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return
@@ -2406,11 +2528,8 @@ def on_preview_zoom_in(event):
         return
 
     if is_office_preview_allowed(owner, owner.current_preview_path):
-        with owner.busy_cursor():
-            owner.pdf_preview_zoom = min(getattr(owner, "pdf_preview_zoom", 1.0) * 1.25, 3.0)
-            owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
-            preview_pdf_path = office_preview.convert_office_to_preview_pdf(owner.current_preview_path)
-            show_pdf_feed(owner, preview_pdf_path)
+        if hasattr(owner, "preview_zoom_in_btn"):
+            owner.preview_zoom_in_btn.Enable(False)
         return
 
     if can_preview_html(owner.current_preview_path):
@@ -2445,11 +2564,8 @@ def on_preview_zoom_out(event):
         return
 
     if is_office_preview_allowed(owner, owner.current_preview_path):
-        with owner.busy_cursor():
-            owner.pdf_preview_zoom = max(getattr(owner, "pdf_preview_zoom", 1.0) / 1.25, 0.4)
-            owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
-            preview_pdf_path = office_preview.convert_office_to_preview_pdf(owner.current_preview_path)
-            show_pdf_feed(owner, preview_pdf_path)
+        if hasattr(owner, "preview_zoom_out_btn"):
+            owner.preview_zoom_out_btn.Enable(False)
         return
 
     if can_preview_html(owner.current_preview_path):
@@ -2806,6 +2922,10 @@ def on_preview_right_click(event):
     if not owner:
         return
 
+    current_path = getattr(owner, "current_preview_path", None)
+    if current_path and is_office_preview_allowed(owner, current_path):
+        return
+
     icon_manager = image_utils.ensure_owner_icon_manager(owner)
     menu = wx.Menu()
 
@@ -2838,7 +2958,7 @@ def on_preview_right_click(event):
     current_path = getattr(owner, "current_preview_path", None)
     is_pdf_preview = is_pdf_file(current_path)
     can_rotate_image = bool(current_path) and image_utils.can_preview_image(current_path)
-    can_zoom_preview = is_pdf_preview or can_rotate_image or (bool(current_path) and (can_preview_html(current_path) or can_preview_text_file(current_path) or is_office_preview_allowed(owner, current_path)))
+    can_zoom_preview = is_pdf_preview or can_rotate_image or (bool(current_path) and (can_preview_html(current_path) or can_preview_text_file(current_path)))
     remove_page_item.Enable(is_pdf_preview and get_selected_pdf_page_index(owner) is not None)
     move_page_item.Enable(is_pdf_preview)
     cancel_item.Enable(is_pdf_preview and has_unsaved_pdf_changes(current_path))
