@@ -51,6 +51,23 @@ class OfficeEditorCloseTests(unittest.TestCase):
         mock_win32gui.ShowWindow.assert_called_once_with(1234, mock_win32con.SW_HIDE)
         mock_pythoncom.CoUninitialize.assert_called_once_with()
 
+    def test_office_editor_handles_copy_cut_paste_shortcuts(self):
+        from file_operations import office_editor
+
+        editor = office_editor.EmbeddedOfficeEditor(panel=mock.Mock())
+        editor.application = mock.Mock()
+        selection = mock.Mock()
+        editor.application.Selection = selection
+
+        self.assertTrue(editor.handle_shortcut(ord("C")))
+        selection.Copy.assert_called_once_with()
+
+        self.assertTrue(editor.handle_shortcut(ord("X")))
+        selection.Cut.assert_called_once_with()
+
+        self.assertTrue(editor.handle_shortcut(ord("V")))
+        selection.Paste.assert_called_once_with()
+
 
 class PreviewDialogHelpersTests(unittest.TestCase):
     def test_create_ok_cancel_row_builds_standard_button_row(self):
