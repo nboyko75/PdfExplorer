@@ -27,6 +27,9 @@ EXCEL_EXTENSIONS = {".xls", ".xlsx", ".xlsm"}
 POWERPOINT_EXTENSIONS = {".ppt", ".pptx", ".pptm"}
 OFFICE_EXTENSIONS = WORD_EXTENSIONS | EXCEL_EXTENSIONS | POWERPOINT_EXTENSIONS
 OFFICE_CHROME_FALLBACK_HEIGHT_DIP = 150
+OFFICE_ZOOM_MIN = 10
+OFFICE_ZOOM_MAX = 400
+OFFICE_ZOOM_STEP = 10
 
 
 def is_available():
@@ -330,6 +333,51 @@ class EmbeddedOfficeEditor:
                 method()
                 return True
         return False
+    
+    def get_zoom(self):
+        """Return the active Office document zoom percentage."""
+        if self.application is None or self.document is None:
+            return None
+
+        try:
+            window = self.application.ActiveWindow
+            if self.kind == "word":
+                return int(window.View.Zoom.Percentage)
+            if self.kind == "excel":
+                return int(window.Zoom)
+            if self.kind == "powerpoint":
+                return int(window.View.Zoom)
+        except Exception:
+            return None
+        return None
+
+    def set_zoom(self, percentage):
+        """Set zoom through Office COM, independently of the hidden Ribbon."""
+        if self.application is None or self.document is None:
+            return False
+
+        percentage = max(OFFICE_ZOOM_MIN, min(OFFICE_ZOOM_MAX, int(percentage)))
+        try:
+            window = self.application.ActiveWindow
+            if self.kind == "word":
+                window.View.Zoom.Percentage = percentage
+            elif self.kind == "excel":
+                window.Zoom = percentage
+            elif self.kind == "powerpoint":
+                window.View.Zoom = percentage
+            else:
+                return False
+            return True
+        except Exception:
+            return False
+
+    def zoom_in(self):
+        zoom = self.get_zoom()
+        return zoom is not None and self.set_zoom(zoom + OFFICE_ZOOM_STEP)
+
+    def zoom_out(self):
+        zoom = self.get_zoom()
+        return zoom is not None and self.set_zoom(zoom - OFFICE_ZOOM_STEP)
 
     def close(self, save_changes=False):
         document = self.document

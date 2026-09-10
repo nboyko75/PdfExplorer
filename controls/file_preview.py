@@ -762,7 +762,7 @@ def update_page_buttons_state(owner):
     can_preview_html_file = is_current_path and can_preview_html(current_path)
     ## can_preview_text = is_current_path and can_preview_text_file(current_path)
     can_preview_office = is_current_path and is_office_preview_allowed(owner, current_path)
-    can_zoom_preview = is_pdf_preview or can_rotate_image or can_preview_html_file
+    can_zoom_preview = is_pdf_preview or can_rotate_image or can_preview_html_file or can_preview_office
     can_act_on_pdf = is_pdf_preview
 
     owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
@@ -2531,8 +2531,9 @@ def on_preview_zoom_in(event):
         return
 
     if is_office_preview_allowed(owner, owner.current_preview_path):
-        if hasattr(owner, "preview_zoom_in_btn"):
-            owner.preview_zoom_in_btn.Enable(False)
+        editor = getattr(owner, "embedded_office_editor", None)
+        if editor is not None:
+            editor.zoom_in()
         return
 
     if can_preview_html(owner.current_preview_path):
@@ -2567,8 +2568,9 @@ def on_preview_zoom_out(event):
         return
 
     if is_office_preview_allowed(owner, owner.current_preview_path):
-        if hasattr(owner, "preview_zoom_out_btn"):
-            owner.preview_zoom_out_btn.Enable(False)
+        editor = getattr(owner, "embedded_office_editor", None)
+        if editor is not None:
+            editor.zoom_out()
         return
 
     if can_preview_html(owner.current_preview_path):
@@ -2961,7 +2963,12 @@ def on_preview_right_click(event):
     current_path = getattr(owner, "current_preview_path", None)
     is_pdf_preview = is_pdf_file(current_path)
     can_rotate_image = bool(current_path) and image_utils.can_preview_image(current_path)
-    can_zoom_preview = is_pdf_preview or can_rotate_image or (bool(current_path) and (can_preview_html(current_path) or can_preview_text_file(current_path)))
+    can_zoom_preview = (
+        is_pdf_preview
+        or can_rotate_image
+        or (bool(current_path) and (can_preview_html(current_path) or can_preview_text_file(current_path)))
+        or is_office_preview_allowed(owner, current_path)
+    )
     remove_page_item.Enable(is_pdf_preview and get_selected_pdf_page_index(owner) is not None)
     move_page_item.Enable(is_pdf_preview)
     cancel_item.Enable(is_pdf_preview and has_unsaved_pdf_changes(current_path))
