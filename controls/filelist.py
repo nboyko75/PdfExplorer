@@ -15,7 +15,6 @@ from controls import tree_control
 from common.menu_utils import FILE_COMMANDS, FileCommandContext, MenuCommandContext, bind_command, build_file_operations_menu
 from localization import tr
 from file_operations.pdf_utils import discard_pdf_changes, is_pdf_file
-from file_operations.office_preview import is_office_file_open
 import file_operations.copy_and_paste as copy_and_paste
 import file_operations.image_utils as image_utils
 import file_operations.archive_helper as archive_helper
@@ -908,14 +907,20 @@ def open_path_or_file(owner, path):
         return True
 
     if os.path.isfile(path):
-        if is_office_file_open(path):
-            return True
+        busy_cursor_started = False
         try:
+            if not wx.IsBusy():
+                wx.BeginBusyCursor()
+                busy_cursor_started = True
+                wx.YieldIfNeeded()
             os.startfile(path)
             return True
         except Exception as exc:
             wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
             return False
+        finally:
+            if busy_cursor_started and wx.IsBusy():
+                wx.EndBusyCursor()
 
     return False
 

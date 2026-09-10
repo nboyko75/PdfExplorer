@@ -98,7 +98,7 @@ def _get_preview_tab_label(path):
 def _normalize_preview_path(path):
     if not isinstance(path, str) or not path:
         return None
-    return os.path.normcase(os.path.normpath(path))
+    return os.path.normcase(os.path.normpath(os.path.abspath(path)))
 
 
 def _get_preview_tab_hint(path):
@@ -451,19 +451,19 @@ def _sync_preview_tab_for_path(owner, path):
         _render_preview_tab_bar(owner)
         return
 
-    normalized_path = os.path.normpath(path)
+    normalized_path = _normalize_preview_path(path)
     active_index = owner.preview_active_tab_index
     if active_index is not None and 0 <= active_index < len(owner.preview_tabs):
         active_tab = owner.preview_tabs[active_index]
         active_path = active_tab.get("path")
-        if active_path and os.path.normpath(active_path) == normalized_path:
+        if _normalize_preview_path(active_path) == normalized_path:
             active_tab["caption"] = _get_preview_tab_label(path)
             active_tab["hint"] = _get_preview_tab_hint(path)
             _render_preview_tab_bar(owner)
             return
 
     for index, tab in enumerate(owner.preview_tabs):
-        if tab.get("path") and os.path.normpath(tab["path"]) == normalized_path:
+        if _normalize_preview_path(tab.get("path")) == normalized_path:
             owner.preview_active_tab_index = index
             tab["caption"] = _get_preview_tab_label(path)
             tab["hint"] = _get_preview_tab_hint(path)
@@ -851,13 +851,15 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
             "preview_move_page_btn",
             "preview_remove_page_btn",
             "preview_page_view_mode_btn",
-            "preview_zoom_in_btn",
-            "preview_zoom_out_btn",
             "preview_load_all_btn",
         ):
             control = getattr(owner, attr_name, None)
             if control is not None and hasattr(control, "Show"):
                 control.Show(False)
+        owner.preview_zoom_in_btn.Show(True)
+        owner.preview_zoom_out_btn.Show(True)
+        owner.preview_zoom_in_btn.Enable(True)
+        owner.preview_zoom_out_btn.Enable(True)
         owner.preview_toolbar.Layout()
         owner.filePreview.Layout()
         update_pdf_save_button_state(owner)
@@ -1785,15 +1787,15 @@ def show_file_preview(owner, path):
         return
 
     previous_path = getattr(owner, "current_preview_path", None)
-    normalized_previous = os.path.normcase(os.path.normpath(previous_path)) if isinstance(previous_path, str) and previous_path else None
-    normalized_path = os.path.normcase(os.path.normpath(path)) if isinstance(path, str) and path else None
+    normalized_previous = _normalize_preview_path(previous_path)
+    normalized_path = _normalize_preview_path(path)
 
     if normalized_path:
         for tab_index, tab in enumerate(owner.preview_tabs):
             tab_path = tab.get("path")
             if not tab_path:
                 continue
-            normalized_tab_path = os.path.normcase(os.path.normpath(tab_path))
+            normalized_tab_path = _normalize_preview_path(tab_path)
             if normalized_tab_path == normalized_path:
                 owner.preview_active_tab_index = tab_index
                 if normalized_previous == normalized_path:

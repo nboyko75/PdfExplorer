@@ -6,20 +6,26 @@ embedded instance be closed predictably when the preview changes.
 """
 
 import os
+import shutil
 import sys
+import tempfile
 import time
 
 
 try:
     import pythoncom
+    import win32api
     import win32com.client as win32_client
     import win32con
     import win32gui
+    import win32process
 except ImportError:  # pragma: no cover - Windows-only optional dependency
     pythoncom = None
+    win32api = None
     win32_client = None
     win32con = None
     win32gui = None
+    win32process = None
 
 
 WORD_EXTENSIONS = {".doc", ".docx", ".docm"}
@@ -35,7 +41,14 @@ OFFICE_ZOOM_STEP = 10
 def is_available():
     return sys.platform == "win32" and all(
         dependency is not None
-        for dependency in (pythoncom, win32_client, win32con, win32gui)
+        for dependency in (
+            pythoncom,
+            win32api,
+            win32_client,
+            win32con,
+            win32gui,
+            win32process,
+        )
     )
 
 
@@ -49,10 +62,14 @@ class EmbeddedOfficeEditor:
         self.application = None
         self.document = None
         self.hwnd = None
+        self._opening_path = None
+        self._preview_temp_dir = None
         self._com_initialized = False
         self._original_style = None
         self._original_ex_style = None
-        panel.Bind(__import__("wx").EVT_SIZE, self._on_panel_size)
+        wx = __import__("wx")
+        panel.Bind(wx.EVT_SIZE, self._on_panel_size)
+        panel.Bind(wx.EVT_SET_FOCUS, self._on_panel_focus)
 
     def open(self, path):
         if not is_available():
@@ -65,18 +82,37 @@ class EmbeddedOfficeEditor:
             self.resize()
             return
 
-        self.close(save_changes=False)
-        pythoncom.CoInitialize()
-        self._com_initialized = True
+        # Office COM calls can pump the Windows message queue.  A second list
+        # selection event may therefore re-enter this method before self.path
+        # is assigned.  Ignore only that duplicate in-progress request.
+        if self._opening_path == normalized:
+            return
 
+        self.close(save_changes=False)
+        self._opening_path = normalized
         extension = os.path.splitext(path)[1].lower()
         try:
+            # Open an isolated copy in the embedded Office process.  Even a
+            # read-only Word document can create an owner file beside the
+            # original and prevent an external editable open.
+            self._preview_temp_dir = tempfile.mkdtemp(
+                prefix="docexplorer_office_preview_"
+            )
+            preview_path = os.path.join(
+                self._preview_temp_dir,
+                os.path.basename(path),
+            )
+            shutil.copy2(os.path.abspath(path), preview_path)
+
+            pythoncom.CoInitialize()
+            self._com_initialized = True
+
             if extension in WORD_EXTENSIONS:
-                self._open_word(path)
+                self._open_word(preview_path)
             elif extension in EXCEL_EXTENSIONS:
-                self._open_excel(path)
+                self._open_excel(preview_path)
             elif extension in POWERPOINT_EXTENSIONS:
-                self._open_powerpoint(path)
+                self._open_powerpoint(preview_path)
             else:
                 raise RuntimeError("Unsupported Microsoft Office document type.")
 
@@ -85,13 +121,16 @@ class EmbeddedOfficeEditor:
         except Exception:
             self.close(save_changes=False)
             raise
+        finally:
+            if self._opening_path == normalized:
+                self._opening_path = None
 
     def _open_word(self, path):
         self.kind = "word"
         self.application = win32_client.DispatchEx("Word.Application")
         self.application.DisplayAlerts = 0
         self.document = self.application.Documents.Open(
-            os.path.abspath(path), ReadOnly=False, AddToRecentFiles=False
+            os.path.abspath(path), ReadOnly=True, AddToRecentFiles=False
         )
         self.application.Visible = True
         self.application.DisplayAlerts = -1
@@ -102,7 +141,7 @@ class EmbeddedOfficeEditor:
         self.application = win32_client.DispatchEx("Excel.Application")
         self.application.DisplayAlerts = False
         self.document = self.application.Workbooks.Open(
-            os.path.abspath(path), ReadOnly=False, AddToMru=False
+            os.path.abspath(path), ReadOnly=True, AddToMru=False
         )
         self.application.Visible = True
         self.application.DisplayAlerts = True
@@ -112,7 +151,7 @@ class EmbeddedOfficeEditor:
         self.kind = "powerpoint"
         self.application = win32_client.DispatchEx("PowerPoint.Application")
         self.document = self.application.Presentations.Open(
-            os.path.abspath(path), ReadOnly=False, Untitled=False, WithWindow=True
+            os.path.abspath(path), ReadOnly=True, Untitled=False, WithWindow=True
         )
         self.application.Visible = True
         self.hwnd = self._resolve_office_hwnd("PPTFrameClass", path)
@@ -207,6 +246,7 @@ class EmbeddedOfficeEditor:
             win32con.WS_EX_APPWINDOW
             | win32con.WS_EX_DLGMODALFRAME
             | win32con.WS_EX_WINDOWEDGE
+            | getattr(win32con, "WS_EX_NOACTIVATE", 0)
         )
         win32gui.SetWindowLong(self.hwnd, win32con.GWL_EXSTYLE, ex_style)
 
@@ -220,6 +260,77 @@ class EmbeddedOfficeEditor:
         win32gui.SetWindowPos(self.hwnd, 0, 0, 0, 0, 0, frame_flags)
         self.resize()
         win32gui.ShowWindow(self.hwnd, win32con.SW_SHOW)
+        self.activate()
+
+    def activate(self):
+        """Reactivate the Office document view after Win32 reparenting."""
+        if not self.hwnd or win32gui is None or not win32gui.IsWindow(self.hwnd):
+            return False
+
+        try:
+            win32gui.EnableWindow(self.hwnd, True)
+        except Exception:
+            pass
+
+        # Read-only documents must still be interactive: selection, copying,
+        # scrolling and zooming are valid operations.
+        try:
+            self.application.Interactive = True
+        except Exception:
+            pass
+        try:
+            self.document.Activate()
+        except Exception:
+            pass
+        try:
+            self.application.ActiveWindow.Activate()
+        except Exception:
+            pass
+
+        preferred_classes = {
+            "word": {"_wwg"},
+            "excel": {"excel7"},
+            "powerpoint": {"paneclassdc", "mdiclient"},
+        }.get(self.kind, set())
+        focus_targets = []
+
+        def collect(child_hwnd, _):
+            try:
+                class_name = win32gui.GetClassName(child_hwnd).casefold()
+                if (
+                    class_name in preferred_classes
+                    and win32gui.IsWindowVisible(child_hwnd)
+                    and win32gui.IsWindowEnabled(child_hwnd)
+                ):
+                    focus_targets.append(child_hwnd)
+            except Exception:
+                pass
+
+        try:
+            win32gui.EnumChildWindows(self.hwnd, collect, None)
+        except Exception:
+            pass
+
+        current_thread = None
+        office_thread = None
+        input_attached = False
+        try:
+            current_thread = win32api.GetCurrentThreadId()
+            office_thread, _ = win32process.GetWindowThreadProcessId(self.hwnd)
+            if office_thread and office_thread != current_thread:
+                win32process.AttachThreadInput(current_thread, office_thread, True)
+                input_attached = True
+            win32gui.SetActiveWindow(self.hwnd)
+            win32gui.SetFocus(focus_targets[-1] if focus_targets else self.hwnd)
+            return True
+        except Exception:
+            return False
+        finally:
+            if input_attached:
+                try:
+                    win32process.AttachThreadInput(current_thread, office_thread, False)
+                except Exception:
+                    pass
 
     def resize(self):
         if not self.hwnd or win32gui is None or not win32gui.IsWindow(self.hwnd):
@@ -277,6 +388,10 @@ class EmbeddedOfficeEditor:
 
     def _on_panel_size(self, event):
         self.resize()
+        event.Skip()
+
+    def _on_panel_focus(self, event):
+        self.activate()
         event.Skip()
 
     def is_dirty(self):
@@ -384,12 +499,14 @@ class EmbeddedOfficeEditor:
         application = self.application
         kind = self.kind
         hwnd = self.hwnd
+        preview_temp_dir = self._preview_temp_dir
 
         self.path = None
         self.kind = None
         self.document = None
         self.application = None
         self.hwnd = None
+        self._preview_temp_dir = None
 
         if hwnd is not None and win32gui is not None and win32gui.IsWindow(hwnd):
             try:
@@ -428,3 +545,6 @@ class EmbeddedOfficeEditor:
             except Exception:
                 pass
         self._com_initialized = False
+
+        if preview_temp_dir:
+            shutil.rmtree(preview_temp_dir, ignore_errors=True)
