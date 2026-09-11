@@ -418,28 +418,62 @@ def import_pdf_pages(path, source_path, insert_at_index):
     if not os.path.isfile(source_path):
         raise FileNotFoundError(source_path)
 
+    from file_operations.image_utils import IMAGE_EXTENSIONS
+
+    source_ext = os.path.splitext(source_path)[1].lower()
     target_doc = _open_pdf_document(path)
-    source_doc = _open_pdf_document(source_path)
-    new_doc = fitz.open()
     try:
         target_page_count = len(target_doc)
         insert_at_index = max(0, min(target_page_count, int(insert_at_index)))
 
-        if insert_at_index > 0:
-            new_doc.insert_pdf(target_doc, from_page=0, to_page=insert_at_index - 1)
+        if source_ext in IMAGE_EXTENSIONS:
+            new_doc = fitz.open()
+            try:
+                if insert_at_index > 0:
+                    new_doc.insert_pdf(target_doc, from_page=0, to_page=insert_at_index - 1)
 
-        if len(source_doc) > 0:
-            new_doc.insert_pdf(source_doc)
+                image = fitz.open(source_path)
+                try:
+                    if len(image) > 0:
+                        for page_index in range(len(image)):
+                            img_page = image[page_index]
+                            pix = img_page.get_pixmap(alpha=False)
+                            pdf_page = new_doc.new_page(width=pix.width, height=pix.height)
+                            pdf_page.insert_image(pdf_page.rect, stream=pix.tobytes("png"))
+                    else:
+                        pix = fitz.Pixmap(source_path)
+                        page = new_doc.new_page(width=pix.width, height=pix.height)
+                        page.insert_image(page.rect, stream=pix.tobytes("png"))
+                finally:
+                    image.close()
 
-        if insert_at_index < target_page_count:
-            new_doc.insert_pdf(target_doc, from_page=insert_at_index, to_page=target_page_count - 1)
+                if insert_at_index < target_page_count:
+                    new_doc.insert_pdf(target_doc, from_page=insert_at_index, to_page=target_page_count - 1)
 
-        return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
+                return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
+            finally:
+                if not new_doc.is_closed:
+                    new_doc.close()
+
+        source_doc = _open_pdf_document(source_path)
+        new_doc = fitz.open()
+        try:
+            if insert_at_index > 0:
+                new_doc.insert_pdf(target_doc, from_page=0, to_page=insert_at_index - 1)
+
+            if len(source_doc) > 0:
+                new_doc.insert_pdf(source_doc)
+
+            if insert_at_index < target_page_count:
+                new_doc.insert_pdf(target_doc, from_page=insert_at_index, to_page=target_page_count - 1)
+
+            return _store_pdf_document(path, new_doc, garbage=4, deflate=True, clean=True)
+        finally:
+            source_doc.close()
+            if not new_doc.is_closed:
+                new_doc.close()
     finally:
         target_doc.close()
-        source_doc.close()
-        if not new_doc.is_closed:
-            new_doc.close()
 
 
 def export_pdf_pages(path, page_indices, output_path):

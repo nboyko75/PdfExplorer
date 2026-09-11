@@ -14,6 +14,7 @@ import common.drag_and_drop as drag_and_drop
 from common.drag_and_drop import PdfPageDropTarget
 import common.drag_and_drop as pdf_dragdrop
 from common.window_tools import load_settings, update_settings
+from file_operations.image_utils import IMAGE_EXTENSIONS
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview
@@ -27,7 +28,6 @@ PAGE_VIEW_MODE_1_TALL = "1_page_tall"
 PAGE_VIEW_MODE_MANUAL = "manual"
 FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_1_TALL}
 VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
 HTML_EXTENSIONS = {".html", ".htm"}
 OFFICE_EXTENSIONS = {".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm", ".ppt", ".pptx", ".pptm"}
 TEXT_FILE_EXTENSIONS = {
@@ -2174,11 +2174,16 @@ def _show_import_pdf_dialog(owner, page_count):
     browse_btn = wx.Button(panel, label=tr("import_pdf_browse_button"))
 
     def browse_for_pdf(_):
+        image_patterns = sorted(f"*{ext}" for ext in IMAGE_EXTENSIONS)
+        image_pattern_text = ";".join(image_patterns)
         file_dialog = wx.FileDialog(
             dialog,
             tr("import_pdf_file_dialog_title"),
             defaultDir=_get_preview_dialog_initial_dir(owner),
-            wildcard="PDF files (*.pdf)|*.pdf",
+            wildcard=(
+                f"All supported files ({image_pattern_text};*.pdf)|{image_pattern_text};*.pdf|"
+                f"PDF files (*.pdf)|*.pdf|Image files ({image_pattern_text})|{image_pattern_text}"
+            ),
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         )
         if file_dialog.ShowModal() == wx.ID_OK:

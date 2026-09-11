@@ -4,6 +4,9 @@ import os
 import wx
 
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".jfif"}
+
+
 class IconManager:
     """Load preview toolbar icons from BMP files and cache scaled bitmaps."""
 

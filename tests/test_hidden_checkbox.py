@@ -1120,6 +1120,29 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         owner_list.select_tree_item_by_path.assert_called_once_with(r"D:\Projects\Folder")
         mocked_open.assert_called_once_with(owner_list, r"D:\Projects\Folder")
 
+    def test_select_tree_item_by_path_expands_target_folder_node(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tree = mock.MagicMock()
+            root = mock.MagicMock()
+            root.IsOk.return_value = True
+            child = mock.MagicMock()
+            child.IsOk.return_value = True
+            tree.GetRootItem.return_value = root
+            tree.GetFirstChild.side_effect = [(child, 0), (mock.MagicMock(IsOk=lambda: False), 0)]
+            tree.GetNextChild.return_value = (mock.MagicMock(IsOk=lambda: False), 0)
+            tree.GetItemData.return_value = temp_dir
+            tree.IsExpanded.return_value = False
+
+            owner = types.SimpleNamespace(tree=tree, _syncing_tree_from_path=False, path_box=types.SimpleNamespace(SetValue=mock.MagicMock()))
+            owner.tree.SelectItem = mock.MagicMock()
+            owner.tree.EnsureVisible = mock.MagicMock()
+
+            tree_control = __import__("controls.tree_control", fromlist=["select_tree_item_by_path"])
+            tree_control.select_tree_item_by_path(owner, temp_dir)
+
+            owner.tree.Expand.assert_called_with(child)
+            owner.tree.SelectItem.assert_called_once_with(child)
+
     def test_build_office_page_range_accepts_range_strings(self):
         import controls.print_form as print_form
 

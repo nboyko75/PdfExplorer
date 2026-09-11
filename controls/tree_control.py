@@ -210,6 +210,11 @@ def select_tree_item_by_path(owner, path):
     previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
     owner._syncing_tree_from_path = True
     try:
+        if item_path and os.path.isdir(item_path) and hasattr(owner.tree, "IsExpanded") and not owner.tree.IsExpanded(item):
+            try:
+                owner.tree.Expand(item)
+            except Exception:
+                pass
         owner.tree.SelectItem(item)
         owner.tree.EnsureVisible(item)
     finally:

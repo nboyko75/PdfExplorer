@@ -1860,6 +1860,57 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_show_pdf_feed.assert_called_once_with(owner, "target.pdf")
         mocked_update_save.assert_called_once_with(owner)
 
+    def test_import_dialog_wildcard_includes_image_extensions(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = wx.ID_OK
+        created_dialogs = []
+
+        def fake_file_dialog(*args, **kwargs):
+            created_dialogs.append(kwargs)
+            return dialog
+
+        with mock.patch.object(file_preview.wx, "FileDialog", side_effect=fake_file_dialog), \
+             mock.patch.object(file_preview, "_build_pdf_import_destination_controls", return_value={
+                 "sizer": mock.MagicMock(),
+                 "at_begin": mock.MagicMock(GetValue=lambda: True),
+                 "after_page": mock.MagicMock(GetValue=lambda: False),
+                 "at_end": mock.MagicMock(GetValue=lambda: False),
+                 "page_number": mock.MagicMock(GetValue=lambda: 1),
+             }), \
+             mock.patch.object(file_preview.wx, "Dialog", return_value=mock.MagicMock()), \
+             mock.patch.object(file_preview.wx, "StaticText", return_value=mock.MagicMock()), \
+             mock.patch.object(file_preview.wx, "TextCtrl", return_value=mock.MagicMock(GetValue=lambda: "")), \
+             mock.patch.object(file_preview.wx, "Button", return_value=mock.MagicMock()), \
+             mock.patch.object(file_preview.wx, "BoxSizer", return_value=mock.MagicMock()), \
+             mock.patch.object(file_preview, "persistent_dialog", return_value=file_preview.nullcontext(mock.MagicMock(ShowModal=lambda: wx.ID_OK))), \
+             mock.patch.object(file_preview, "create_ok_cancel_row", return_value=(mock.MagicMock(), mock.MagicMock(), mock.MagicMock())):
+            file_preview._show_import_pdf_dialog(types.SimpleNamespace(), 1)
+
+        wildcard = created_dialogs[0]["wildcard"]
+        self.assertIn("*.png", wildcard)
+        self.assertIn("*.jpg", wildcard)
+        self.assertIn("*.pdf", wildcard)
+
+    def test_import_pdf_pages_accepts_images_by_converting_them_to_pdf_pages(self):
+        temp_dir = tempfile.mkdtemp(prefix="pdf-import-image-")
+        self.addCleanup(lambda: shutil.rmtree(temp_dir, ignore_errors=True))
+        target_path = os.path.join(temp_dir, "target.pdf")
+        source_path = os.path.join(temp_dir, "source.png")
+
+        target_doc = fitz.open()
+        target_doc.new_page(width=200, height=200)
+        target_doc.save(target_path)
+        target_doc.close()
+
+        pix = fitz.Pixmap(fitz.csRGB, 80, 90, b"\x00" * (80 * 90 * 3), 0)
+        pix.save(source_path)
+
+        pdf_utils.import_pdf_pages(target_path, source_path, 0)
+
+        with fitz.open(target_path) as doc:
+            self.assertEqual(len(doc), 2)
+
     def test_load_all_button_enabled_for_office_preview_when_limit_active(self):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
