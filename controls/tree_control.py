@@ -13,11 +13,32 @@ import common.menu_utils as menu_utils
 
 
 def bind_tree_events(owner):
+    owner.tree.Bind(wx.EVT_LEFT_DOWN, lambda event: on_tree_left_down(owner, event))
     owner.tree.Bind(wx.EVT_TREE_ITEM_EXPANDING, owner.on_tree_expand)
     owner.tree.Bind(wx.EVT_TREE_SEL_CHANGING, owner.on_tree_select)
     owner.tree.Bind(wx.EVT_TREE_ITEM_ACTIVATED, owner.on_tree_activated)
     owner.tree.Bind(wx.EVT_TREE_BEGIN_DRAG, owner.on_tree_begin_drag)
     owner.tree.Bind(wx.EVT_CONTEXT_MENU, owner.on_tree_right_click)
+
+
+def _clear_tree_collapse_click(owner, item):
+    if getattr(owner, "_tree_collapse_click_item", None) == item:
+        owner._tree_collapse_click_item = None
+
+
+def on_tree_left_down(owner, event):
+    """Remember clicks on an expanded item's button without selecting it."""
+    item, flags = owner.tree.HitTest(event.GetPosition())
+    on_item_button = bool(flags & wx.TREE_HITTEST_ONITEMBUTTON)
+
+    if item and item.IsOk() and on_item_button and owner.tree.IsExpanded(item):
+        owner._tree_collapse_click_item = item
+        # Clear the guard after wx has dispatched the selection/collapse events.
+        wx.CallAfter(_clear_tree_collapse_click, owner, item)
+    else:
+        owner._tree_collapse_click_item = None
+
+    event.Skip()
 
 
 def normalize_tree_path(path):
@@ -389,6 +410,15 @@ def on_tree_select(owner, event):
         return
     
     item = event.GetItem()
+
+    # On Windows, clicking the collapse button of an unselected node can emit
+    # EVT_TREE_SEL_CHANGING before the native control collapses it.  Opening the
+    # newly selected path would then expand the node again.  Veto only this
+    # button-originated selection; the native collapse action still proceeds.
+    if getattr(owner, "_tree_collapse_click_item", None) == item:
+        event.Veto()
+        return
+
     path = normalize_tree_path(owner.tree.GetItemData(item))
 
     if getattr(owner, "_syncing_tree_from_path", False):
