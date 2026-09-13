@@ -19,54 +19,54 @@ def _import_file_preview_with_mocked_wx():
         return importlib.import_module("controls.file_preview")
 
 
-class OfficeEditorCloseTests(unittest.TestCase):
-    def test_close_does_not_quit_office_application(self):
-        from file_operations import office_editor
+class PreviewToolbarLayoutTests(unittest.TestCase):
+    def test_build_file_preview_pane_does_not_create_office_find_controls(self):
+        file_preview = _import_file_preview_with_mocked_wx()
+        owner = types.SimpleNamespace(
+            preview_enabled=True,
+            office_preview_enabled=False,
+            icon_manager=mock.Mock(),
+            current_preview_path=None,
+        )
 
-        editor = office_editor.EmbeddedOfficeEditor(panel=mock.Mock())
-        document = mock.Mock()
-        application = mock.Mock()
-        editor.kind = "word"
-        editor.document = document
-        editor.application = application
-        editor.hwnd = 1234
-        editor._com_initialized = True
+        with mock.patch.object(file_preview, "wx") as mock_wx:
+            mock_wx.Panel.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.BoxSizer.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.CheckBox.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.TextCtrl.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.Button.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.ScrolledWindow.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.StaticBitmap.side_effect = lambda *args, **kwargs: mock.Mock()
+            mock_wx.ART_FILE_OPEN = "file_open"
+            mock_wx.ART_FILE_SAVE_AS = "file_save_as"
+            mock_wx.ART_FILE_SAVE = "file_save"
+            mock_wx.ART_MINUS = "minus"
+            mock_wx.ART_PLUS = "plus"
+            mock_wx.ART_LIST_VIEW = "list_view"
+            mock_wx.ART_GO_FORWARD = "go_forward"
+            mock_wx.ART_REPORT_VIEW = "report_view"
+            mock_wx.BORDER_SUNKEN = 1
+            mock_wx.ALIGN_CENTER_VERTICAL = 1
+            mock_wx.LEFT = 2
+            mock_wx.RIGHT = 4
+            mock_wx.ALL = 8
+            mock_wx.EXPAND = 16
+            mock_wx.HSCROLL = 32
+            mock_wx.VSCROLL = 64
+            mock_wx.TE_MULTILINE = 128
+            mock_wx.TE_READONLY = 256
+            mock_wx.TE_PROCESS_ENTER = 512
+            mock_wx.HORIZONTAL = 1024
+            mock_wx.VERTICAL = 2048
+            file_preview.image_utils.create_bitmap_button.side_effect = lambda *args, **kwargs: mock.Mock()
+            file_preview.image_utils.create_bitmap_button2.side_effect = lambda *args, **kwargs: mock.Mock()
 
-        mock_win32con = mock.Mock()
-        mock_win32con.SW_HIDE = 7
+            file_preview.build_file_preview_pane(owner, mock.Mock())
 
-        with mock.patch.object(office_editor, "win32gui", mock.Mock()) as mock_win32gui, \
-             mock.patch.object(office_editor, "win32con", mock_win32con), \
-             mock.patch.object(office_editor, "pythoncom", mock.Mock()) as mock_pythoncom:
-            mock_win32gui.IsWindow.return_value = True
-            editor.close(save_changes=False)
-
-        self.assertIsNone(editor.document)
-        self.assertIsNone(editor.application)
-        self.assertIsNone(editor.hwnd)
-        document.Close.assert_called_once_with(SaveChanges=0)
-        application.Quit.assert_not_called()
-        self.assertFalse(editor._com_initialized)
-        mock_win32gui.SetParent.assert_called_once_with(1234, 0)
-        mock_win32gui.ShowWindow.assert_called_once_with(1234, mock_win32con.SW_HIDE)
-        mock_pythoncom.CoUninitialize.assert_called_once_with()
-
-    def test_office_editor_handles_copy_cut_paste_shortcuts(self):
-        from file_operations import office_editor
-
-        editor = office_editor.EmbeddedOfficeEditor(panel=mock.Mock())
-        editor.application = mock.Mock()
-        selection = mock.Mock()
-        editor.application.Selection = selection
-
-        self.assertTrue(editor.handle_shortcut(ord("C")))
-        selection.Copy.assert_called_once_with()
-
-        self.assertTrue(editor.handle_shortcut(ord("X")))
-        selection.Cut.assert_called_once_with()
-
-        self.assertTrue(editor.handle_shortcut(ord("V")))
-        selection.Paste.assert_called_once_with()
+        self.assertEqual(mock_wx.TextCtrl.call_count, 1)
+        self.assertEqual(mock_wx.Button.call_count, 0)
+        self.assertFalse(hasattr(owner, "office_find_text"))
+        self.assertFalse(hasattr(owner, "office_find_btn"))
 
 
 class PreviewDialogHelpersTests(unittest.TestCase):
@@ -2032,20 +2032,21 @@ class OfficePreviewLimitTests(unittest.TestCase):
         self.assertEqual(result, "preview.pdf")
         mocked_limit.assert_called_once_with("preview.pdf", __import__("file_operations.pdf_utils", fromlist=["DEFAULT_SHOW_PAGES_LIMIT"]).DEFAULT_SHOW_PAGES_LIMIT)
 
-    def test_powerpoint_export_hides_app_window(self):
+    def test_powerpoint_export_ignores_visibility_toggle_rejection(self):
         office_preview = __import__("file_operations.office_preview", fromlist=["_export_powerpoint_to_pdf"])
 
         fake_app = mock.Mock()
         fake_presentation = mock.Mock()
         fake_app.Presentations.Open.return_value = fake_presentation
+        type(fake_app).Visible = mock.PropertyMock(side_effect=RuntimeError("Application.Visible : Invalid request. Hiding the application window is not allowed."))
 
         with mock.patch.object(office_preview, "win32_client", mock.Mock()), \
              mock.patch.object(office_preview, "pythoncom", mock.Mock()):
             office_preview.win32_client.DispatchEx.return_value = fake_app
             office_preview._export_powerpoint_to_pdf("report.pptx", "preview.pdf")
 
-        self.assertFalse(fake_app.Visible)
         fake_app.Presentations.Open.assert_called_once_with("report.pptx", ReadOnly=True, WithWindow=False)
+        fake_presentation.SaveAs.assert_called_once_with("preview.pdf", 32)
         fake_presentation.Close.assert_called_once_with()
         fake_app.Quit.assert_called_once()
 

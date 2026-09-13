@@ -740,7 +740,7 @@ class FileExplorer(wx.Frame):
                 return
 
         try:
-            file_preview.close_office_editor(self, save_changes=False)
+            file_preview.close_office_preview(self, save_changes=False)
             self.save_splitter_positions()
             self.save_list_view_state()
             save_window_geometry(self)
@@ -871,11 +871,6 @@ class FileExplorer(wx.Frame):
         # Handle Ctrl+Z for undo
         try:
             key_code = event.GetKeyCode()
-            if event.ControlDown() and key_code in (67, 88, 86):
-                if getattr(self, "current_preview_mode", None) == "office":
-                    editor = getattr(self, "embedded_office_editor", None)
-                    if editor is not None and editor.handle_shortcut(key_code):
-                        return
             if event.ControlDown() and key_code == 90:  # 'Z'
                 self.undo_last_move()
                 return

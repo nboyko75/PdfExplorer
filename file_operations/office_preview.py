@@ -494,8 +494,6 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
     close_presentation = False
     try:
         app = win32_client.DispatchEx("PowerPoint.Application")
-        app.Visible = False
-
         presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)
         close_presentation = True
         presentation.SaveAs(output_pdf, 32)

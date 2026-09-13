@@ -9,6 +9,7 @@ from xml.etree import ElementTree as ET
 import wx
 
 import file_operations.office_preview as office_preview
+import file_operations.pdf_utils as pdf_utils
 from common import date_utils as common_date_utils
 from common.date_utils import (
     DatePickerCtrl,
@@ -367,7 +368,7 @@ def _read_office_com_text(path):
             pass
 
         try:
-            if ext in {".doc", ".docx", ".docm"}:
+            if ext in pdf_utils.WORD_OFFICE_EXTENSIONS:
                 app = None
                 document = None
                 close_document = False
@@ -394,7 +395,7 @@ def _read_office_com_text(path):
                     if app is not None and should_quit_app:
                         app.Quit()
 
-            if ext in {".xls", ".xlsx", ".xlsm"}:
+            if ext in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
                 app = None
                 workbook = None
                 close_workbook = False

@@ -919,13 +919,13 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
 
         owner = types.SimpleNamespace()
         target = drag_and_drop_module.FileListDropTarget(owner)
-        target.text_data.SetText("pdfexplorer_internal_move\nC:/Temp/alpha.txt\nC:/Temp/beta.txt")
+        target.text_data.SetText("docexplorer_internal_move\nC:/Temp/alpha.txt\nC:/Temp/beta.txt")
         target.file_data.AddFile("C:/Temp/alpha.txt")
         target.file_data.AddFile("C:/Temp/beta.txt")
 
         marker, filenames = target._read_drag_payload()
 
-        self.assertEqual(marker, "pdfexplorer_internal_move")
+        self.assertEqual(marker, "docexplorer_internal_move")
         self.assertEqual(filenames, ["C:/Temp/alpha.txt", "C:/Temp/beta.txt"])
 
     def test_set_clipboard_calls_bound_toolbar_callback_without_double_owner(self):

@@ -1,4 +1,7 @@
 import os
+import json
+import sys
+from pathlib import Path
 from contextlib import contextmanager, nullcontext
 import wx
 
@@ -18,7 +21,7 @@ from file_operations.image_utils import IMAGE_EXTENSIONS
 from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview
-import file_operations.office_editor as office_editor
+import file_operations.office_html_preview as office_html_preview
 import file_operations.pdf_utils as pdf_utils
 
 
@@ -30,6 +33,7 @@ FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW
 VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
 HTML_EXTENSIONS = {".html", ".htm"}
 OFFICE_EXTENSIONS = {".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm", ".ppt", ".pptx", ".pptm"}
+POWERPOINT_EXTENSIONS = {".ppt", ".pptx", ".pptm"}
 TEXT_FILE_EXTENSIONS = {
     # Text
     ".txt", ".text", ".log", ".md", ".markdown", ".rst", ".csv", ".tsv",
@@ -73,9 +77,7 @@ def set_preview_mode(owner, mode):
     if hasattr(owner, "pdf_pages_panel"):
         owner.pdf_pages_panel.Show(mode_name == "pages")
     if hasattr(owner, "pdf_preview_container"):
-        owner.pdf_preview_container.Show(mode_name == "single")
-    if hasattr(owner, "office_editor_panel"):
-        owner.office_editor_panel.Show(mode_name == "office")
+        owner.pdf_preview_container.Show(mode_name in {"single", "office"})
     if hasattr(owner, "filePreview"):
         owner.filePreview.Layout()
 
@@ -101,6 +103,14 @@ def _normalize_preview_path(path):
     return os.path.normcase(os.path.normpath(os.path.abspath(path)))
 
 
+def _is_powerpoint_path(path):
+    return bool(path) and os.path.splitext(path)[1].lower() in POWERPOINT_EXTENSIONS
+
+
+def _is_html_office_path(path):
+    return office_html_preview.is_html_office_document(path)
+
+
 def _get_preview_tab_hint(path):
     if not path:
         return ""
@@ -122,18 +132,16 @@ def _clear_preview_content_state(owner):
     set_preview_mode(owner, "empty")
 
 
-def _get_office_editor(owner):
-    editor = getattr(owner, "embedded_office_editor", None)
-    if editor is None and hasattr(owner, "office_editor_panel"):
-        editor = office_editor.EmbeddedOfficeEditor(owner.office_editor_panel)
-        owner.embedded_office_editor = editor
-    return editor
-
-
-def close_office_editor(owner, save_changes=False):
-    editor = getattr(owner, "embedded_office_editor", None)
-    if editor is not None:
-        editor.close(save_changes=save_changes)
+def close_office_preview(owner, save_changes=False):
+    """Clear transient state used by the read-only HTML Office preview."""
+    if getattr(owner, "current_preview_mode", None) != "office":
+        return
+    html_preview = getattr(owner, "html_preview", None)
+    if html_preview is not None:
+        try:
+            html_preview.LoadURL("about:blank")
+        except Exception:
+            pass
 
 
 def _normalize_preview_tabs(owner):
@@ -291,7 +299,7 @@ def _close_preview_tab(owner, tab_index):
     del owner.preview_tabs[tab_index]
 
     if not owner.preview_tabs:
-        close_office_editor(owner, save_changes=False)
+        close_office_preview(owner, save_changes=False)
         owner.preview_active_tab_index = None
         owner.current_preview_path = None
         _clear_preview_content_state(owner)
@@ -299,7 +307,7 @@ def _close_preview_tab(owner, tab_index):
         return
 
     if is_closing_active_tab:
-        close_office_editor(owner, save_changes=False)
+        close_office_preview(owner, save_changes=False)
         owner.preview_active_tab_index = None
         owner.current_preview_path = None
         _clear_preview_content_state(owner)
@@ -584,10 +592,6 @@ def build_file_preview_pane(owner, file_splitter):
     owner.pdf_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
     owner.filePreview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
 
-    owner.office_editor_panel = wx.Panel(owner.filePreview, style=wx.BORDER_NONE)
-    owner.office_editor_panel.Hide()
-    owner.embedded_office_editor = None
-
     owner.preview_tab_pane = wx.Panel(owner.preview_content_panel)
     owner.preview_tab_pane.Hide()
     owner.preview_tab_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -598,7 +602,6 @@ def build_file_preview_pane(owner, file_splitter):
     preview_sizer.Add(owner.preview_text, 1, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.pdf_pages_panel, 1, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.pdf_preview_container, 1, wx.EXPAND | wx.ALL, 5)
-    preview_sizer.Add(owner.office_editor_panel, 1, wx.EXPAND | wx.ALL, 5)
     owner.filePreview.SetSizer(preview_sizer)
 
     content_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -638,13 +641,18 @@ def bind_preview_events(owner):
 
 def confirm_preview_change(owner, next_path):
     current_path = getattr(owner, "current_preview_path", None)
-    editor = getattr(owner, "embedded_office_editor", None)
-    office_dirty = bool(editor is not None and editor.is_dirty())
     pdf_dirty = bool(is_pdf_file(current_path) and has_unsaved_pdf_changes(current_path))
-    if not pdf_dirty and not office_dirty:
+    if not pdf_dirty:
         return True
 
-    if next_path and os.path.normpath(next_path) == os.path.normpath(current_path):
+    # An Office editor can briefly remain dirty while the preview path has
+    # already been cleared (for example, when a Favorite is activated).  Do
+    # not pass that None value to os.path.normpath().
+    if (
+        next_path is not None
+        and current_path is not None
+        and os.path.normpath(next_path) == os.path.normpath(current_path)
+    ):
         return True
 
     dialog = wx.MessageDialog(
@@ -804,12 +812,7 @@ def update_load_all_btn_state(owner):
 
 
 def update_pdf_save_button_state(owner):
-    editor = getattr(owner, "embedded_office_editor", None)
     is_office_preview = bool(getattr(owner, "current_preview_path", None) and is_office_preview_allowed(owner, owner.current_preview_path))
-    if editor is not None and getattr(owner, "current_preview_mode", None) == "office":
-        owner.preview_save_btn.Enable(False)
-        owner.preview_cancel_btn.Enable(False)
-        return
     if is_office_preview:
         owner.preview_save_btn.Enable(False)
         owner.preview_cancel_btn.Enable(False)
@@ -835,6 +838,7 @@ def update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False):
     )
 
     is_office = bool(current_path and is_office_preview_allowed(owner, current_path))
+    is_html_office = bool(is_office and _is_html_office_path(current_path))
     show_pdf_only = is_pdf
     show_pdf_or_image = (is_pdf or is_image or previewable_by_path) and not is_office
     show_preview_layout = (is_pdf or is_image or previewable_by_path) and not is_office
@@ -952,12 +956,15 @@ def show_office_preview(owner, path):
     try:
         cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
         with cursor_context:
-            editor = _get_office_editor(owner)
-            if editor is None:
-                raise RuntimeError("The Microsoft Office editor could not be created.")
-            editor.open(path)
+            if _is_powerpoint_path(path):
+                preview_pdf_path = office_preview.convert_office_to_preview_pdf(path)
+                if not preview_pdf_path or not os.path.isfile(preview_pdf_path):
+                    raise RuntimeError("Unable to generate PowerPoint preview PDF.")
+                show_pdf_feed(owner, preview_pdf_path)
+                return
+            html_path = office_html_preview.render_to_html(path)
+            show_html_preview(owner, html_path)
             set_preview_mode(owner, "office")
-            wx.CallAfter(editor.resize)
             update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
             update_pdf_save_button_state(owner)
     except Exception as exc:
@@ -1375,8 +1382,33 @@ def _ensure_html_preview_widget(owner):
         return None
 
     if wx_html2 is not None:
-        html_preview = wx_html2.WebView.New(owner.pdf_preview_container)
+        edge_backend = getattr(wx_html2, "WebViewBackendEdge", None)
+        if sys.platform == "win32" and not edge_backend:
+            owner._html_preview_error = (
+                "This wxPython build does not provide the Microsoft Edge WebView2 backend."
+            )
+            return None
+        try:
+            if edge_backend:
+                html_preview = wx_html2.WebView.New(
+                    owner.pdf_preview_container,
+                    backend=edge_backend,
+                )
+            else:
+                html_preview = wx_html2.WebView.New(owner.pdf_preview_container)
+        except Exception as exc:
+            if sys.platform == "win32":
+                owner._html_preview_error = (
+                    "Microsoft Edge WebView2 could not be created: " + str(exc)
+                )
+                return None
+            html_preview = wx_html2.WebView.New(owner.pdf_preview_container)
         html_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
+        if hasattr(wx_html2, "EVT_WEBVIEW_LOADED"):
+            html_preview.Bind(
+                wx_html2.EVT_WEBVIEW_LOADED,
+                lambda event: _on_html_preview_loaded(owner, event),
+            )
 
         if hasattr(owner.pdf_preview_container, "GetSizer"):
             container_sizer = owner.pdf_preview_container.GetSizer()
@@ -1399,14 +1431,34 @@ def _ensure_html_preview_widget(owner):
     return None
 
 
+def _on_html_preview_loaded(owner, event):
+    html_preview = event.GetEventObject() if event is not None else None
+    if html_preview is not None:
+        wx.CallAfter(_apply_html_zoom, owner, html_preview)
+    if event is not None:
+        event.Skip()
+
+
 def _apply_html_zoom(owner, html_preview):
     if html_preview is None:
         return
 
     try:
         owner.current_html_zoom = max(0.2, min(float(getattr(owner, "current_html_zoom", 1.0)), 4.0))
-        zoom_percent = max(20, int(round(owner.current_html_zoom * 100)))
-        html_preview.SetZoom(zoom_percent)
+        # WebView2 can terminate the process when SetZoomFactor() is called
+        # before its native controller has finished initializing.  CSS zoom is
+        # applied only after EVT_WEBVIEW_LOADED and is also safe for later
+        # toolbar zoom commands.
+        zoom_percent = int(round(owner.current_html_zoom * 100))
+        script = (
+            "document.documentElement.style.zoom='"
+            + str(zoom_percent)
+            + "%';"
+        )
+        if hasattr(html_preview, "RunScriptAsync"):
+            html_preview.RunScriptAsync(script)
+        elif hasattr(html_preview, "RunScript"):
+            html_preview.RunScript(script)
     except Exception:
         pass
 
@@ -1419,6 +1471,10 @@ def show_html_preview(owner, path):
 
     html_preview = _ensure_html_preview_widget(owner)
     if html_preview is None:
+        if is_office_preview_allowed(owner, getattr(owner, "current_preview_path", None)):
+            raise RuntimeError(
+                getattr(owner, "_html_preview_error", "Microsoft Edge WebView2 is unavailable.")
+            )
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
             owner.preview_text.SetValue(handle.read())
         set_preview_mode(owner, "text")
@@ -1426,8 +1482,6 @@ def show_html_preview(owner, path):
 
     try:
         owner.current_html_zoom = max(0.2, min(float(getattr(owner, "current_html_zoom", 1.0)), 4.0))
-        zoom_percent = max(20, int(round(owner.current_html_zoom * 100)))
-
         try:
             container_size = owner.pdf_preview_container.GetClientSize()
             if hasattr(container_size, "x") and hasattr(container_size, "y"):
@@ -1442,15 +1496,12 @@ def show_html_preview(owner, path):
         except Exception:
             pass
 
-        html_preview.SetZoom(zoom_percent)
-        normalized_path = os.path.abspath(path).replace("\\", "/")
-        html_preview.LoadURL("file:///" + normalized_path)
-        if hasattr(wx_html2, "EVT_WEBVIEW_LOADED"):
-            wx.CallAfter(_apply_html_zoom, owner, html_preview)
+        html_preview.LoadURL(Path(path).resolve().as_uri())
     except Exception:
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
             html_preview.SetPage(handle.read(), "")
-        html_preview.SetZoom(zoom_percent)
+        # SetPage is asynchronous too; its EVT_WEBVIEW_LOADED handler applies
+        # the zoom after the native WebView2 document is ready.
 
     set_preview_mode(owner, "single")
     owner.pdf_preview_container.Layout()
@@ -1701,7 +1752,7 @@ def on_office_preview_checkbox_toggle(event):
 
     # Force rebuilding the current preview because the path itself did not
     # change and the normal same-path optimization would otherwise return.
-    close_office_editor(owner, save_changes=False)
+    close_office_preview(owner, save_changes=False)
     owner.current_preview_path = None
     show_file_preview(owner, current_preview_path)
 
@@ -1739,7 +1790,7 @@ def show_file_preview(owner, path):
             preview_panel.Freeze()
 
         try:
-            close_office_editor(owner, save_changes=False)
+            close_office_preview(owner, save_changes=False)
             if path is not None and os.path.isfile(path):
                 owner.current_preview_path = path
             else:
@@ -1803,7 +1854,7 @@ def show_file_preview(owner, path):
                 break
 
     if normalized_previous != normalized_path:
-        close_office_editor(owner, save_changes=False)
+        close_office_preview(owner, save_changes=False)
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     _clear_preview_content_state(owner)
@@ -1861,6 +1912,8 @@ def _get_preview_owner_from_event(event, fallback_owner=None):
 
     return owner
 
+
+
 def on_preview_edit(event):
     owner = _get_preview_owner_from_event(event)
     if owner and owner.current_preview_path and os.path.isfile(owner.current_preview_path):
@@ -1916,16 +1969,6 @@ def _refresh_preview_after_pdf_save(owner, saved_path):
 
 def on_preview_save(event):
     owner = _get_preview_owner_from_event(event)
-    editor = getattr(owner, "embedded_office_editor", None) if owner else None
-    if editor is not None and getattr(owner, "current_preview_mode", None) == "office":
-        try:
-            editor.save()
-            update_pdf_save_button_state(owner)
-            if hasattr(owner, "load_folder") and hasattr(owner, "path_box"):
-                owner.load_folder(owner.path_box.GetValue())
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
-        return
     if not owner or not is_pdf_file(owner.current_preview_path):
         wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return
@@ -1940,17 +1983,6 @@ def on_preview_save(event):
 
 def on_preview_cancel(event):
     owner = _get_preview_owner_from_event(event)
-    editor = getattr(owner, "embedded_office_editor", None) if owner else None
-    if editor is not None and getattr(owner, "current_preview_mode", None) == "office":
-        path = owner.current_preview_path
-        try:
-            editor.close(save_changes=False)
-            editor.open(path)
-            set_preview_mode(owner, "office")
-            update_pdf_save_button_state(owner)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
-        return
     if not owner or not is_pdf_file(owner.current_preview_path):
         wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
         return
@@ -2537,10 +2569,21 @@ def on_preview_zoom_in(event):
             show_pdf_feed(owner, owner.current_preview_path)
         return
 
-    if is_office_preview_allowed(owner, owner.current_preview_path):
-        editor = getattr(owner, "embedded_office_editor", None)
-        if editor is not None:
-            editor.zoom_in()
+    if _is_powerpoint_path(owner.current_preview_path):
+        preview_pdf_path = getattr(owner, "current_pdf_path", None)
+        if preview_pdf_path and os.path.isfile(preview_pdf_path):
+            with owner.busy_cursor():
+                owner.pdf_preview_zoom = min(owner.pdf_preview_zoom * 1.25, 3.0)
+                owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
+                show_pdf_feed(owner, preview_pdf_path)
+        return
+
+    if is_office_preview_allowed(owner, owner.current_preview_path) and _is_html_office_path(owner.current_preview_path):
+        owner.current_html_zoom = min(
+            getattr(owner, "current_html_zoom", 1.0) * 1.25,
+            4.0,
+        )
+        _apply_html_zoom(owner, getattr(owner, "html_preview", None))
         return
 
     if can_preview_html(owner.current_preview_path):
@@ -2574,10 +2617,21 @@ def on_preview_zoom_out(event):
             show_pdf_feed(owner, owner.current_preview_path)
         return
 
-    if is_office_preview_allowed(owner, owner.current_preview_path):
-        editor = getattr(owner, "embedded_office_editor", None)
-        if editor is not None:
-            editor.zoom_out()
+    if _is_powerpoint_path(owner.current_preview_path):
+        preview_pdf_path = getattr(owner, "current_pdf_path", None)
+        if preview_pdf_path and os.path.isfile(preview_pdf_path):
+            with owner.busy_cursor():
+                owner.pdf_preview_zoom = max(owner.pdf_preview_zoom / 1.25, 0.4)
+                owner.pdf_page_view_mode = PAGE_VIEW_MODE_MANUAL
+                show_pdf_feed(owner, preview_pdf_path)
+        return
+
+    if is_office_preview_allowed(owner, owner.current_preview_path) and _is_html_office_path(owner.current_preview_path):
+        owner.current_html_zoom = max(
+            getattr(owner, "current_html_zoom", 1.0) / 1.25,
+            0.2,
+        )
+        _apply_html_zoom(owner, getattr(owner, "html_preview", None))
         return
 
     if can_preview_html(owner.current_preview_path):

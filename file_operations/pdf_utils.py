@@ -27,6 +27,8 @@ DEFAULT_PDF_SHOW_PAGES_LIMIT = 50
 DEFAULT_WORD_SHOW_PAGES_LIMIT = 10
 DEFAULT_EXCEL_SHOW_PAGES_LIMIT = 1
 DEFAULT_OTHER_SHOW_PAGES_LIMIT = 10
+WORD_OFFICE_EXTENSIONS = {".doc", ".docx", ".docm"}
+EXCEL_OFFICE_EXTENSIONS = {".xls", ".xlsx", ".xlsm"}
 _PDF_SESSION_BYTES = {}
 
 
@@ -46,10 +48,10 @@ def _get_show_pages_limit_for_path(path):
         if ext == ".pdf":
             key = "pdf_show_pages_limit"
             default_limit = DEFAULT_PDF_SHOW_PAGES_LIMIT
-        elif ext in {".doc", ".docx", ".docm"}:
+        elif ext in WORD_OFFICE_EXTENSIONS:
             key = "word_show_pages_limit"
             default_limit = DEFAULT_WORD_SHOW_PAGES_LIMIT
-        elif ext in {".xls", ".xlsx", ".xlsm"}:
+        elif ext in EXCEL_OFFICE_EXTENSIONS:
             key = "excel_show_pages_limit"
             default_limit = DEFAULT_EXCEL_SHOW_PAGES_LIMIT
         else:

@@ -222,7 +222,7 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
             pass
 
     try:
-        if ext in {".doc", ".docx", ".docm"}:
+        if ext in pdf_utils.WORD_OFFICE_EXTENSIONS:
             app = None
             document = None
             should_close_document = False
@@ -266,7 +266,7 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
                     app.Quit()
             return
 
-        if ext in {".xls", ".xlsx", ".xlsm"}:
+        if ext in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
             app = None
             workbook = None
             should_close_workbook = False

@@ -11,7 +11,7 @@ import file_operations.copy_and_paste as copy_and_paste
 if not hasattr(wx, "DATADOBJECT_PREFERRED"):
     wx.DATADOBJECT_PREFERRED = 0
 
-INTERNAL_DRAG_MARKER = "pdfexplorer_internal_move"
+INTERNAL_DRAG_MARKER = "docexplorer_internal_move"
 
 
 class BaseFileSystemDropTarget(wx.DropTarget):
