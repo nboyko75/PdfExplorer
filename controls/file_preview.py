@@ -32,8 +32,7 @@ PAGE_VIEW_MODE_MANUAL = "manual"
 FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_1_TALL}
 VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
 HTML_EXTENSIONS = {".html", ".htm"}
-OFFICE_EXTENSIONS = {".doc", ".docx", ".docm", ".xls", ".xlsx", ".xlsm", ".ppt", ".pptx", ".pptm"}
-POWERPOINT_EXTENSIONS = {".ppt", ".pptx", ".pptm"}
+from file_operations.document_types import OFFICE_EXTENSIONS, POWERPOINT_EXTENSIONS
 TEXT_FILE_EXTENSIONS = {
     # Text
     ".txt", ".text", ".log", ".md", ".markdown", ".rst", ".csv", ".tsv",

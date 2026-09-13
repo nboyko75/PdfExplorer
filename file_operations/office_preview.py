@@ -1,3 +1,4 @@
+from file_operations.office_session import preview_document
 import hashlib
 import os
 import subprocess
@@ -8,11 +9,6 @@ import threading
 from file_operations.pdf_utils import DEFAULT_SHOW_PAGES_LIMIT, _get_show_pages_limit_for_path
 
 try:
-    import win32com.client as win32_client
-except ImportError:  # pragma: no cover - optional runtime dependency
-    win32_client = None
-
-try:
     import pythoncom
     import win32com.client as win32_client
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -20,17 +16,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     win32_client = None
 
 
-_OFFICE_EXTENSIONS = {
-    ".doc",
-    ".docx",
-    ".docm",
-    ".xls",
-    ".xlsx",
-    ".xlsm",
-    ".ppt",
-    ".pptx",
-    ".pptm",
-}
+from file_operations.document_types import OFFICE_EXTENSIONS as _OFFICE_EXTENSIONS
 _OFFICE_OPEN_CHECK_TIMEOUT = 0.5
 
 
@@ -378,47 +364,10 @@ def _export_word_to_pdf(source_path, output_pdf, max_pages=None):
         _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=page_limit)
         return
 
-    if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except Exception:
-            pass
+    with preview_document(win32_client, pythoncom, "Word", source_path) as document:
+        document.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
 
-    app = None
-    doc = None
-    close_document = False
-    try:
-        app = win32_client.DispatchEx("Word.Application")
-        app.Visible = False
-        app.DisplayAlerts = 0
-        app.ScreenUpdating = False
 
-        doc = app.Documents.Open(
-            FileName=source_path,
-            ConfirmConversions=False,
-            ReadOnly=True,
-            AddToRecentFiles=False,
-            Visible=False,
-            OpenAndRepair=False,
-        )
-        close_document = True
-        doc.ExportAsFixedFormat(output_pdf, 17, False, 0, 3, 1, page_limit)
-    finally:
-        if close_document and doc is not None:
-            try:
-                doc.Close(False)
-            except Exception:
-                pass
-        if app is not None:
-            try:
-                app.Quit()
-            except Exception:
-                pass
-    if pythoncom is not None:
-        try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
 
 
 def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
@@ -427,55 +376,10 @@ def _export_excel_to_pdf(source_path, output_pdf, max_pages=None):
         _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=page_limit)
         return
 
-    if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except Exception:
-            pass
+    with preview_document(win32_client, pythoncom, "Excel", source_path, hide_excel_window=True) as document:
+        document.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
 
-    app = None
-    workbook = None
-    close_workbook = False
-    try:
-        app = win32_client.DispatchEx("Excel.Application")
-        app.Visible = False
-        app.DisplayAlerts = False
-        app.ScreenUpdating = False
-        app.EnableEvents = False
-        app.AskToUpdateLinks = False
 
-        workbook = app.Workbooks.Open(
-            Filename=source_path,
-            UpdateLinks=0,
-            ReadOnly=True,
-            IgnoreReadOnlyRecommended=True,
-            AddToMru=False,
-            Notify=False,
-        )
-        close_workbook = True
-
-        try:
-            workbook.Windows(1).Visible = False
-        except Exception:
-            pass
-
-        workbook.ExportAsFixedFormat(0, output_pdf, 0, False, False, 1, page_limit, False)
-    finally:
-        if close_workbook and workbook is not None:
-            try:
-                workbook.Close(False)
-            except Exception:
-                pass
-        if app is not None:
-            try:
-                app.Quit()
-            except Exception:
-                pass
-    if pythoncom is not None:
-        try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
 
 
 def _export_powerpoint_to_pdf(source_path, output_pdf):
@@ -483,36 +387,10 @@ def _export_powerpoint_to_pdf(source_path, output_pdf):
         _run_office_ps_script(source_path, output_pdf=output_pdf, max_pages=None)
         return
 
-    if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except Exception:
-            pass
+    with preview_document(win32_client, pythoncom, "PowerPoint", source_path) as document:
+        document.SaveAs(output_pdf, 32)
 
-    app = None
-    presentation = None
-    close_presentation = False
-    try:
-        app = win32_client.DispatchEx("PowerPoint.Application")
-        presentation = app.Presentations.Open(source_path, ReadOnly=True, WithWindow=False)
-        close_presentation = True
-        presentation.SaveAs(output_pdf, 32)
-    finally:
-        if close_presentation and presentation is not None:
-            try:
-                presentation.Close()
-            except Exception:
-                pass
-        if app is not None:
-            try:
-                app.Quit()
-            except Exception:
-                pass
-    if pythoncom is not None:
-        try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
+
 
 
 def convert_office_to_preview_pdf(path, max_pages=None):
