@@ -162,6 +162,31 @@ class SearchFilesTests(unittest.TestCase):
 
         self.assertLessEqual(len(matches), 1)
 
+    def test_search_result_double_click_selects_file_in_tree_and_list(self):
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(SetValue=mock.Mock()),
+            open_path=mock.Mock(),
+            load_folder=mock.Mock(),
+            select_tree_item_by_path=mock.Mock(),
+            select_list_item_by_path=mock.Mock(),
+            show_file_preview=mock.Mock(),
+        )
+        dialog = search_form_module.SearchDialog.__new__(search_form_module.SearchDialog)
+        dialog.owner = owner
+        dialog.controls = {"result_list": mock.Mock()}
+        dialog.controls["result_list"].GetFirstSelected.return_value = 0
+        dialog.controls["result_list"].GetItemText.side_effect = lambda index, col: {
+            (0, 1): "12 KB",
+            (0, 3): r"C:\search\demo.txt",
+        }.get((index, col), "demo.txt")
+
+        dialog._select_result(None)
+
+        owner.path_box.SetValue.assert_called_once_with(r"C:\search")
+        owner.open_path.assert_called_once_with(r"C:\search", add_history=False)
+        owner.select_tree_item_by_path.assert_any_call(r"C:\search\demo.txt")
+        owner.select_list_item_by_path.assert_called_once_with(r"C:\search\demo.txt")
+
     def test_file_mask_adds_and_removes_office_extensions(self):
         self.assertEqual(_normalize_file_mask("*.txt *.doc?", True, False), "*.txt *.doc?")
         self.assertEqual(_normalize_file_mask("*.txt", True, True), "*.txt *.doc? *.xls?")
@@ -246,6 +271,17 @@ class SearchFilesTests(unittest.TestCase):
         self.assertEqual(state["size_mode"], 1)
         self.assertEqual(state["size_from"], 128)
         self.assertEqual(state["size_to"], 2048)
+
+    def test_default_search_folder_prefers_selected_tree_folder(self):
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: os.path.join(self.temp_dir, "other")),
+            tree=types.SimpleNamespace(GetSelection=lambda: "selected-item"),
+        )
+        selected_path = os.path.join(self.temp_dir, "selected-folder")
+        os.makedirs(selected_path, exist_ok=True)
+
+        with mock.patch.object(tree_utils_module, "get_selected_tree_paths", return_value=[selected_path]):
+            self.assertEqual(tree_utils_module.get_selected_tree_paths(owner), [selected_path])
 
     def test_date_picker_value_from_string_uses_iso_format(self):
         value = search_form_module._date_to_wx_datetime("2024-02-10")

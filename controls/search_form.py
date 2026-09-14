@@ -8,6 +8,7 @@ from xml.etree import ElementTree as ET
 
 import wx
 
+import controls.tree_control as tree_control
 import file_operations.office_preview as office_preview
 import file_operations.pdf_utils as pdf_utils
 from common import date_utils as common_date_utils
@@ -1037,7 +1038,17 @@ class SearchDialog(wx.Dialog):
 
         default_path = getattr(self.owner, "path_box", None)
         restored_folder = str(self.state.get("folder") or "").strip()
-        folder_value = restored_folder
+        folder_value = None
+        try:
+            selected_tree_paths = tree_control.get_selected_tree_paths(self.owner)
+        except Exception:
+            selected_tree_paths = []
+        for selected_path in selected_tree_paths:
+            if isinstance(selected_path, str) and os.path.isdir(selected_path):
+                folder_value = selected_path
+                break
+        if not folder_value and restored_folder and os.path.isdir(restored_folder):
+            folder_value = restored_folder
         if not folder_value and default_path is not None:
             current_path = default_path.GetValue().strip()
             if current_path and os.path.isdir(current_path):
@@ -1314,18 +1325,20 @@ class SearchDialog(wx.Dialog):
         selected_index = result_list.GetFirstSelected()
         if selected_index == wx.NOT_FOUND:
             return
-        full_path = result_list.GetItemText(selected_index, 1)
+        full_path = result_list.GetItemText(selected_index, 3)
         if not full_path:
             return
         parent_folder = os.path.dirname(full_path)
+        if not parent_folder:
+            return
         if hasattr(self.owner, "path_box"):
             self.owner.path_box.SetValue(parent_folder)
         if hasattr(self.owner, "open_path"):
             self.owner.open_path(parent_folder, add_history=False)
-        if hasattr(self.owner, "select_tree_item_by_path"):
-            self.owner.select_tree_item_by_path(parent_folder)
         if hasattr(self.owner, "load_folder"):
             self.owner.load_folder(parent_folder)
+        if hasattr(self.owner, "select_tree_item_by_path"):
+            self.owner.select_tree_item_by_path(full_path)
         if hasattr(self.owner, "select_list_item_by_path"):
             self.owner.select_list_item_by_path(full_path)
         if hasattr(self.owner, "show_file_preview"):
