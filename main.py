@@ -740,6 +740,7 @@ class FileExplorer(wx.Frame):
                 return
 
         try:
+            file_preview.video_preview.close_video_preview(self)
             file_preview.close_office_preview(self, save_changes=False)
             self.save_splitter_positions()
             self.save_list_view_state()

@@ -3,6 +3,15 @@ import os
 from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
+    "video_volume": "Volume",
+    "video_stop": "Stop",
+    "video_pause": "Pause",
+    "video_play": "Play",
+    "video_play_failed": "Unable to play this video.",
+    "video_loading": "Loading video…",
+    "video_backend_unavailable": "Video preview requires wx.html2 with the Microsoft Edge WebView2 backend and the WebView2 Runtime.",
+    "video_load_failed": "WebView2 could not decode this video. This container or codec may not be supported.",
+
     "app_title": "Document Explorer",
     "menu_file": "File",
     "menu_navigation": "Navigation",

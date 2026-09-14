@@ -48,7 +48,7 @@ a = Analysis(
         (str(project_dir / "localization"), "localization"),
         (str(project_dir / "docs" / "DocExplorer_User_Manual.pdf"), "docs"),
     ] + pymupdf_datas,
-    hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports,
+    hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports + ["wx.html2"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

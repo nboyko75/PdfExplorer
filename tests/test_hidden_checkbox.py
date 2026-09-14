@@ -791,6 +791,22 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         self.assertIn("Documents", "".join(str(call.args[1]) for call in fake_menu.AppendCheckItem.call_args_list))
         self.assertIn("Desktop", "".join(str(call.args[1]) for call in fake_menu.AppendCheckItem.call_args_list))
 
+    def test_standard_shortcut_context_menu_toggle_reenables_hidden_default_item(self):
+        owner = main.FileExplorer.__new__(main.FileExplorer)
+        owner.standard_shortcuts_visibility = {}
+        owner.standard_shortcuts_list = mock.MagicMock()
+        owner.standard_shortcuts_image_list = mock.MagicMock()
+        owner.standard_shortcuts_icon_indexes = {}
+        owner.standard_shortcuts_folder_icon_index = -1
+
+        fake_bitmap = mock.MagicMock()
+        fake_bitmap.IsOk.return_value = True
+        with mock.patch.object(favorite_panel.image_utils, "get_shell_bitmap", return_value=fake_bitmap):
+            favorite_panel._toggle_standard_shortcut_visibility(owner, "downloads")
+
+        self.assertTrue(owner.standard_shortcuts_visibility["downloads"])
+        self.assertTrue(any(call.args[1] >= 0 for call in owner.standard_shortcuts_list.SetItemImage.call_args_list))
+
     def test_tree_refresh_menu_refreshes_filelist_for_current_folder(self):
         owner = types.SimpleNamespace(
             tree=mock.MagicMock(),

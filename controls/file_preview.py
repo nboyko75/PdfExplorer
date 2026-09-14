@@ -23,6 +23,7 @@ import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview
 import file_operations.office_html_preview as office_html_preview
 import file_operations.pdf_utils as pdf_utils
+import controls.video_preview as video_preview
 
 
 PAGE_VIEW_MODE_1_WIDE = "1_page_wide"
@@ -63,13 +64,19 @@ TEXT_FILE_EXTENSIONS = {
 }
 
 def set_preview_mode(owner, mode):
-    """Show only the requested preview panel and stop GIF animation when leaving image mode."""
+    """Show the requested panel and release inactive animation/video resources."""
     if owner is None:
         return
 
     mode_name = mode if isinstance(mode, str) else "empty"
-    if mode_name not in {"text", "pages", "single", "office", "empty"}:
+    if mode_name not in {"text", "pages", "single", "office", "video", "empty"}:
         mode_name = "empty"
+
+    video_panel = getattr(owner, "video_preview_panel", None)
+    if video_panel is not None:
+        if mode_name != "video":
+            video_preview.close_video_preview(owner)
+        video_panel.Show(mode_name == "video")
 
     if hasattr(owner, "preview_text"):
         owner.preview_text.Show(mode_name == "text")
@@ -357,7 +364,7 @@ def _is_previewable_path(owner, path):
     if not isinstance(path, str) or not path:
         return False
 
-    if is_pdf_file(path):
+    if is_pdf_file(path) or video_preview.is_video_file(path):
         return True
 
     _, ext = os.path.splitext(path)
@@ -936,6 +943,18 @@ def show_pdf_preview(owner, path):
 def show_image_preview(owner, path):
     update_preview_toolbar_visibility(owner, is_pdf=False, is_image=True)
     image_utils.show_image_preview(owner, path, tr)
+
+
+def show_video_preview(owner, path):
+    update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
+    panel = getattr(owner, "video_preview_panel", None)
+    if panel is None:
+        panel = video_preview.VideoPreviewPanel(owner.filePreview)
+        owner.video_preview_panel = panel
+        owner.filePreview.GetSizer().Add(panel, 1, wx.EXPAND | wx.ALL, 5)
+    set_preview_mode(owner, "video")
+    panel.load(path)
+    owner.filePreview.Layout()
 
 
 def show_text_preview(owner, path):
@@ -1709,6 +1728,7 @@ def is_office_preview_allowed(owner, path):
 
 
 PREVIEW_HANDLERS = [
+    (lambda owner, path: video_preview.is_video_file(path), show_video_preview),
     (lambda owner, path: is_pdf_file(path), show_pdf_preview),
     (lambda owner, path: image_utils.can_preview_image(path), show_image_preview),
     (lambda owner, path: can_preview_html(path), show_html_preview),

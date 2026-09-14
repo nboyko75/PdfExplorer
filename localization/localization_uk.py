@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "video_volume": "Гучність",
+    "video_stop": "Зупинити",
+    "video_pause": "Пауза",
+    "video_play": "Відтворити",
+    "video_play_failed": "Не вдалося відтворити відео.",
+    "video_loading": "Завантаження відео…",
+    "video_backend_unavailable": "Для відеоперегляду потрібні wx.html2 із підтримкою Microsoft Edge WebView2 та WebView2 Runtime.",
+    "video_load_failed": "WebView2 не зміг декодувати відео. Можливо, цей контейнер або кодек не підтримується.",
+
     "app_title": "Document Explorer",
     "menu_file": "Файл",
     "menu_navigation": "Навігація",
