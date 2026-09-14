@@ -71,6 +71,27 @@ class ImageUtilsFallbackTests(unittest.TestCase):
 
         mocked_get.assert_called_once_with("C:/Temp/folder.lnk")
 
+    def test_shortcut_icon_loads_after_real_shell_icon_lookup(self):
+        image_utils = _import_image_utils_with_mocked_wx()
+        fake_windll = mock.Mock()
+        shell_call = fake_windll.shell32.SHGetFileInfoW
+
+        def get_info(path, attributes, info_ptr, info_size, flags):
+            # Enforce the same pointer type check as ctypes on Windows.
+            shell_call.argtypes[2].from_param(info_ptr)
+            info_ptr._obj.hIcon = 123
+            return 1
+
+        shell_call.side_effect = get_info
+        bitmap = mock.Mock(IsOk=mock.Mock(return_value=True))
+        with mock.patch.object(image_utils.ctypes, "windll", fake_windll, create=True), \
+             mock.patch.object(image_utils.os.path, "exists", return_value=True), \
+             mock.patch.object(image_utils, "hicon_to_bitmap", return_value=bitmap):
+            self.assertIs(image_utils.get_real_shell_bitmap("C:/first.lnk"), bitmap)
+            self.assertIs(image_utils.get_shell_bitmap("C:/Downloads"), bitmap)
+            self.assertIs(image_utils.get_real_shell_bitmap("C:/second.lnk"), bitmap)
+            self.assertIs(image_utils.get_shell_bitmap("C:/Music"), bitmap)
+
     def test_real_shell_icon_uses_existing_path_without_file_attribute_flag(self):
         image_utils = _import_image_utils_with_mocked_wx()
         fake_windll = mock.Mock()

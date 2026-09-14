@@ -4,6 +4,17 @@ import os
 import wx
 
 
+# All Shell icon calls must share the type used by SHGetFileInfoW.argtypes.
+class SHFILEINFOW(ctypes.Structure):
+    _fields_ = [
+        ("hIcon", ctypes.c_void_p),
+        ("iIcon", ctypes.c_int),
+        ("dwAttributes", ctypes.c_uint),
+        ("szDisplayName", ctypes.c_wchar * 260),
+        ("szTypeName", ctypes.c_wchar * 80),
+    ]
+
+
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".jfif"}
 
 
@@ -532,15 +543,6 @@ def get_shell_bitmap(path, file_attr=0, use_file_attributes=False):
     SHGFI_SMALLICON = 0x00000001
     SHGFI_USEFILEATTRIBUTES = 0x00000010
 
-    class SHFILEINFOW(ctypes.Structure):
-        _fields_ = [
-            ("hIcon", ctypes.c_void_p),
-            ("iIcon", ctypes.c_int),
-            ("dwAttributes", ctypes.c_uint),
-            ("szDisplayName", ctypes.c_wchar * 260),
-            ("szTypeName", ctypes.c_wchar * 80),
-        ]
-
     try:
         shfi = SHFILEINFOW()
         flags = SHGFI_ICON | SHGFI_SMALLICON
@@ -585,15 +587,6 @@ def get_real_shell_bitmap(path, size=16, include_shortcut_overlay=True):
     SHGFI_SMALLICON = 0x00000001
     SHGFI_LARGEICON = 0x00000000
     SHGFI_ADDOVERLAYS = 0x00000020
-
-    class SHFILEINFOW(ctypes.Structure):
-        _fields_ = [
-            ("hIcon", ctypes.c_void_p),
-            ("iIcon", ctypes.c_int),
-            ("dwAttributes", ctypes.c_uint),
-            ("szDisplayName", ctypes.c_wchar * 260),
-            ("szTypeName", ctypes.c_wchar * 80),
-        ]
 
     try:
         shell32 = ctypes.windll.shell32
@@ -806,15 +799,6 @@ def create_extension_icon_bitmap(ext):
         SHGFI_SMALLICON = 0x000000001
         SHGFI_USEFILEATTRIBUTES = 0x000000010
         FILE_ATTRIBUTE_NORMAL = 0x00000080
-
-        class SHFILEINFOW(ctypes.Structure):
-            _fields_ = [
-                ("hIcon", ctypes.c_void_p),
-                ("iIcon", ctypes.c_int),
-                ("dwAttributes", ctypes.c_uint),
-                ("szDisplayName", ctypes.c_wchar * 260),
-                ("szTypeName", ctypes.c_wchar * 80),
-            ]
 
         try:
             shfi = SHFILEINFOW()
