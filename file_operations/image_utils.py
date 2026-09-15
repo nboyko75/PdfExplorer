@@ -360,16 +360,18 @@ def _update_image_preview_viewport(owner, image_w, image_h):
     if client_w <= 1 or client_h <= 1:
         return
 
-    virtual_w = max(client_w, image_w)
-    virtual_h = max(client_h, image_h)
-    container.SetVirtualSize((virtual_w, virtual_h))
-
+    # Establish scrollbars before measuring the available client area.
+    # Do not let the HTML sizer replace these manually managed coordinates.
+    container.SetAutoLayout(False)
+    container.SetVirtualSize((image_w, image_h))
+    client_w, client_h = container.GetClientSize()
     pos_x = max((client_w - image_w) // 2, 0)
     pos_y = max((client_h - image_h) // 2, 0)
-    owner.pdf_preview.SetPosition((pos_x, pos_y))
+    pos_x, pos_y = container.CalcScrolledPosition(pos_x, pos_y)
     owner.pdf_preview.SetSize((image_w, image_h))
+    owner.pdf_preview.SetPosition((pos_x, pos_y))
+    container.Refresh()
 
-    container.Layout()
 
 
 def show_image_preview(owner, path, tr_func):

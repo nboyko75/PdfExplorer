@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from contextlib import contextmanager, nullcontext
 import wx
+from wx.lib.statbmp import GenStaticBitmap
 
 from common.system import move_to_recycle_bin
 
@@ -91,6 +92,8 @@ def set_preview_mode(owner, mode):
     if hasattr(owner, "pdf_pages_panel"):
         owner.pdf_pages_panel.Show(mode_name == "pages")
     if hasattr(owner, "pdf_preview_container"):
+        # Images use virtual coordinates; only HTML is managed by the sizer.
+        owner.pdf_preview_container.SetAutoLayout(mode_name in {"html", "office"})
         owner.pdf_preview_container.Show(mode_name in {"single", "html", "office"})
     if hasattr(owner, "filePreview"):
         owner.filePreview.Layout()
@@ -601,7 +604,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.pdf_preview_container.SetScrollRate(10, 10)
     owner.pdf_preview_container.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
 
-    owner.pdf_preview = wx.StaticBitmap(owner.pdf_preview_container)
+    owner.pdf_preview = GenStaticBitmap(owner.pdf_preview_container, wx.ID_ANY, wx.Bitmap(1, 1))
     owner.pdf_preview.SetMinSize((250, 250))
     owner.pdf_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
     owner.filePreview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
