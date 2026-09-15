@@ -5,7 +5,6 @@ import common.navigation_utils as navigation_utils
 from common.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
 from common.window_tools import (
-    set_column_image_on_left,
     get_windows_special_folder,
     get_windows_display_name,
     get_special_folder_display_name,
@@ -212,13 +211,13 @@ def _create_favorite_controls(owner, parent):
     owner.standard_shortcuts_move_up_btn.Hide()
     owner.standard_shortcuts_move_down_btn.Hide()
 
-    owner.favorite_list = wx.ListCtrl(owner.favorite_content_splitter, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+    owner.favorite_list = wx.ListCtrl(owner.favorite_content_splitter, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.BORDER_NONE)
     owner.favorite_list.SetMinSize((0, 0))
     owner.favorite_image_list = wx.ImageList(16, 16)
     owner.standard_shortcuts_image_list = wx.ImageList(16, 16)
 
     try:
-        owner.standard_shortcuts_list = wx.ListCtrl(owner.standard_shortcuts_panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+        owner.standard_shortcuts_list = wx.ListCtrl(owner.standard_shortcuts_panel, style=wx.LC_REPORT | wx.LC_NO_HEADER | wx.BORDER_NONE)
     except Exception:
         owner.standard_shortcuts_list = getattr(owner, "standard_shortcuts_list", None) or type("_FallbackList", (), {"SetMinSize": lambda self, *args, **kwargs: None, "Hide": lambda self, *args, **kwargs: None, "Show": lambda self, *args, **kwargs: None, "DeleteAllItems": lambda self, *args, **kwargs: None, "InsertItem": lambda self, *args, **kwargs: 0, "SetItemImage": lambda self, *args, **kwargs: None, "Layout": lambda self, *args, **kwargs: None, "SetColumnWidth": lambda self, *args, **kwargs: None, "PopupMenu": lambda self, *args, **kwargs: None, "Bind": lambda self, *args, **kwargs: None, "Select": lambda self, *args, **kwargs: None, "HitTest": lambda self, *args, **kwargs: (wx.NOT_FOUND, wx.DefaultPosition), "GetFirstSelected": lambda self, *args, **kwargs: wx.NOT_FOUND, "GetItemCount": lambda self, *args, **kwargs: 0})()
     owner.standard_shortcuts_list.SetMinSize((0, 0))
@@ -281,21 +280,46 @@ def _attach_favorite_list_icons(owner):
         owner.standard_shortcuts_folder_icon_index = -1
 
 
+def _wrap_list_with_header(list_ctrl, title, image_list, image_index):
+    """Use an explicit header panel so native header themes cannot hide its colour."""
+    pane = wx.Panel(list_ctrl.GetParent(), style=wx.BORDER_SUNKEN)
+    pane.SetMinSize((0, 0))
+    list_ctrl.Reparent(pane)
+    header = wx.Panel(pane)
+    grey = wx.Colour(230, 230, 230)
+    header.SetBackgroundColour(grey)
+    row = wx.BoxSizer(wx.HORIZONTAL)
+    if image_index >= 0:
+        icon = wx.StaticBitmap(header, bitmap=image_list.GetBitmap(image_index))
+        icon.SetBackgroundColour(grey)
+        row.Add(icon, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, header.FromDIP(6))
+    label = wx.StaticText(header, label=title, style=wx.ST_ELLIPSIZE_END)
+    label.SetBackgroundColour(grey)
+    label.SetForegroundColour(wx.Colour(0, 0, 0))
+    row.Add(label, 1, wx.ALIGN_CENTER_VERTICAL)
+    padding = wx.BoxSizer(wx.VERTICAL)
+    padding.Add(row, 1, wx.EXPAND | wx.ALL, header.FromDIP(4))
+    header.SetSizer(padding)
+    layout = wx.BoxSizer(wx.VERTICAL)
+    layout.Add(header, 0, wx.EXPAND)
+    layout.Add(list_ctrl, 1, wx.EXPAND)
+    pane.SetSizer(layout)
+    return pane
+
+
 def _configure_favorite_list_columns(owner):
     owner.favorite_list.SetImageList(owner.favorite_image_list, wx.IMAGE_LIST_SMALL)
     owner.favorite_list.InsertColumn(0, tr("favorite_column_header"), width=200)
     owner.standard_shortcuts_list.SetImageList(owner.standard_shortcuts_image_list, wx.IMAGE_LIST_SMALL)
     owner.standard_shortcuts_list.InsertColumn(0, tr("favorite_shortcuts_button"), width=200)
-    if getattr(owner, "favorite_header_icon_index", -1) >= 0:
-        owner.favorite_list.SetColumnImage(0, owner.favorite_header_icon_index)
-    if getattr(owner, "standard_shortcuts_header_icon_index", -1) >= 0:
-        owner.standard_shortcuts_list.SetColumnImage(0, owner.standard_shortcuts_header_icon_index)
-    try:
-        if wx.GetApp() is not None:
-            wx.CallAfter(set_column_image_on_left, owner.favorite_list, 0)
-            wx.CallAfter(set_column_image_on_left, owner.standard_shortcuts_list, 0)
-    except Exception:
-        pass
+    owner.favorite_list_pane = _wrap_list_with_header(
+        owner.favorite_list, tr("favorite_column_header"),
+        owner.favorite_image_list, owner.favorite_header_icon_index,
+    )
+    owner.standard_shortcuts_list_pane = _wrap_list_with_header(
+        owner.standard_shortcuts_list, tr("favorite_shortcuts_button"),
+        owner.standard_shortcuts_image_list, owner.standard_shortcuts_header_icon_index,
+    )
 
 
 def _bind_favorite_panel_events(owner):
@@ -347,12 +371,12 @@ def _build_favorite_panel_layout(owner):
 
     standard_shortcuts_sizer = wx.BoxSizer(wx.VERTICAL)
     standard_shortcuts_sizer.Add(standard_shortcuts_header, 0, wx.EXPAND | wx.ALL, 4)
-    standard_shortcuts_sizer.Add(owner.standard_shortcuts_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+    standard_shortcuts_sizer.Add(owner.standard_shortcuts_list_pane, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
     owner.standard_shortcuts_panel.SetSizer(standard_shortcuts_sizer)
 
     sash = normalize_shortcuts_sash(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120))
     owner.favorite_content_splitter.SplitHorizontally(
-        owner.favorite_list,
+        owner.favorite_list_pane,
         owner.standard_shortcuts_panel,
         sash,
     )
@@ -571,7 +595,7 @@ def toggle_standard_shortcuts_panel(owner):
             try:
                 if not splitter.IsSplit():
                     sash = normalize_shortcuts_sash(getattr(owner, "favorite_standard_shortcuts_splitter_sash", 120))
-                    splitter.SplitHorizontally(owner.favorite_list, standard_shortcuts_pane or owner.standard_shortcuts_list, sash)
+                    splitter.SplitHorizontally(owner.favorite_list_pane, standard_shortcuts_pane or owner.standard_shortcuts_list, sash)
                     splitter.SetSashPosition(sash)
             except Exception:
                 pass

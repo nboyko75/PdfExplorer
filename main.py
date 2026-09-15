@@ -694,7 +694,7 @@ class FileExplorer(wx.Frame):
                 try:
                     sash = normalize_shortcuts_sash(self.favorite_standard_shortcuts_splitter_sash)
                     self.favorite_content_splitter.SplitHorizontally(
-                        self.favorite_list,
+                        self.favorite_list_pane,
                         self.standard_shortcuts_panel,
                         sash,
                     )
