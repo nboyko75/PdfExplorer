@@ -69,7 +69,7 @@ def set_preview_mode(owner, mode):
         return
 
     mode_name = mode if isinstance(mode, str) else "empty"
-    if mode_name not in {"text", "pages", "single", "office", "video", "empty"}:
+    if mode_name not in {"text", "pages", "single", "html", "office", "video", "empty"}:
         mode_name = "empty"
 
     video_panel = getattr(owner, "video_preview_panel", None)
@@ -78,12 +78,20 @@ def set_preview_mode(owner, mode):
             video_preview.close_video_preview(owner)
         video_panel.Show(mode_name == "video")
 
+    # Native WebView visibility must be updated explicitly, not just its parent.
+    html_preview = getattr(owner, "html_preview", None)
+    if html_preview is not None:
+        html_preview.Show(mode_name in {"html", "office"})
+    image_preview = getattr(owner, "pdf_preview", None)
+    if image_preview is not None:
+        image_preview.Show(mode_name == "single")
+
     if hasattr(owner, "preview_text"):
         owner.preview_text.Show(mode_name == "text")
     if hasattr(owner, "pdf_pages_panel"):
         owner.pdf_pages_panel.Show(mode_name == "pages")
     if hasattr(owner, "pdf_preview_container"):
-        owner.pdf_preview_container.Show(mode_name in {"single", "office"})
+        owner.pdf_preview_container.Show(mode_name in {"single", "html", "office"})
     if hasattr(owner, "filePreview"):
         owner.filePreview.Layout()
 
@@ -1433,10 +1441,9 @@ def _ensure_html_preview_widget(owner):
             if container_sizer is None:
                 container_sizer = wx.BoxSizer(wx.VERTICAL)
                 owner.pdf_preview_container.SetSizer(container_sizer)
-            try:
-                container_sizer.Clear(True)
-            except Exception:
-                pass
+            # Keep the image widget alive for later preview switches.
+            # set_preview_mode selects which child participates in the layout.
+            html_preview.Hide()
             container_sizer.Add(html_preview, 1, wx.EXPAND)
 
         if hasattr(owner, "pdf_preview") and owner.pdf_preview is not None:
@@ -1521,7 +1528,7 @@ def show_html_preview(owner, path):
         # SetPage is asynchronous too; its EVT_WEBVIEW_LOADED handler applies
         # the zoom after the native WebView2 document is ready.
 
-    set_preview_mode(owner, "single")
+    set_preview_mode(owner, "html")
     owner.pdf_preview_container.Layout()
     if hasattr(owner, "filePreview"):
         owner.filePreview.Layout()
