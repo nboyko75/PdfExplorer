@@ -274,6 +274,8 @@ def _populate_list_rows(owner, row_data):
 
 
 def load_folder(owner, path):
+    # Track the directory represented by the rows independently of selection.
+    owner._list_folder_path = path
     owner.list.DeleteAllItems()
     owner._list_item_paths = {}
 

@@ -714,21 +714,26 @@ def _remove_tree_item_for_path(owner, path):
     if parent.IsOk() and owner.tree.GetChildrenCount(parent) == 1:
         owner.tree.AppendItem(parent, tr("tree_expand_placeholder"))
 
-    owner.tree.Delete(item)
-
-    if parent.IsOk():
-        previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
-        owner._syncing_tree_from_path = True
-        try:
+    previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
+    owner._syncing_tree_from_path = True
+    try:
+        owner.tree.Delete(item)
+        if parent.IsOk():
             owner.tree.SelectItem(parent)
-        except Exception:
-            pass
-        finally:
-            owner._syncing_tree_from_path = previous_syncing
+    finally:
+        owner._syncing_tree_from_path = previous_syncing
 
 
-def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None):
-    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+def _get_displayed_list_folder(owner):
+    folder = getattr(owner, "_list_folder_path", None)
+    if isinstance(folder, str) and folder:
+        return folder
+    return getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")()
+
+
+def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None, current_folder=None):
+    if current_folder is None:
+        current_folder = _get_displayed_list_folder(owner)
     normalized_current_folder = os.path.normpath(current_folder) if isinstance(current_folder, str) and current_folder else None
 
     selected_tree_path = None
@@ -959,7 +964,7 @@ def on_list_rename(owner, _):
 def _resolve_new_folder_target_directory(owner, explicit_path=None):
     target_path = explicit_path
     if not target_path:
-        target_path = getattr(owner.path_box, "GetValue", lambda: "")()
+        target_path = _get_displayed_list_folder(owner)
 
     if isinstance(target_path, str) and os.path.isfile(target_path):
         target_path = os.path.dirname(target_path)
@@ -1002,8 +1007,11 @@ def create_new_folder(owner, target_path=None):
     folder_path = os.path.join(target_dir, folder_name)
     try:
         os.makedirs(folder_path, exist_ok=False)
+        parent_dir = os.path.normpath(os.path.dirname(target_dir)) if target_dir else ""
         affected_dirs = [target_dir]
-        _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
+        if parent_dir and os.path.normpath(parent_dir) != os.path.normpath(target_dir):
+            affected_dirs.append(parent_dir)
+        _refresh_after_fs_change(owner, affected_dirs=affected_dirs, preferred_preview_path=folder_path)        
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 
@@ -1095,19 +1103,9 @@ def delete_paths(owner, paths, permanent=False):
         return
 
     errors = []
-    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
+    current_folder = _get_displayed_list_folder(owner)
     affected_dirs = [current_folder] if current_folder else []
     removed_current_preview = False
-    deleted_displayed_folder = None
-
-    for path in unique_paths:
-        if os.path.isdir(path):
-            normalized_current_folder = os.path.normpath(current_folder) if isinstance(current_folder, str) and current_folder else None
-            normalized_path = os.path.normpath(path)
-            if normalized_current_folder is not None and normalized_current_folder == normalized_path:
-                deleted_displayed_folder = normalized_path
-            break
-
     try:
         for path in unique_paths:
             try:
@@ -1129,18 +1127,27 @@ def delete_paths(owner, paths, permanent=False):
                     os.remove(path)
                     _remove_tree_item_for_path(owner, path)
 
+                affected_dirs.append(os.path.dirname(path))
                 current_preview_path = getattr(owner, "current_preview_path", None)
                 if current_preview_path and os.path.normcase(os.path.normpath(current_preview_path)) == os.path.normcase(os.path.normpath(path)):
                     removed_current_preview = True
             except Exception as exc:
                 errors.append(f"{path}: {exc}")
 
-        _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
-
-        if deleted_displayed_folder is not None and hasattr(owner, "load_folder"):
-            parent_folder = os.path.dirname(deleted_displayed_folder)
-            if parent_folder and os.path.isdir(parent_folder):
-                owner.load_folder(parent_folder)
+        # Use the pre-operation directory even if tree selection changed.
+        # If that directory was deleted, navigate to the nearest surviving parent.
+        refresh_folder = current_folder
+        if refresh_folder and not refresh_folder.lower().startswith("shell:"):
+            while refresh_folder and not os.path.isdir(refresh_folder):
+                parent = os.path.dirname(refresh_folder)
+                if parent == refresh_folder:
+                    break
+                refresh_folder = parent
+        if refresh_folder and refresh_folder != current_folder:
+            path_box = getattr(owner, "path_box", None)
+            if path_box is not None:
+                path_box.ChangeValue(refresh_folder)
+        _refresh_after_fs_change(owner, affected_dirs=affected_dirs, current_folder=refresh_folder)
 
         if removed_current_preview:
             file_preview.show_file_preview(owner, None)

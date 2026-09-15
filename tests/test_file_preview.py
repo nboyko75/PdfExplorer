@@ -1632,6 +1632,31 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         self.assertEqual(os.path.normpath(affected_dirs[0]), os.path.normpath(target_dir))
         self.assertEqual(os.path.normpath(affected_dirs[1]), os.path.normpath(parent_dir))
 
+    def test_create_new_folder_selects_new_folder_in_tree_and_list(self):
+        filelist = __import__("controls.filelist", fromlist=["create_new_folder", "_refresh_after_fs_change"])
+        owner = types.SimpleNamespace(
+            path_box=types.SimpleNamespace(GetValue=lambda: "C:/current"),
+            select_tree_item_by_path=mock.Mock(),
+            select_list_item_by_path=mock.Mock(),
+        )
+
+        dialog = mock.MagicMock()
+        dialog.ShowModal.return_value = filelist.wx.ID_OK
+        dialog.GetValue.return_value = "new_folder"
+        current_dir = "C:/current"
+        target_dir = os.path.normpath(current_dir)
+        parent_dir = os.path.normpath(os.path.dirname(target_dir))
+        expected_folder = os.path.join(current_dir, "new_folder")
+
+        with mock.patch.object(filelist.os, "makedirs") as mocked_makedirs, \
+             mock.patch.object(filelist.os.path, "isdir", side_effect=lambda path: os.path.normpath(path) in {target_dir, parent_dir}), \
+             mock.patch.object(filelist.wx, "TextEntryDialog", return_value=dialog), \
+             mock.patch.object(filelist, "_refresh_after_fs_change") as mocked_refresh:
+            filelist.create_new_folder(owner)
+
+        mocked_makedirs.assert_called_once_with(expected_folder, exist_ok=False)
+        mocked_refresh.assert_called_once_with(owner, affected_dirs=[current_dir, parent_dir], preferred_preview_path=expected_folder)
+
     def test_tree_rename_uses_selected_tree_path_without_parent_refresh(self):
         filelist = __import__("controls.filelist", fromlist=["on_tree_rename", "_refresh_after_fs_change"])
         owner = types.SimpleNamespace(tree=mock.MagicMock())
