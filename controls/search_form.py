@@ -123,7 +123,8 @@ def _should_include_search_match(search_by_filename, file_name_match, search_by_
         return bool(file_name_match)
     if search_by_content:
         return bool(content_match)
-    return False
+    # Empty or disabled expressions impose no additional restrictions.
+    return True
 
 
 _COMMON_PARSE_DATE_VALUE = common_date_utils._parse_date_value
@@ -1095,22 +1096,15 @@ class SearchDialog(wx.Dialog):
             self.controls["search_file_content_chk"],
             self.controls["query_filetext_field"],
         )
+        effective_search_by_filename = search_by_filename and bool(filename_value)
+        effective_search_by_content = search_by_content and bool(content_value)
         folder_value = self.controls["folder_field"].GetValue().strip()
-        if not search_by_filename and not search_by_content:
-            wx.MessageBox(tr("search_query_required"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
-            return None
         if not folder_value or not os.path.isdir(folder_value):
             wx.MessageBox(tr("search_no_folder"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
             return None
-        if not filename_value and search_by_filename and not content_value and search_by_content:
-            wx.MessageBox(tr("search_query_required"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
-            return None
-        if not content_value and search_by_content and not filename_value and search_by_filename:
-            wx.MessageBox(tr("search_query_required"), tr("app_title"), style=wx.OK | wx.ICON_INFORMATION)
-            return None
         return {
-            "search_by_filename": search_by_filename,
-            "search_by_content": search_by_content,
+            "search_by_filename": effective_search_by_filename,
+            "search_by_content": effective_search_by_content,
             "filename_value": filename_value,
             "content_value": content_value,
             "folder_value": folder_value,

@@ -340,6 +340,60 @@ class SearchFilesTests(unittest.TestCase):
         self.assertTrue(search_form_module._should_include_search_match(True, True, False, False))
         self.assertTrue(search_form_module._should_include_search_match(False, False, True, True))
 
+    def test_validate_search_request_requires_non_empty_query_for_active_modes(self):
+        class DummyCheckBox:
+            def __init__(self, value):
+                self.value = bool(value)
+
+            def GetValue(self):
+                return self.value
+
+        class DummyField:
+            def __init__(self, value):
+                self.value = value
+
+            def GetValue(self):
+                return self.value
+
+        dialog = search_form_module.SearchDialog.__new__(search_form_module.SearchDialog)
+        dialog.controls = {
+            "search_filename_chk": DummyCheckBox(True),
+            "query_filename_field": DummyField(""),
+            "search_file_content_chk": DummyCheckBox(False),
+            "query_filetext_field": DummyField(""),
+            "folder_field": DummyField(self.temp_dir),
+        }
+        self.assertIsNone(dialog._validate_search_request())
+
+        dialog.controls["search_filename_chk"] = DummyCheckBox(False)
+        dialog.controls["search_file_content_chk"] = DummyCheckBox(True)
+        dialog.controls["query_filetext_field"] = DummyField("needle")
+        request = dialog._validate_search_request()
+        self.assertIsNotNone(request)
+        self.assertFalse(request["search_by_filename"])
+        self.assertTrue(request["search_by_content"])
+        self.assertEqual(request["content_value"], "needle")
+
+        dialog.controls["search_filename_chk"] = DummyCheckBox(True)
+        dialog.controls["search_file_content_chk"] = DummyCheckBox(False)
+        dialog.controls["query_filename_field"] = DummyField("needle")
+        dialog.controls["query_filetext_field"] = DummyField("")
+        request = dialog._validate_search_request()
+        self.assertIsNotNone(request)
+        self.assertTrue(request["search_by_filename"])
+        self.assertFalse(request["search_by_content"])
+        self.assertEqual(request["filename_value"], "needle")
+
+        dialog.controls["search_filename_chk"] = DummyCheckBox(True)
+        dialog.controls["search_file_content_chk"] = DummyCheckBox(True)
+        dialog.controls["query_filename_field"] = DummyField("")
+        dialog.controls["query_filetext_field"] = DummyField("needle")
+        request = dialog._validate_search_request()
+        self.assertIsNotNone(request)
+        self.assertFalse(request["search_by_filename"])
+        self.assertTrue(request["search_by_content"])
+        self.assertEqual(request["content_value"], "needle")
+
     def test_sync_query_history_handles_combo_without_is_popup_shown(self):
         original_history = search_form_module._load_search_history
         original_get_app = search_form_module.wx.GetApp
