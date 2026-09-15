@@ -273,26 +273,35 @@ def _matches_file_mask(file_path, mask_value):
     return False
 
 
-def _iter_candidate_files(start_folder, include_child_folders, file_mask=""):
+def _iter_candidate_files(start_folder, include_child_folders, file_mask="", on_folder=None, stop_event=None):
     if not isinstance(start_folder, str) or not os.path.isdir(start_folder):
-        return []
+        return
 
     if not include_child_folders:
-        files = []
+        if stop_event is not None and stop_event.is_set():
+            return
+        if on_folder is not None:
+            on_folder(start_folder)
         for name in sorted(os.listdir(start_folder)):
+            if stop_event is not None and stop_event.is_set():
+                return
             full_path = os.path.join(start_folder, name)
             if os.path.isfile(full_path) and _matches_file_mask(full_path, file_mask):
-                files.append(full_path)
-        return files
+                yield full_path
+        return
 
-    result = []
     for root, dir_names, file_names in os.walk(start_folder):
+        if stop_event is not None and stop_event.is_set():
+            return
+        if on_folder is not None:
+            on_folder(root)
         dir_names.sort()
         for file_name in sorted(file_names):
+            if stop_event is not None and stop_event.is_set():
+                return
             file_path = os.path.join(root, file_name)
             if os.path.isfile(file_path) and _matches_file_mask(file_path, file_mask):
-                result.append(file_path)
-    return result
+                yield file_path
 
 
 def _read_text_file(path):
@@ -622,13 +631,10 @@ def _get_pause_button_label(paused=False):
 
 
 def _format_search_status(folder_name, file_name=None):
-    if file_name:
-        left = f"{tr('search_status_folder')}: {os.path.dirname(file_name) or folder_name}"
-        right = f"{tr('search_status_file')}: {os.path.basename(file_name)}"
-        return left, right
-
-    left = f"{tr('search_status_folder')}: {folder_name}" if folder_name else ""
-    return left, ""
+    current_folder = (os.path.dirname(file_name) or folder_name) if file_name else folder_name
+    left = f"{tr('search_status_folder')}: {current_folder}" if current_folder else ""
+    right = f"{tr('search_status_file')}: {os.path.basename(file_name)}" if file_name else ""
+    return left, right
 
 
 def _load_search_history(history_key="search_history"):
@@ -1158,7 +1164,7 @@ class SearchDialog(wx.Dialog):
         def worker():
             try:
                 matches = set()
-                for file_path in _iter_candidate_files(folder_value, self.controls["include_child_chk"].GetValue(), file_mask=mask_value):
+                for file_path in _iter_candidate_files(folder_value, self.controls["include_child_chk"].GetValue(), file_mask=mask_value, on_folder=lambda folder: wx.CallAfter(self._set_status, folder), stop_event=stop_event):
                     if stop_event.is_set():
                         return
                     if not os.path.isfile(file_path):
@@ -1195,12 +1201,8 @@ class SearchDialog(wx.Dialog):
 
                     if _should_include_search_match(search_by_filename, file_name_match, search_by_content, content_match):
                         matches.add(file_path)
-                        try:
-                            wx.CallAfter(self._set_status, folder_value, file_path)
-                        except Exception:
-                            pass
 
-                ordered_matches = list(matches)
+                ordered_matches = sorted(matches, key=lambda path: (path.casefold(), path))
                 if stop_event.is_set():
                     wx.CallAfter(self._stop_search)
                     return
