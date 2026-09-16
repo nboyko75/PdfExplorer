@@ -7,6 +7,7 @@ import wx
 import file_operations.archive_helper as archive_helper
 from file_operations.copy_and_paste import _can_paste_into_directory
 from localization import tr
+from file_operations import open_with
 
 
 @dataclass(frozen=True)
@@ -209,6 +210,7 @@ def _can_process_pdf_path(context):
 FILE_COMMANDS = {
     "scan": MenuCommand("scan", "scan", _handle_scan, custom_icon="scan"),
     "open": MenuCommand("open", "context_open", _handle_open, custom_icon="file_view", can_execute=_can_select_one),
+    "open_with": MenuCommand("open_with", "context_open_with", open_with.popup, can_execute=lambda c: bool(open_with.selected_file(c))),
     "folder_up": MenuCommand("folder_up", "folder_up_button", _handle_folder_up, art_id=wx.ART_GO_UP, can_execute=_can_go_up),
     "new_folder": MenuCommand("new_folder", "context_new_folder", _handle_new_folder, art_id=wx.ART_FOLDER, can_execute=_can_create_folder),
     "refresh": MenuCommand("refresh", "context_refresh", _handle_refresh, shortcut="F5", custom_icon="refresh", can_execute=lambda context: True),
@@ -259,6 +261,8 @@ def append_command(menu, owner, command, context=None, context_factory=None):
         fixed_context = context or _build_menu_command_context(owner)
         context_factory = lambda: fixed_context
     initial_context = context_factory()
+    if command.key == "open_with":
+        return open_with.append_menu(menu, owner, initial_context)
     label = tr(command.label_key)
     if command.shortcut:
         label = f"{label}\t{command.shortcut}"
@@ -276,7 +280,7 @@ append_menu_command = append_command
 def build_file_operations_menu(context):
     menu = wx.Menu()
     owner = context.owner
-    for key in ("scan", "open", "folder_up", "new_folder", "refresh", "print"):
+    for key in ("scan", "open", "open_with", "folder_up", "new_folder", "refresh", "print"):
         append_command(menu, owner, FILE_COMMANDS[key], context)
     if context.source == "tree":
         menu.AppendSeparator()

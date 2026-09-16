@@ -157,6 +157,7 @@ class FileExplorer(wx.Frame):
         self.file_menu = wx.Menu()
         self.file_scan_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["scan"], context_factory=list_context)
         self.file_open_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open"], context_factory=list_context)
+        self.file_open_with_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open_with"], context_factory=list_context)
         self.file_rename_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["rename"], context_factory=list_context)
         self.file_new_folder_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["new_folder"], context_factory=list_context)
         self.file_refresh_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["refresh"], context_factory=list_context)
@@ -278,6 +279,7 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.doc_adjust_all_page_width_item, art_id=wx.ART_REPORT_VIEW)
 
     def _bind_main_menu_items(self):
+        self.Bind(wx.EVT_MENU_OPEN, self.on_main_menu_open)
         self.Bind(wx.EVT_UPDATE_UI, lambda event: event.Enable(True), self.file_refresh_item)
         self.Bind(wx.EVT_MENU, self.on_file_options, self.file_options_item)
         self.Bind(wx.EVT_MENU, self.on_exit, self.file_quit_item)
@@ -314,6 +316,14 @@ class FileExplorer(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_app_manual, self.help_manual_item)
         self.Bind(wx.EVT_MENU, self.on_about, self.help_about_item)
 
+    def on_main_menu_open(self, event):
+        if event.GetMenu() == self.file_menu:
+            from file_operations import open_with
+            self._update_main_menu_state()
+            context = filelist.build_list_command_context(self, source="main")
+            open_with.populate_menu(self.file_open_with_item.GetSubMenu(), self, open_with.selected_file(context))
+        event.Skip()
+
     def _update_main_menu_state(self):
         if not hasattr(self, "file_menu"):
             return
@@ -328,6 +338,7 @@ class FileExplorer(wx.Frame):
 
         self.file_scan_item.Enable(True)
         self.file_open_item.Enable(has_single_selection)
+        self.file_open_with_item.Enable(len(selected_items) == 1 and os.path.isfile(selected_items[0]))
         self.file_rename_item.Enable(has_single_selection)
         self.file_new_folder_item.Enable(bool(current_path and os.path.isdir(current_path)))
         self.file_refresh_item.Enable(True)
@@ -765,6 +776,7 @@ class FileExplorer(wx.Frame):
             self.help_menu.SetTitle(tr("menu_help"))
             self.file_scan_item.SetItemLabel(tr("scan"))
             self.file_open_item.SetItemLabel(tr("context_open"))
+            self.file_open_with_item.SetItemLabel(tr("context_open_with"))
             self.file_rename_item.SetItemLabel(tr("context_rename"))
             self.file_new_folder_item.SetItemLabel(tr("context_new_folder"))
             self.file_refresh_item.SetItemLabel(f"{tr('context_refresh')}\tF5")
@@ -824,6 +836,7 @@ class FileExplorer(wx.Frame):
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
         self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
+        self.list_open_with_btn.SetToolTip(tr("context_open_with"))
         self.list_refresh_btn.SetToolTip(tr("context_refresh"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
         self.list_up_btn.SetToolTip(tr("folder_up_button"))

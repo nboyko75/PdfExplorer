@@ -632,8 +632,8 @@ def _get_pause_button_label(paused=False):
 
 def _format_search_status(folder_name, file_name=None):
     current_folder = (os.path.dirname(file_name) or folder_name) if file_name else folder_name
-    left = f"{tr('search_status_folder')}: {current_folder}" if current_folder else ""
-    right = f"{tr('search_status_file')}: {os.path.basename(file_name)}" if file_name else ""
+    left = f"{tr('search_status_file')}: {os.path.basename(file_name)}" if file_name else ""
+    right = f"{tr('search_status_folder')}: {current_folder}" if current_folder else ""
     return left, right
 
 
@@ -1026,7 +1026,7 @@ class SearchDialog(wx.Dialog):
 
         status_bar = wx.StatusBar(panel, style=wx.STB_DEFAULT_STYLE)
         status_bar.SetFieldsCount(2)
-        status_bar.SetStatusWidths([-2, -1])
+        status_bar.SetStatusWidths([-1, -2])
         status_bar.SetStatusText("", 0)
         status_bar.SetStatusText("", 1)
 

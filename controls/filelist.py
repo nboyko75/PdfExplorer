@@ -119,6 +119,9 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.list_open_with_btn = wx.Button(owner.list_host_panel, label="▾", size=(36, 24))
+    owner.list_open_with_btn.SetBitmap(owner.icon_manager.get_bitmap("open_with", size=(16, 16)))
+    owner.list_open_with_btn.SetToolTip(tr("context_open_with"))
     owner.list_up_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
         wx.ART_GO_UP,
@@ -198,6 +201,7 @@ def build_list_panel(owner, parent_splitter):
 
     owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_open_with_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_up_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_new_folder_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_refresh_btn, 0, wx.RIGHT, 3)
@@ -248,6 +252,7 @@ def bind_list_events(owner):
     context_factory = lambda: build_list_command_context(owner, source="toolbar")
     bind_command(owner.list_scan_btn, owner, FILE_COMMANDS["scan"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_open_btn, owner, FILE_COMMANDS["open"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_open_with_btn, owner, FILE_COMMANDS["open_with"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_rename_btn, owner, FILE_COMMANDS["rename"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_up_btn, owner, FILE_COMMANDS["folder_up"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_new_folder_btn, owner, FILE_COMMANDS["new_folder"], wx.EVT_BUTTON, context_factory)
@@ -319,6 +324,10 @@ def update_list_toolbar_buttons(owner):
     button = getattr(owner, "list_open_btn", None)
     if button is not None:
         button.Enable(has_single_existing_item)
+
+    button = getattr(owner, "list_open_with_btn", None)
+    if button is not None:
+        button.Enable(has_single_existing_item and os.path.isfile(selected_paths[0]))
 
     button = getattr(owner, "list_rename_btn", None)
     if button is not None:
