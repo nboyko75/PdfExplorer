@@ -525,15 +525,8 @@ def on_right_click(owner, event):
                 owner._restoring_list_selection = False
 
     def handle_refresh(_):
-        current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
-        if hasattr(owner, "load_folder") and isinstance(current_folder, str) and current_folder:
-            owner.load_folder(current_folder)
-        try:
-            import controls.tree_control as tree_control
-            if hasattr(owner, "tree") and owner.tree is not None:
-                tree_control.refresh_tree_selection_and_filelist(owner)
-        except Exception:
-            pass
+        refresh_current_list_folder(owner)
+
 
     def handle_restore(_):
         selected_paths = get_selected_list_paths(owner)
@@ -731,6 +724,31 @@ def _get_displayed_list_folder(owner):
     return getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")()
 
 
+def refresh_current_list_folder(owner):
+    """Refresh the displayed directory without navigating to a selected child."""
+    folder = _get_displayed_list_folder(owner)
+    is_virtual = isinstance(folder, str) and folder.lower().startswith("shell:")
+    if not folder or not (is_virtual or os.path.isdir(folder)):
+        if hasattr(owner, "refresh_tree_placeholders"):
+            owner.refresh_tree_placeholders()
+        return
+
+    previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
+    owner._syncing_tree_from_path = True
+    try:
+        path_box = getattr(owner, "path_box", None)
+        if path_box is not None:
+            if hasattr(path_box, "ChangeValue"):
+                path_box.ChangeValue(folder)
+            else:
+                path_box.SetValue(folder)
+        if not is_virtual:
+            _refresh_tree_node(owner, folder)
+        owner.load_folder(folder)
+    finally:
+        owner._syncing_tree_from_path = previous_syncing
+
+
 def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=None, current_folder=None):
     if current_folder is None:
         current_folder = _get_displayed_list_folder(owner)
@@ -833,29 +851,32 @@ def _refresh_renamed_list_item(owner, old_path, new_path):
     if not hasattr(owner, "list") or owner.list is None:
         return False
 
-    current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
-    if not isinstance(current_folder, str):
-        return False
-
-    if os.path.normpath(os.path.dirname(old_path)) != os.path.normpath(current_folder):
-        return False
-
+    normalized_old_path = os.path.normcase(os.path.normpath(old_path))
     old_name = os.path.basename(old_path)
     new_name = os.path.basename(new_path)
+    current_folder = _get_displayed_list_folder(owner)
+    same_folder = (
+        isinstance(current_folder, str)
+        and bool(current_folder)
+        and os.path.normcase(os.path.normpath(os.path.dirname(old_path)))
+        == os.path.normcase(os.path.normpath(current_folder))
+    )
+    item_paths = getattr(owner, "_list_item_paths", None)
+    if not isinstance(item_paths, dict):
+        item_paths = {}
+        owner._list_item_paths = item_paths
 
     for index in range(owner.list.GetItemCount()):
-        if owner.list.GetItemText(index) != old_name:
-            continue
-        owner.list.SetItem(index, 0, new_name)
-        item_paths = getattr(owner, "_list_item_paths", None)
-        if isinstance(item_paths, dict):
-            for item_index, item_path in list(item_paths.items()):
-                if isinstance(item_path, str) and os.path.normpath(item_path) == os.path.normpath(old_path):
-                    item_paths[item_index] = new_path
-                    return True
-            item_paths[index] = new_path
+        item_path = item_paths.get(index)
+        if isinstance(item_path, str) and item_path:
+            matches = os.path.normcase(os.path.normpath(item_path)) == normalized_old_path
         else:
-            owner._list_item_paths = {index: new_path}
+            matches = same_folder and owner.list.GetItemText(index) == old_name
+        if not matches:
+            continue
+        # Keep the row identity current before any UI update can trigger events.
+        item_paths[index] = new_path
+        owner.list.SetItem(index, 0, new_name)
         return True
 
     return False
@@ -1007,11 +1028,8 @@ def create_new_folder(owner, target_path=None):
     folder_path = os.path.join(target_dir, folder_name)
     try:
         os.makedirs(folder_path, exist_ok=False)
-        parent_dir = os.path.normpath(os.path.dirname(target_dir)) if target_dir else ""
         affected_dirs = [target_dir]
-        if parent_dir and os.path.normpath(parent_dir) != os.path.normpath(target_dir):
-            affected_dirs.append(parent_dir)
-        _refresh_after_fs_change(owner, affected_dirs=affected_dirs, preferred_preview_path=folder_path)        
+        _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 
