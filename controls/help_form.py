@@ -48,8 +48,8 @@ def show_app_manual_form(owner):
     )
     panel = wx.Panel(dialog)
     toolbar = wx.BoxSizer(wx.HORIZONTAL)
-    open_browser_btn = wx.Button(panel, label="Open in browser")
-    open_pdf_btn = wx.Button(panel, label="Open PDF")
+    open_browser_btn = wx.Button(panel, label=tr("help_manual_open_in_browser_button"))
+    open_pdf_btn = wx.Button(panel, label=tr("help_manual_open_pdf_button"))
     close_btn = wx.Button(panel, wx.ID_CLOSE, tr("exit_button"))
     toolbar.Add(open_browser_btn, 0, wx.RIGHT, 8)
     if os.path.isfile(manual_path):

@@ -16,6 +16,7 @@ TRANSLATIONS = {
     "menu_document": "Документ",
     "menu_help": "Допомога",
     "menu_app_manual": "Керівництво",
+    "help_manual_open_in_browser_button": "Відкрити в браузері",
     "help_manual_open_pdf_button": "Відкрити PDF",
     "menu_about": "Про програму",
     "menu_file_options": "Параметри",

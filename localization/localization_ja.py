@@ -4,6 +4,7 @@ TRANSLATIONS = {
     "app_title": "Document Explorer",
     "menu_help": "ヘルプ",
     "menu_app_manual": "アプリマニュアル",
+    "help_manual_open_in_browser_button": "ブラウザーで開く",
     "help_manual_open_pdf_button": "PDF を開く",
     "menu_about": "情報",
     "menu_file_options": "オプション",

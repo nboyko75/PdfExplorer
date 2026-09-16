@@ -4,6 +4,7 @@ TRANSLATIONS = {
     "app_title": "Document Explorer",
     "menu_help": "도움말",
     "menu_app_manual": "앱 매뉴얼",
+    "help_manual_open_in_browser_button": "브라우저에서 열기",
     "help_manual_open_pdf_button": "PDF 열기",
     "menu_about": "정보",
     "menu_file_options": "옵션",

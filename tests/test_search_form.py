@@ -132,6 +132,14 @@ class SearchFilesTests(unittest.TestCase):
             self.assertTrue(tr("context_add_to_archive"))
             self.assertTrue(tr("context_extract_from_archive"))
 
+    def test_help_manual_button_captions_are_localized_for_supported_locales(self):
+        for locale_name in ("en", "de", "es", "fr", "it", "ja", "ko", "pt_br", "ru", "uk", "zh_cn"):
+            load_locale(locale_name)
+            self.assertIsInstance(tr("help_manual_open_in_browser_button"), str)
+            self.assertTrue(tr("help_manual_open_in_browser_button"))
+            self.assertIsInstance(tr("help_manual_open_pdf_button"), str)
+            self.assertTrue(tr("help_manual_open_pdf_button"))
+
     def test_status_bar_uses_current_file_folder_on_left(self):
         left, right = _format_search_status("C:/root/search", "C:/root/search/subdir/report.txt")
         self.assertEqual(left, "Folder: C:/root/search/subdir")
