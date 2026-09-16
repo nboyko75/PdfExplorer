@@ -211,7 +211,7 @@ FILE_COMMANDS = {
     "open": MenuCommand("open", "context_open", _handle_open, custom_icon="file_view", can_execute=_can_select_one),
     "folder_up": MenuCommand("folder_up", "folder_up_button", _handle_folder_up, art_id=wx.ART_GO_UP, can_execute=_can_go_up),
     "new_folder": MenuCommand("new_folder", "context_new_folder", _handle_new_folder, art_id=wx.ART_FOLDER, can_execute=_can_create_folder),
-    "refresh": MenuCommand("refresh", "context_refresh", _handle_refresh, shortcut="F5", art_id=wx.ART_REDO),
+    "refresh": MenuCommand("refresh", "context_refresh", _handle_refresh, shortcut="F5", custom_icon="refresh", can_execute=lambda context: True),
     "print": MenuCommand("print", "context_print", _handle_print, shortcut="Ctrl+P", art_id=wx.ART_PRINT, can_execute=_can_print),
     "favorite_add": MenuCommand("favorite_add", "favorite_add_menu_item", lambda c, e: _handle_favorite(c, e, True), custom_icon="add_to_favorites", can_execute=lambda c: _can_manage_favorite(c, True)),
     "favorite_remove": MenuCommand("favorite_remove", "favorite_remove_menu_item", lambda c, e: _handle_favorite(c, e, False), custom_icon="remove_from_favorites", can_execute=lambda c: _can_manage_favorite(c, False)),

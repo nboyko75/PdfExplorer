@@ -28,6 +28,7 @@ class IconManager:
         "up": "up.bmp",
         "rotation": "rotation.bmp",
         "scan": "scan.bmp",
+        "refresh": "refresh.bmp",
         "cancel": "cancel.bmp",
         "copy": "copy.bmp",
         "file_view": "file_view.bmp",

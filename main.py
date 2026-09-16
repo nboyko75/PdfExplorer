@@ -235,7 +235,7 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon2(self.file_open_item, "file_view")
         self.icon_manager.set_menu_icon(self.file_rename_item, art_id=wx.ART_EDIT)
         self.icon_manager.set_menu_icon(self.file_new_folder_item, art_id=wx.ART_FOLDER)
-        self.icon_manager.set_menu_icon(self.file_refresh_item, art_id=wx.ART_REDO)
+        self.icon_manager.set_menu_icon2(self.file_refresh_item, "refresh")
         self.icon_manager.set_menu_icon(self.file_print_item, art_id=wx.ART_PRINT)
         self.icon_manager.set_menu_icon2(self.file_copy_item, "copy")
         self.icon_manager.set_menu_icon(self.file_cut_item, art_id=wx.ART_CUT)
@@ -278,6 +278,7 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.doc_adjust_all_page_width_item, art_id=wx.ART_REPORT_VIEW)
 
     def _bind_main_menu_items(self):
+        self.Bind(wx.EVT_UPDATE_UI, lambda event: event.Enable(True), self.file_refresh_item)
         self.Bind(wx.EVT_MENU, self.on_file_options, self.file_options_item)
         self.Bind(wx.EVT_MENU, self.on_exit, self.file_quit_item)
 
@@ -766,7 +767,7 @@ class FileExplorer(wx.Frame):
             self.file_open_item.SetItemLabel(tr("context_open"))
             self.file_rename_item.SetItemLabel(tr("context_rename"))
             self.file_new_folder_item.SetItemLabel(tr("context_new_folder"))
-            self.file_refresh_item.SetItemLabel(tr("context_refresh"))
+            self.file_refresh_item.SetItemLabel(f"{tr('context_refresh')}\tF5")
             self.file_copy_item.SetItemLabel(tr("context_copy"))
             self.file_cut_item.SetItemLabel(tr("context_cut"))
             self.file_paste_item.SetItemLabel(tr("context_paste"))
@@ -823,6 +824,7 @@ class FileExplorer(wx.Frame):
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
         self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
+        self.list_refresh_btn.SetToolTip(tr("context_refresh"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
         self.list_up_btn.SetToolTip(tr("folder_up_button"))
         self.list_new_folder_btn.SetToolTip(tr("context_new_folder"))

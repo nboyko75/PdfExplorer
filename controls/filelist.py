@@ -133,6 +133,14 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.list_refresh_btn = image_utils.create_bitmap_button2(
+        owner.list_host_panel,
+        owner.icon_manager,
+        "refresh",
+        tr("context_refresh"),
+        icon_size=list_btn_icon_size,
+        button_size=list_btn_size,
+    )
     owner.list_print_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
         wx.ART_PRINT,
@@ -192,6 +200,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_up_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_new_folder_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_refresh_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_print_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_copy_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_cut_btn, 0, wx.RIGHT, 3)
@@ -242,6 +251,7 @@ def bind_list_events(owner):
     bind_command(owner.list_rename_btn, owner, FILE_COMMANDS["rename"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_up_btn, owner, FILE_COMMANDS["folder_up"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_new_folder_btn, owner, FILE_COMMANDS["new_folder"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_refresh_btn, owner, FILE_COMMANDS["refresh"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_print_btn, owner, FILE_COMMANDS["print"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_copy_btn, owner, FILE_COMMANDS["copy"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_cut_btn, owner, FILE_COMMANDS["cut"], wx.EVT_BUTTON, context_factory)
@@ -301,6 +311,10 @@ def update_list_toolbar_buttons(owner):
     has_single_selection = len(selected_paths) == 1
     has_single_existing_item = has_single_selection and os.path.exists(selected_paths[0])
     current_folder = owner.path_box.GetValue()
+
+    button = getattr(owner, "list_refresh_btn", None)
+    if button is not None:
+        button.Enable(True)
 
     button = getattr(owner, "list_open_btn", None)
     if button is not None:
@@ -553,7 +567,7 @@ def on_right_click(owner, event):
         clear_all_item = menu.Append(-1, tr("context_clear_all"))
 
         if icon_manager:
-            icon_manager.set_menu_icon(refresh_item, art_id=wx.ART_REDO)
+            icon_manager.set_menu_icon2(refresh_item, "refresh")
             icon_manager.set_menu_icon(restore_item, art_id=wx.ART_UNDO)
             icon_manager.set_menu_icon(delete_permanent_item, art_id=wx.ART_DELETE)
             icon_manager.set_menu_icon(clear_all_item, art_id=wx.ART_DELETE)
