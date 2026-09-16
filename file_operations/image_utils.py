@@ -46,6 +46,7 @@ class IconManager:
         "remove_from_favorite": "remove_from_favorite.bmp",
         "double_up": "double_up.bmp",
         "double_down": "double_down.bmp",
+        "about": "about.bmp",
     }
 
     def __init__(self, images_dir=None, icon_files=None):

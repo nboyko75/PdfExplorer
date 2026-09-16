@@ -257,7 +257,7 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
-        self.icon_manager.set_menu_icon(self.help_about_item, art_id=wx.ART_INFORMATION)
+        self.icon_manager.set_menu_icon2(self.help_about_item, "about")
 
         self.icon_manager.set_menu_icon(self.doc_import_item, art_id=wx.ART_FILE_OPEN)
         self.icon_manager.set_menu_icon2(self.doc_import_scanner_item, "scan")
