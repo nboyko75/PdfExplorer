@@ -465,6 +465,9 @@ def on_list_select(owner, event):
         _schedule_list_selection_state_update(owner)
         return
 
+    if os.path.isfile(path):
+        from common.navigation_utils import record_navigation
+        record_navigation(owner, path)
     file_preview.show_file_preview(owner, path)
     _schedule_list_selection_state_update(owner)
 
@@ -1051,8 +1054,15 @@ def create_new_folder(owner, target_path=None):
     folder_path = os.path.join(target_dir, folder_name)
     try:
         os.makedirs(folder_path, exist_ok=False)
+        path_box = getattr(owner, "path_box", None)
+        if path_box is not None:
+            path_box.ChangeValue(target_dir)
         affected_dirs = [target_dir]
-        _refresh_after_fs_change(owner, affected_dirs=affected_dirs)
+        _refresh_after_fs_change(owner, affected_dirs=affected_dirs, current_folder=target_dir)
+        # Keep the parent displayed so repeated creation makes sibling folders.
+        if getattr(owner, "tree", None) is not None:
+            tree_control.select_tree_item_by_path(owner, folder_path, update_path_box=False)
+        select_list_item_by_path(owner, folder_path)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
 

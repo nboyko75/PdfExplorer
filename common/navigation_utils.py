@@ -48,24 +48,32 @@ def _path_is_directory_like(path):
     return bool(normalized) and (os.path.isabs(path) or normalized.startswith("\\\\") or bool(__import__("re").match(r"^[A-Za-z]:[\\/]", path)))
 
 
+def record_navigation(owner, path):
+    """Record a user navigation without duplicating the current entry."""
+    if getattr(owner, "_restoring_navigation_history", False):
+        return
+    history = getattr(owner, "history", [])
+    index = getattr(owner, "history_index", -1)
+    if 0 <= index < len(history):
+        if os.path.normcase(os.path.normpath(history[index])) == os.path.normcase(os.path.normpath(path)):
+            return
+    owner.history = history[:index + 1] + [path]
+    owner.history_index = len(owner.history) - 1
+
+
 def open_path(owner, path, add_history=True):
-    if not _path_is_directory_like(path):
+    is_file = isinstance(path, str) and os.path.isfile(path)
+    if not is_file and not _path_is_directory_like(path):
         return False
 
     if hasattr(owner, "confirm_preview_change") and not owner.confirm_preview_change(path):
         return False
 
-    if add_history:
-        history = getattr(owner, "history", [])
-        history_index = getattr(owner, "history_index", -1)
-        owner.history = history[:history_index + 1]
-        owner.history.append(path)
-        owner.history_index = len(owner.history) - 1
-
+    folder = os.path.dirname(path) if is_file else path
     if hasattr(owner, "path_box") and hasattr(owner.path_box, "ChangeValue"):
-        owner.path_box.ChangeValue(path)
+        owner.path_box.ChangeValue(folder)
     if hasattr(owner, "load_folder"):
-        owner.load_folder(path)
+        owner.load_folder(folder)
 
     if hasattr(owner, "select_tree_item_by_path"):
         previous_syncing = getattr(owner, "_syncing_tree_from_path", False)
@@ -75,37 +83,49 @@ def open_path(owner, path, add_history=True):
         finally:
             owner._syncing_tree_from_path = previous_syncing
 
+    if is_file:
+        if hasattr(owner, "select_list_item_by_path"):
+            owner.select_list_item_by_path(path)
+        if hasattr(owner, "show_file_preview"):
+            owner.show_file_preview(path)
+        else:
+            from controls import file_preview
+            file_preview.show_file_preview(owner, path)
+
+    # Seed startup navigation too, so Back can return to the initial folder.
+    if add_history or not getattr(owner, "history", []):
+        record_navigation(owner, path)
     return True
 
 
+def _move_in_history(owner, offset):
+    target_index = owner.history_index + offset
+    if not 0 <= target_index < len(owner.history):
+        return False
+    target_path = owner.history[target_index]
+    if not is_virtual_shell_path(target_path) and not os.path.exists(target_path):
+        return False
+    previous_restoring = getattr(owner, "_restoring_navigation_history", False)
+    owner._restoring_navigation_history = True
+    try:
+        opener = getattr(owner, "open_path", None)
+        opened = opener(target_path, add_history=False) if callable(opener) else open_path(owner, target_path, add_history=False)
+        if opened is False:
+            return False
+        owner.history_index = target_index
+        if hasattr(owner, "_update_main_menu_state"):
+            owner._update_main_menu_state()
+        return True
+    finally:
+        owner._restoring_navigation_history = previous_restoring
+
+
 def go_back(owner, _):
-    if owner.history_index > 0:
-        target_path = owner.history[owner.history_index - 1]
-        owner.history_index -= 1
-        if hasattr(owner, "open_path"):
-            owner.open_path(target_path, add_history=False)
-            return
-        if hasattr(owner, "path_box") and hasattr(owner.path_box, "ChangeValue"):
-            owner.path_box.ChangeValue(target_path)
-        if hasattr(owner, "load_folder"):
-            owner.load_folder(target_path)
-        if hasattr(owner, "select_tree_item_by_path"):
-            owner.select_tree_item_by_path(target_path)
+    return _move_in_history(owner, -1)
 
 
 def go_forward(owner, _):
-    if owner.history_index < len(owner.history) - 1:
-        target_path = owner.history[owner.history_index + 1]
-        owner.history_index += 1
-        if hasattr(owner, "open_path"):
-            owner.open_path(target_path, add_history=False)
-            return
-        if hasattr(owner, "path_box") and hasattr(owner.path_box, "ChangeValue"):
-            owner.path_box.ChangeValue(target_path)
-        if hasattr(owner, "load_folder"):
-            owner.load_folder(target_path)
-        if hasattr(owner, "select_tree_item_by_path"):
-            owner.select_tree_item_by_path(target_path)
+    return _move_in_history(owner, 1)
 
 
 def open_recycle_bin(owner, add_history=True):

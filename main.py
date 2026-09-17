@@ -257,7 +257,7 @@ class FileExplorer(wx.Frame):
         self.icon_manager.set_menu_icon(self.nav_search_item, art_id=wx.ART_FIND)
 
         self.icon_manager.set_menu_icon(self.help_manual_item, art_id=wx.ART_HELP)
-        self.icon_manager.set_menu_icon2(self.help_about_item, "about")
+        self.icon_manager.set_menu_icon(self.help_about_item, art_id=wx.ART_INFORMATION)
 
         self.icon_manager.set_menu_icon(self.doc_import_item, art_id=wx.ART_FILE_OPEN)
         self.icon_manager.set_menu_icon2(self.doc_import_scanner_item, "scan")
@@ -353,7 +353,7 @@ class FileExplorer(wx.Frame):
         self.file_extract_archive_item.Enable(can_extract_archive)
         self.file_extract_archive_into_item.Enable(can_extract_archive)
 
-        self.nav_back_item.Enable(bool(getattr(self, "history", [])))
+        self.nav_back_item.Enable(self.history_index > 0)
         self.nav_forward_item.Enable(bool(getattr(self, "history", [])) and self.history_index < len(self.history) - 1)
         parent_folder = ntpath.dirname(current_path) if current_path else ""
         self.nav_up_item.Enable(bool(current_path and os.path.isdir(current_path) and parent_folder and ntpath.normpath(parent_folder) != ntpath.normpath(current_path)))

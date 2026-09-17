@@ -34,27 +34,33 @@ def _create_nonexistent_temp_path(prefix, suffix):
     return temp_path
 
 
-def _get_scan_dialog_initial_dir(owner):
-    candidate = str(owner.search_box.GetValue()).strip()
-    if candidate:
-        normalized_candidate = os.path.abspath(candidate)
-        if os.path.isdir(normalized_candidate):
-            return normalized_candidate
+def _get_scan_dialog_initial_dir(owner, selected_path=None):
+    from controls.filelist import get_selected_list_paths, _is_window_or_descendant
+    from file_operations.copy_and_paste import _resolve_tree_selection_path
 
-        parent_dir = os.path.dirname(normalized_candidate)
-        if parent_dir and os.path.isdir(parent_dir):
-            return parent_dir
+    candidates = [selected_path]
+    tree_path = _resolve_tree_selection_path(owner)
+    focus = wx.Window.FindFocus()
+    if _is_window_or_descendant(focus, getattr(owner, "tree", None)):
+        candidates.append(tree_path)
+    candidates.extend(get_selected_list_paths(owner))
+    candidates.append(tree_path)
+    candidates.append(getattr(owner, "_list_folder_path", None))
+    candidates.append(getattr(getattr(owner, "path_box", None), "GetValue", lambda: "")())
 
-    current_path = getattr(owner, "current_preview_path", None)
-    if isinstance(current_path, str) and current_path:
-        preview_dir = os.path.dirname(os.path.abspath(current_path))
-        if preview_dir and os.path.isdir(preview_dir):
-            return preview_dir
-
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        if os.path.isdir(candidate):
+            return os.path.abspath(candidate)
+        if os.path.isfile(candidate):
+            return os.path.dirname(os.path.abspath(candidate))
     return os.getcwd()
 
 
-def _show_scan_dialog(owner):
+def _show_scan_dialog(owner, selected_path=None):
+    # Resolve selection before creating the dialog changes keyboard focus.
+    default_dir = _get_scan_dialog_initial_dir(owner, selected_path)
     settings = load_settings()
 
     dialog = wx.Dialog(owner, title=tr("scan_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -69,7 +75,6 @@ def _show_scan_dialog(owner):
     multiple_pages_chk.SetValue(bool(settings.get("scan_multiple_pages", True)))
 
     output_label = wx.StaticText(panel, label=tr("scan_output_file_label"))
-    default_dir = _get_scan_dialog_initial_dir(owner)
     default_ext = ".pdf" if file_type_choice.GetSelection() == 0 else ".jpg"
     default_name = str(settings.get("scan_output_name", "scan_result"))
     output_text = wx.TextCtrl(panel, value=os.path.join(default_dir, f"{default_name}{default_ext}"))
@@ -409,8 +414,8 @@ def _refresh_after_scan(owner, output_path):
             pass
 
 
-def on_scan_form(owner):
-    scan_config = _show_scan_dialog(owner)
+def on_scan_form(owner, selected_path=None):
+    scan_config = _show_scan_dialog(owner, selected_path)
     if scan_config is None:
         return
 

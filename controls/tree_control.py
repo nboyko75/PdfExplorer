@@ -214,7 +214,7 @@ def find_tree_child_path(owner, parent, normalized_path):
     return None
 
 
-def select_tree_item_by_path(owner, path):
+def select_tree_item_by_path(owner, path, update_path_box=True):
     normalized_path = normalize_tree_path(path)
     item = find_tree_item_by_path(owner, normalized_path)
     if item is None:
@@ -222,7 +222,7 @@ def select_tree_item_by_path(owner, path):
 
     item_path = normalize_tree_path(owner.tree.GetItemData(item))
     path_box = getattr(owner, "path_box", None)
-    if path_box is not None and hasattr(path_box, "SetValue"):
+    if update_path_box and path_box is not None and hasattr(path_box, "SetValue"):
         if item_path and os.path.isdir(item_path):
             path_box.SetValue(item_path)
         elif item_path and os.path.isfile(item_path):
@@ -432,6 +432,8 @@ def on_tree_select(owner, event):
         return
 
     if os.path.isfile(path):
+        from common.navigation_utils import record_navigation
+        record_navigation(owner, path)
         parent_path = os.path.dirname(path)
         path_box = getattr(owner, "path_box", None)
         if path_box is not None and hasattr(path_box, "SetValue"):

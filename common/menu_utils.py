@@ -68,7 +68,11 @@ def _dispatch_file_action(context, action_name, event):
 
 
 def _handle_scan(context, event):
-    return _invoke_owner_list_handler(context, "scan", event)
+    from controls import scan_form
+    selected_path = _tree_target(context) if context.source == "tree" else (
+        context.target_path or (context.selected_paths[0] if context.selected_paths else None)
+    )
+    return scan_form.on_scan_form(context.owner, selected_path=selected_path)
 
 
 def _handle_open(context, event):
