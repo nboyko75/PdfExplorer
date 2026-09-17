@@ -585,12 +585,8 @@ def _extract_selected_archive_into(owner, path):
             return False
 
         target_dir = os.path.normpath(target_dir)
-        if os.path.exists(target_dir):
-            overwrite_choice = copy_and_paste._confirm_overwrite_existing_path(owner, target_dir)
-            if overwrite_choice is None:
-                return False
-            if overwrite_choice is False:
-                target_dir = copy_and_paste._build_non_conflicting_path(target_dir)
+        # An existing destination directory is not an overwrite conflict.
+        # Check the archive's individual output files below.
 
         parent_dir = os.path.dirname(target_dir) or os.getcwd()
         refresh_folder = current_folder if isinstance(current_folder, str) and current_folder and os.path.isdir(current_folder) else parent_dir
