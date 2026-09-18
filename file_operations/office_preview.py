@@ -210,24 +210,33 @@ def _limit_preview_pdf_pages(path, max_pages=None):
     if limit <= 0:
         return path
 
-    doc = fitz.open(path)
+    # Never save over an open PDF: MuPDF removes the destination first,
+    # which fails on Windows while this document (or a preview tab) holds it.
+    limited_path = None
     try:
-        if len(doc) <= limit:
-            return path
+        with fitz.open(path) as doc:
+            if len(doc) <= limit:
+                return path
+            fd, limited_path = tempfile.mkstemp(
+                prefix=".limited_", suffix=".pdf", dir=os.path.dirname(path)
+            )
+            os.close(fd)
+            with fitz.open() as limited_doc:
+                limited_doc.insert_pdf(doc, from_page=0, to_page=limit - 1)
+                limited_doc.save(limited_path, garbage=4, deflate=True, clean=True)
 
-        limited_doc = fitz.open()
+        # Both documents are closed before publishing the shortened preview.
         try:
-            for page_index in range(limit):
-                limited_doc.insert_pdf(doc, from_page=page_index, to_page=page_index)
-            limited_doc.save(path, garbage=4, deflate=True, clean=True)
-            return path
-        finally:
-            if not limited_doc.is_closed:
-                limited_doc.close()
+            os.replace(limited_path, path)
+        except PermissionError:
+            # Another preview tab may still be reading the original PDF.
+            result = limited_path
+            limited_path = None
+            return result
+        return path
     finally:
-        doc.close()
-
-    return path
+        if limited_path is not None:
+            _safe_remove_file(limited_path)
 
 
 def _resolve_export_page_limit(path, max_pages=None):
@@ -410,17 +419,15 @@ def convert_office_to_preview_pdf(path, max_pages=None):
 
     output_pdf = _build_cached_preview_pdf_path(path)
     if os.path.isfile(output_pdf) and max_pages is None:
-        _limit_preview_pdf_pages(output_pdf, page_limit)
-        return output_pdf
-    if os.path.isfile(output_pdf) and max_pages is not None:
-        _safe_remove_file(output_pdf)
+        return _limit_preview_pdf_pages(output_pdf, page_limit)
 
-    temp_output_pdf = os.path.join(
-        os.path.dirname(output_pdf),
-        f".{os.path.basename(output_pdf)}.{os.getpid()}.pdf",
+    # Each export owns its staging path, including previews retained by tabs.
+    temp_fd, temp_output_pdf = tempfile.mkstemp(
+        prefix=f".{os.path.basename(output_pdf)}.",
+        suffix=".pdf", dir=os.path.dirname(output_pdf),
     )
-    if os.path.exists(temp_output_pdf):
-        _safe_remove_file(temp_output_pdf)
+    os.close(temp_fd)
+    _safe_remove_file(temp_output_pdf)
 
     keep_temp_preview = False
     try:
@@ -447,15 +454,16 @@ def convert_office_to_preview_pdf(path, max_pages=None):
         if not os.path.isfile(temp_output_pdf):
             raise RuntimeError("Unable to generate preview PDF from Office document.")
 
+        limited_pdf = _limit_preview_pdf_pages(temp_output_pdf, page_limit)
+        if limited_pdf != temp_output_pdf:
+            _safe_remove_file(temp_output_pdf)
+            temp_output_pdf = limited_pdf
         try:
-            if os.path.exists(output_pdf):
-                _safe_remove_file(output_pdf)
             os.replace(temp_output_pdf, output_pdf)
-            _limit_preview_pdf_pages(output_pdf, page_limit)
             return output_pdf
-        except (PermissionError, FileNotFoundError, OSError):
+        except PermissionError:
+            # Keep the old cached preview intact if a viewer has it open.
             keep_temp_preview = True
-            _limit_preview_pdf_pages(temp_output_pdf, page_limit)
             return temp_output_pdf
     finally:
         if os.path.exists(temp_output_pdf) and not keep_temp_preview:
