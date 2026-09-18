@@ -1,7 +1,7 @@
 import ctypes
 import os
 
-FILE_ATTRIBUTE_HIDDEN = 0x02
+from common.consts import FILE_ATTRIBUTE_HIDDEN
 
 
 def move_to_recycle_bin(paths):

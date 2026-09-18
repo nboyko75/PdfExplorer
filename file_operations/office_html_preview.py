@@ -17,9 +17,8 @@ except ImportError:  # pragma: no cover - optional outside Windows
     win32_client = None
 
 
+from common.consts import _CACHE_ROOT
 from file_operations.document_types import WORD_EXTENSIONS, EXCEL_EXTENSIONS, HTML_OFFICE_EXTENSIONS
-
-_CACHE_ROOT = os.path.join(tempfile.gettempdir(), "docexplorer_office_html")
 
 
 def is_html_office_document(path):

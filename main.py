@@ -4,6 +4,7 @@ import sys
 from contextlib import contextmanager
 import wx
 
+from common.consts import LANGUAGE_CHOICES, LANGUAGE_CHOICES_SORTED, LANGUAGE_CODE_BY_LABEL, LANGUAGE_LABEL_BY_CODE, SUPPORTED_LOCALES
 from file_operations.pdf_utils import discard_pdf_changes, get_unsaved_pdf_paths, is_pdf_file, move_pdf_page, save_pdf
 from localization import tr, load_locale, available_locales
 from common.window_tools import load_settings, update_settings, save_window_geometry, restore_window_geometry
@@ -22,23 +23,6 @@ import controls.help_form as help_form
 import common.menu_utils as menu_utils
 
 
-LANGUAGE_CHOICES = [
-    ("EN", "en"),
-    ("UA", "uk"),
-    ("DE", "de"),
-    ("FR", "fr"),
-    ("ES", "es"),
-    ("IT", "it"),
-    ("PT-BR", "pt_br"),
-    ("JA", "ja"),
-    ("KO", "ko"),
-    ("ZH-CN", "zh_cn"),
-    ("RU", "ru"),
-]
-LANGUAGE_LABEL_BY_CODE = {code: label for label, code in LANGUAGE_CHOICES}
-LANGUAGE_CODE_BY_LABEL = {label: code for label, code in LANGUAGE_CHOICES}
-LANGUAGE_CHOICES_SORTED = sorted(LANGUAGE_CHOICES, key=lambda item: item[0])
-SUPPORTED_LOCALES = set(LANGUAGE_LABEL_BY_CODE.keys())
 
 
 class FileExplorer(wx.Frame):

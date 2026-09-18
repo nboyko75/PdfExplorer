@@ -5,10 +5,7 @@ import wx
 
 from localization import tr
 
-CLIPBOARD_MODE_COPY = "copy"
-CLIPBOARD_MODE_CUT = "cut"
-
-_OVERWRITE_DECISION = None
+from common.consts import CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT, _OVERWRITE_DECISION
 
 
 def _reset_overwrite_decision():

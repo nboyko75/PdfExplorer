@@ -11,10 +11,9 @@ from pathlib import Path as FilePath
 import wx
 
 from file_operations import copy_and_paste
+from common.consts import _ARCHIVE_SUFFIXES
 from common.window_tools import load_settings, update_settings
 from localization import tr
-
-_ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab")
 
 
 def _is_archive_file(path):

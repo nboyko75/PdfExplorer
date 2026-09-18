@@ -16,8 +16,8 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     win32_client = None
 
 
+from common.consts import _OFFICE_OPEN_CHECK_TIMEOUT
 from file_operations.document_types import OFFICE_EXTENSIONS as _OFFICE_EXTENSIONS
-_OFFICE_OPEN_CHECK_TIMEOUT = 0.5
 
 
 def _run_powershell_office_export(script_body, source_path, output_pdf):

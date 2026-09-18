@@ -24,6 +24,7 @@ from common.search_match_utils import (
     _parse_date_value,
     _parse_size_kb,
 )
+from common.consts import TEXT_FILE_EXTENSIONS
 from localization import tr
 from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 
@@ -151,36 +152,6 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     pythoncom = None
     win32_client = None
 
-_TEXT_EXTENSIONS = {
-    ".txt",
-    ".md",
-    ".csv",
-    ".log",
-    ".ini",
-    ".cfg",
-    ".json",
-    ".xml",
-    ".html",
-    ".htm",
-    ".sql",
-    ".yaml",
-    ".yml",
-    ".toml",
-    ".js",
-    ".ts",
-    ".py",
-    ".java",
-    ".cs",
-    ".c",
-    ".cpp",
-    ".h",
-    ".hpp",
-    ".php",
-    ".rb",
-    ".sh",
-    ".ps1",
-    ".bat",
-}
 
 
 def _split_file_mask(mask_value):
@@ -511,7 +482,7 @@ def _extract_text_from_file(path):
     if ext in {".doc", ".xls", ".ppt"}:
         return _read_office_com_text(path)
 
-    if ext in _TEXT_EXTENSIONS:
+    if ext in TEXT_FILE_EXTENSIONS:
         return _read_text_file(path)
 
     return ""

@@ -4,8 +4,22 @@ from datetime import date, datetime
 import wx
 from localization import tr
 
-LOCALE_NAME_USER_DEFAULT = None
-LOCALE_SSHORTDATE = 0x0000001F
+from common.consts import DATE_PICKER_STYLE, LOCALE_NAME_USER_DEFAULT, LOCALE_SSHORTDATE
+
+DatePickerCtrl = None
+DatePickerEvent = None
+try:
+    DatePickerCtrl = wx.DatePickerCtrl
+    DatePickerEvent = wx.EVT_DATE_CHANGED
+except AttributeError:  # pragma: no cover - wxPython compatibility fallback
+    try:
+        from wx import adv
+
+        DatePickerCtrl = adv.DatePickerCtrl
+        DatePickerEvent = adv.EVT_DATE_CHANGED
+    except ImportError:  # pragma: no cover - fallback if no date picker is available
+        DatePickerCtrl = None
+        DatePickerEvent = None
 
 def get_windows_short_date_format():
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -40,33 +54,6 @@ def get_wx_short_date_format() -> str:
         result = result.replace(old, new)
 
     return result
-
-DatePickerCtrl = None
-DatePickerEvent = None
-
-try:
-    DatePickerCtrl = wx.DatePickerCtrl
-    DatePickerEvent = wx.EVT_DATE_CHANGED
-except AttributeError:  # pragma: no cover - wxPython compatibility fallback
-    try:
-        from wx import adv
-        DatePickerCtrl = adv.DatePickerCtrl
-        DatePickerEvent = adv.EVT_DATE_CHANGED
-    except ImportError:  # pragma: no cover - fallback if no date picker is available
-        DatePickerCtrl = None
-        DatePickerEvent = None
-
-# Some wxPython builds expose DatePickerCtrl and its flags in the wx.adv module.
-# Build the style bitmask defensively so the form still works across versions.
-DATE_PICKER_STYLE = 0
-for source in (wx, getattr(wx, "adv", None)):
-    if source is None:
-        continue
-    for style_name in ("DP_DROPDOWN", "DP_SHOWCENTURY", "DP_DEFAULT"):
-        style_flag = getattr(source, style_name, None)
-        if style_flag is not None:
-            DATE_PICKER_STYLE |= style_flag
-
 
 def _parse_date_value(value):
     if value is None:

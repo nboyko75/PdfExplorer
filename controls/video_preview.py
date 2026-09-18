@@ -15,10 +15,7 @@ try:
 except ImportError:
     wx_html2 = None
 
-VIDEO_EXTENSIONS = frozenset({
-    ".mp4", ".m4v", ".avi", ".mkv", ".mov", ".wmv", ".webm",
-    ".mpg", ".mpeg", ".mpe", ".ts", ".mts", ".m2ts", ".3gp", ".ogv",
-})
+from common.consts import VIDEO_EXTENSIONS
 
 
 def is_video_file(path):

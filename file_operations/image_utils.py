@@ -3,6 +3,8 @@ import contextlib
 import os
 import wx
 
+from common.consts import IMAGE_EXTENSIONS
+
 
 # All Shell icon calls must share the type used by SHGetFileInfoW.argtypes.
 class SHFILEINFOW(ctypes.Structure):
@@ -15,7 +17,6 @@ class SHFILEINFOW(ctypes.Structure):
     ]
 
 
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".jfif"}
 
 
 class IconManager:

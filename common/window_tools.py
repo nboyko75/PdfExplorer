@@ -7,7 +7,7 @@ from ctypes import wintypes
 
 import wx
 
-from common.dict_tools import OPTION_FIELDS, OPTION_GROUP_ORDER, OPTION_GROUP_TRANSLATION_KEYS, PERSISTED_LAYOUT_KEYS
+from common.consts import KNOWN_FOLDER_IDS, OPTION_FIELDS, OPTION_GROUP_ORDER, OPTION_GROUP_TRANSLATION_KEYS, PERSISTED_LAYOUT_KEYS
 from common.settings_utils import (
     get_option_group_label,
     quality_label_to_value,
@@ -31,15 +31,6 @@ class GUID(ctypes.Structure):
         guid = uuid.UUID(value)
         return cls.from_buffer_copy(guid.bytes_le)
 
-
-KNOWN_FOLDER_IDS = {
-    "desktop": "B4BFCC3A-DB2C-424C-B029-7FE99A87C641",
-    "documents": "FDD39AD0-238F-46AF-ADB4-6C85480369C7",
-    "downloads": "374DE290-123F-4565-9164-39C4925E467B",
-    "pictures": "33E28130-4E1E-4676-835A-98395C3BC3BB",
-    "music": "4BD8D571-6D19-48D3-BE97-422220080E43",
-    "videos": "18989B1D-99B5-455B-841C-AB7C74E4DDFC",
-}
 
 
 def get_windows_known_folder(folder_key):

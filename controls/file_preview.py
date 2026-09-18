@@ -6,6 +6,7 @@ from contextlib import contextmanager, nullcontext
 import wx
 from wx.lib.statbmp import GenStaticBitmap
 
+from common.consts import FIXED_PAGE_VIEW_MODES, HTML_EXTENSIONS, PAGE_VIEW_MODE_1_TALL, PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_MANUAL, TEXT_FILE_EXTENSIONS, VALID_PAGE_VIEW_MODES
 from common.system import move_to_recycle_bin
 
 try:
@@ -27,42 +28,7 @@ import file_operations.pdf_utils as pdf_utils
 import controls.video_preview as video_preview
 
 
-PAGE_VIEW_MODE_1_WIDE = "1_page_wide"
-PAGE_VIEW_MODE_2_WIDE = "2_pages_wide"
-PAGE_VIEW_MODE_1_TALL = "1_page_tall"
-PAGE_VIEW_MODE_MANUAL = "manual"
-FIXED_PAGE_VIEW_MODES = {PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_1_TALL}
-VALID_PAGE_VIEW_MODES = FIXED_PAGE_VIEW_MODES | {PAGE_VIEW_MODE_MANUAL}
-HTML_EXTENSIONS = {".html", ".htm"}
 from file_operations.document_types import OFFICE_EXTENSIONS, POWERPOINT_EXTENSIONS
-TEXT_FILE_EXTENSIONS = {
-    # Text
-    ".txt", ".text", ".log", ".md", ".markdown", ".rst", ".csv", ".tsv",
-
-    # Python
-    ".py", ".pyw", ".pyx",
-
-    # C/C++
-    ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp",
-
-    # .NET
-    ".cs", ".vb", ".fs", ".fsx",
-
-    # Java / JVM
-    ".java", ".kt", ".kts", ".scala",
-
-    # Other languages
-    ".go", ".rs", ".swift", ".php", ".rb", ".pl", ".pm", ".lua", ".r", ".dart",
-
-    # Data / configuration
-    ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".config", ".properties", ".env", ".reg",
-
-    # Scripts
-    ".bat", ".cmd", ".ps1", ".psm1", ".sh", ".bash", ".zsh", ".fish", ".vbs", ".vbe",
-
-    # Database
-    ".sql", ".ddl", ".dml",
-}
 
 def set_preview_mode(owner, mode):
     """Show the requested panel and release inactive animation/video resources."""

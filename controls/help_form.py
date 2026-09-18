@@ -12,8 +12,6 @@ except ImportError:  # pragma: no cover
 from localization import tr
 
 
-HELP_RELATIVE_PATH = os.path.join("docs", "help", "index.html")
-MANUAL_RELATIVE_PATH = os.path.join("docs", "DocExplorer_User_Manual.pdf")
 
 
 def _resource_path(relative_path):

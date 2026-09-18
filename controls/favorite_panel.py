@@ -2,6 +2,7 @@ import os
 import wx
 
 import common.navigation_utils as navigation_utils
+from common.consts import STANDARD_SHORTCUT_DEFINITIONS
 from common.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
 from common.window_tools import (
@@ -18,16 +19,6 @@ try:
 except Exception:  # pragma: no cover - Windows-only import
     shellcon = None
 
-
-STANDARD_SHORTCUT_DEFINITIONS = (
-    {"key": "desktop", "label": "Desktop", "default": True},
-    {"key": "documents", "label": "Documents", "default": True},
-    {"key": "downloads", "label": "Downloads", "default": False},
-    {"key": "images", "label": "Images", "default": False},
-    {"key": "music", "label": "Music", "default": False},
-    {"key": "video", "label": "Videos", "default": False},
-    {"key": "recycle_bin", "label": "Recycle Bin", "default": True},
-)
 
 
 def _standard_shortcut_path_for_key(key):

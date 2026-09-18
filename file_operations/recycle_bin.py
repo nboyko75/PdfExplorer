@@ -4,9 +4,7 @@ import os
 import pythoncom
 import win32com.client.dynamic
 
-
-RECYCLE_BIN_PATH = "shell:RecycleBinFolder"
-CSIDL_BITBUCKET = 10
+from common.consts import CSIDL_BITBUCKET, RECYCLE_BIN_PATH
 
 
 def is_virtual_shell_path(path):
