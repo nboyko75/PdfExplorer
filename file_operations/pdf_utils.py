@@ -846,3 +846,62 @@ def get_pdf_page_previews(path, max_height=300, max_pages=None, target_width=Non
         return page_count, shown_pages, previews
     finally:
         doc.close()
+
+
+def rotate_pdf_pages(path, page_indices, angle=90):
+    """Rotate a selection in one atomic editing-session update."""
+    with _open_pdf_document(path) as doc:
+        indices = sorted(set(page_indices))
+        if not indices:
+            return path
+        if any(not 0 <= index < len(doc) for index in indices):
+            raise ValueError("Page index is out of range")
+        for index in indices:
+            page = doc[index]
+            page.set_rotation((page.rotation + angle) % 360)
+        return _store_pdf_document(path, doc, garbage=4, deflate=True, clean=True)
+
+
+def remove_pdf_pages(path, page_indices):
+    """Validate first, then remove descending indices without shifting targets."""
+    with _open_pdf_document(path) as doc:
+        indices = sorted(set(page_indices), reverse=True)
+        if not indices:
+            return path
+        if any(not 0 <= index < len(doc) for index in indices):
+            raise ValueError("Page index is out of range")
+        if len(indices) == len(doc):
+            from localization import tr
+            raise ValueError(tr("pdf_keep_one_page"))
+        for index in indices:
+            doc.delete_page(index)
+        return _store_pdf_document(path, doc, garbage=4, deflate=True, clean=True)
+
+
+def move_pdf_pages(path, page_indices, destination_boundary):
+    """Move selected pages as a block, relative to the original page numbers.
+
+    destination_boundary is a gap from 0 (start) to page count (end).
+    Return the moved pages' new indices; keep changes in the editing session.
+    """
+    with _open_pdf_document(path) as doc:
+        indices = sorted(set(page_indices))
+        count = len(doc)
+        if any(not 0 <= index < count for index in indices):
+            raise ValueError("Page index is out of range")
+        if not 0 <= destination_boundary <= count:
+            raise ValueError("Target index is out of range")
+        if not indices:
+            return []
+        selected = set(indices)
+        remaining = [index for index in range(count) if index not in selected]
+        insert_at = destination_boundary - sum(index < destination_boundary for index in indices)
+        order = remaining[:insert_at] + indices + remaining[insert_at:]
+        new_indices = list(range(insert_at, insert_at + len(indices)))
+        if order == list(range(count)):
+            return new_indices
+        with fitz.open() as reordered:
+            for index in order:
+                reordered.insert_pdf(doc, from_page=index, to_page=index)
+            _store_pdf_document(path, reordered, garbage=4, deflate=True, clean=True)
+        return new_indices

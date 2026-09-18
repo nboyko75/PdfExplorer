@@ -761,19 +761,14 @@ def on_favorite_end_drag(owner, event):
 
 
 def on_favorite_key_down(owner, event):
-    if owner.favorite_list is None or event is None:
+    if event is None:
+        return
+    if event.GetKeyCode() != wx.WXK_DELETE:
+        event.Skip()
         return
 
-    key_code = event.GetKeyCode()
-    if key_code != wx.WXK_DELETE:
-        return
-
-    selected_index = owner.favorite_list.GetFirstSelected() if owner.favorite_list is not None else wx.NOT_FOUND
-    if selected_index == wx.NOT_FOUND or not (0 <= selected_index < len(owner.favorite_paths)):
-        return
-
-    owner._remove_favorite_path(owner.favorite_paths[selected_index])
-    event.Skip()
+    # Consume Delete even with no selection so file deletion cannot handle it.
+    on_remove_favorite_from_context(owner, event)
 
 
 def on_favorite_row_move_up(owner, _):

@@ -3,6 +3,10 @@ import os
 from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
+    "confirm_remove_pages": 'Remove the selected pages ({count})?',
+
+    "pdf_keep_one_page": 'A PDF must contain at least one page.',
+
     'scan_wia_required': 'Scanning requires Windows, a WIA scanner driver and pywin32.',
     'scan_next_page_prompt': 'Place the next page in the scanner. Scan another page, finish importing, or cancel the entire import?',
     'scan_next_page': 'Scan next page',

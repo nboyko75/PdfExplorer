@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_remove_pages": "選択したページ（{count} ページ）を削除しますか？",
     "app_title": "Document Explorer",
     "menu_help": "ヘルプ",
     "menu_app_manual": "アプリマニュアル",

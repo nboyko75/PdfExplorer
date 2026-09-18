@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_remove_pages": "Ausgewählte Seiten ({count}) löschen?",
     "app_title": "Document Explorer",
     "menu_file": "Datei",
     "menu_navigation": "Navigation",

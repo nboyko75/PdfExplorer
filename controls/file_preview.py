@@ -109,6 +109,9 @@ def _ensure_preview_tab_state(owner):
 
 def _clear_preview_content_state(owner):
     owner.selected_pdf_page_panel = None
+    owner.selected_pdf_page_indices = set()
+    owner.pdf_selection_anchor = None
+    owner.pdf_selection_active = None
     owner.current_image_preview = None
     owner.current_image_zoom = 1.0
     owner.current_html_zoom = 1.0
@@ -1317,19 +1320,43 @@ def _compute_pdf_page_fit_constraints(owner):
     return max_bitmap_width, max_bitmap_height
 
 
-def select_pdf_page(owner, page_panel):
-    if owner.selected_pdf_page_panel is page_panel:
-        return
+def get_selected_pdf_page_indices(owner):
+    return sorted(getattr(owner, "selected_pdf_page_indices", set()))
 
-    if owner.selected_pdf_page_panel is not None:
-        owner.selected_pdf_page_panel.SetBackgroundColour(wx.NullColour)
-        owner.selected_pdf_page_panel.Refresh()
 
-    owner.selected_pdf_page_panel = page_panel
-    owner.selected_pdf_page_panel.SetBackgroundColour(wx.Colour(200, 230, 255))
-    owner.selected_pdf_page_panel.Refresh()
+def _paint_pdf_page_selection(owner):
+    selected = set(get_selected_pdf_page_indices(owner))
+    panels = getattr(owner, "pdf_page_panels", {})
+    active = getattr(owner, "pdf_selection_active", None)
+    if active not in selected:
+        active = min(selected) if selected else None
+    owner.pdf_selection_active = active
+    owner.selected_pdf_page_panel = panels.get(active)
+    for index, panel in panels.items():
+        panel.SetBackgroundColour(wx.Colour(200, 230, 255) if index in selected else wx.NullColour)
+        panel.Refresh()
     update_page_buttons_state(owner)
     update_load_all_btn_state(owner)
+
+
+def select_pdf_page(owner, page_panel, ctrl=False, shift=False):
+    index = page_panel.page_index
+    selected = set(get_selected_pdf_page_indices(owner))
+    anchor = getattr(owner, "pdf_selection_anchor", None)
+    if shift and anchor is not None:
+        selected.update(range(min(anchor, index), max(anchor, index) + 1))
+    elif ctrl:
+        if index in selected:
+            selected.remove(index)
+        else:
+            selected.add(index)
+        owner.pdf_selection_anchor = index
+    else:
+        selected = {index}
+        owner.pdf_selection_anchor = index
+    owner.selected_pdf_page_indices = selected
+    owner.pdf_selection_active = index
+    _paint_pdf_page_selection(owner)
 
 
 def on_pdf_page_select(owner, event):
@@ -1337,8 +1364,8 @@ def on_pdf_page_select(owner, event):
     if page_panel is None:
         return
 
-    select_pdf_page(owner, page_panel)
-    owner._pdf_drag_start_panel = page_panel
+    select_pdf_page(owner, page_panel, ctrl=event.ControlDown(), shift=event.ShiftDown())
+    owner._pdf_drag_start_panel = page_panel if not (event.ControlDown() or event.ShiftDown()) else None
     owner._pdf_drag_start_pos = event.GetPosition()
     event.Skip()
 
@@ -1360,7 +1387,11 @@ def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
 def clear_pdf_feed(owner):
     """Clear the PDF feed display."""
     owner.pdf_pages_sizer.Clear(True)
+    owner.pdf_page_panels = {}
     owner.selected_pdf_page_panel = None
+    owner.selected_pdf_page_indices = set()
+    owner.pdf_selection_anchor = None
+    owner.pdf_selection_active = None
     update_page_buttons_state(owner)
 
 
@@ -1600,6 +1631,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
             for index, (page_no, bitmap) in enumerate(previews):
                 page_panel = wx.Panel(owner.pdf_pages_panel, style=wx.BORDER_SIMPLE)
                 page_panel.page_index = index
+                owner.pdf_page_panels[index] = page_panel
                 page_panel.SetDropTarget(PdfPageDropTarget(owner, index, page_panel))
 
                 def make_select_handler(owner_ref):
@@ -2680,20 +2712,31 @@ def on_preview_rotate_all_left(event):
         _rotate_entire_pdf(owner, -90)
 
 
+def _rotate_selected_pdf_pages(owner, angle):
+    indices = get_selected_pdf_page_indices(owner)
+    if not indices:
+        wx.MessageBox(tr("select_pdf_page"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+    anchor = getattr(owner, "pdf_selection_anchor", None)
+    active = getattr(owner, "pdf_selection_active", None)
+    try:
+        with owner.busy_cursor():
+            pdf_utils.rotate_pdf_pages(owner.current_preview_path, indices, angle)
+            show_pdf_feed(owner, owner.current_preview_path)
+            owner.selected_pdf_page_indices = set(indices)
+            owner.pdf_selection_anchor = anchor
+            owner.pdf_selection_active = active
+            _paint_pdf_page_selection(owner)
+            update_pdf_save_button_state(owner)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+
+
 def on_preview_rotate_left(event):
     owner = _get_preview_owner_from_event(event)
     if owner:
         if is_pdf_file(owner.current_preview_path):
-            page_index = get_selected_pdf_page_index(owner)
-            if page_index is None:
-                wx.MessageBox(tr("select_pdf_page"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-                return
-            try:
-                with owner.busy_cursor():
-                    rotate_pdf_page(owner.current_preview_path, page_index, -90)
-                    show_pdf_feed(owner, owner.current_preview_path)
-            except Exception as exc:
-                wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+            _rotate_selected_pdf_pages(owner, -90)
             return
 
         if image_utils.can_preview_image(owner.current_preview_path):
@@ -2753,16 +2796,7 @@ def on_preview_rotate_right(event):
     owner = _get_preview_owner_from_event(event)
     if owner:
         if is_pdf_file(owner.current_preview_path):
-            page_index = get_selected_pdf_page_index(owner)
-            if page_index is None:
-                wx.MessageBox(tr("select_pdf_page"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-                return
-            try:
-                with owner.busy_cursor():
-                    rotate_pdf_page(owner.current_preview_path, page_index, 90)
-                    show_pdf_feed(owner, owner.current_preview_path)
-            except Exception as exc:
-                wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+            _rotate_selected_pdf_pages(owner, 90)
             return
 
         if image_utils.can_preview_image(owner.current_preview_path):
@@ -2806,21 +2840,22 @@ def on_preview_remove_page(event, owner=None):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
             return
 
-        page_index = get_selected_pdf_page_index(owner)
-        if page_index is None:
+        page_indices = get_selected_pdf_page_indices(owner)
+        if not page_indices:
             wx.MessageBox(tr("select_pdf_page"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
             return
 
         dialog = wx.MessageDialog(
             owner,
-            tr("confirm_remove_page", page_no=page_index + 1),
+            (tr("confirm_remove_page", page_no=page_indices[0] + 1) if len(page_indices) == 1
+             else tr("confirm_remove_pages", count=len(page_indices))),
             tr("preview_remove_page_button"),
             wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
         )
         if dialog.ShowModal() == wx.ID_YES:
             try:
                 with owner.busy_cursor():
-                    remove_pdf_page(owner.current_preview_path, page_index)
+                    pdf_utils.remove_pdf_pages(owner.current_preview_path, page_indices)
                     ## save_pdf(owner.current_preview_path)
                     ## owner.refresh_list_item_size(owner.current_preview_path)
                     show_pdf_feed(owner, owner.current_preview_path)
@@ -2830,12 +2865,19 @@ def on_preview_remove_page(event, owner=None):
         dialog.Destroy()
 
 
-def _show_move_page_dialog(owner, page_count, default_source_page_no):
+def _show_move_page_dialog(owner, page_count, default_source_page_no, selected_indices=None):
     dialog = wx.Dialog(owner, title=tr("move_page_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
 
     source_label = wx.StaticText(panel, label=tr("move_page_source_label"))
-    source_spin = wx.SpinCtrl(panel, min=1, max=page_count, initial=default_source_page_no)
+    selected_indices = sorted(set(selected_indices or []))
+    if len(selected_indices) > 1:
+        source_spin = wx.TextCtrl(
+            panel, value=", ".join(str(index + 1) for index in selected_indices),
+            style=wx.TE_READONLY,
+        )
+    else:
+        source_spin = wx.SpinCtrl(panel, min=1, max=page_count, initial=default_source_page_no)
 
     destination_label = wx.StaticText(panel, label=tr("move_page_destination_label"))
     destination_choice = wx.Choice(
@@ -2882,27 +2924,26 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no):
     dialog.SetSizerAndFit(dialog_sizer)
 
     with persistent_dialog(dialog, "move_page_dialog_size") as modal_dialog:
-        result_code = modal_dialog.ShowModal()
-
-    if result_code != wx.ID_OK:
-        return None
-
-    result = {
-        "source_page_no": source_spin.GetValue(),
-        "destination_mode": destination_choice.GetSelection(),
-        "destination_page_no": destination_page_spin.GetValue(),
-    }
-    return result
+        if modal_dialog.ShowModal() != wx.ID_OK:
+            return None
+        # Read controls before persistent_dialog destroys their native windows.
+        return {
+            "source_indices": (selected_indices if len(selected_indices) > 1
+                               else [source_spin.GetValue() - 1]),
+            "destination_mode": destination_choice.GetSelection(),
+            "destination_page_no": destination_page_spin.GetValue(),
+        }
 
 
 def _resolve_move_destination_index(page_count, destination_mode, destination_page_no):
+    """Insertion boundary in the original document, before removing sources."""
     if destination_mode == 0:
         return 0
     if destination_mode == 1:
-        return max(0, min(page_count - 1, destination_page_no - 1))
+        return max(0, min(page_count, destination_page_no - 1))
     if destination_mode == 2:
-        return max(0, min(page_count - 1, destination_page_no))
-    return page_count - 1
+        return max(0, min(page_count, destination_page_no))
+    return page_count
 
 
 def on_preview_move_page(event):
@@ -2922,24 +2963,27 @@ def on_preview_move_page(event):
 
     selected_index = get_selected_pdf_page_index(owner)
     default_source_page_no = (selected_index + 1) if selected_index is not None else 1
-    dialog_result = _show_move_page_dialog(owner, page_count, default_source_page_no)
+    selected_indices = get_selected_pdf_page_indices(owner)
+    dialog_result = _show_move_page_dialog(owner, page_count, default_source_page_no, selected_indices)
     if dialog_result is None:
         return
 
-    source_index = dialog_result["source_page_no"] - 1
+    source_indices = dialog_result["source_indices"]
     destination_index = _resolve_move_destination_index(
         page_count,
         dialog_result["destination_mode"],
         dialog_result["destination_page_no"],
     )
 
-    if source_index == destination_index:
-        return
-
     try:
         with owner.busy_cursor():
-            move_pdf_page(owner.current_preview_path, source_index, destination_index)
-            show_pdf_feed(owner, owner.current_preview_path)
+            new_indices = pdf_utils.move_pdf_pages(owner.current_preview_path, source_indices, destination_index)
+            # Include moved pages even when their new positions exceed the preview limit.
+            show_pdf_feed(owner, owner.current_preview_path, force_all_pages=True)
+            owner.selected_pdf_page_indices = set(new_indices)
+            owner.pdf_selection_anchor = new_indices[0] if new_indices else None
+            owner.pdf_selection_active = new_indices[0] if new_indices else None
+            _paint_pdf_page_selection(owner)
             update_pdf_save_button_state(owner)
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)

@@ -865,6 +865,10 @@ class FileExplorer(wx.Frame):
         # Handle Ctrl+Z for undo
         try:
             key_code = event.GetKeyCode()
+            if (key_code == wx.WXK_DELETE
+                    and wx.Window.FindFocus() is getattr(self, "favorite_list", None)):
+                favorite_panel.on_favorite_key_down(self, event)
+                return
             if event.ControlDown() and key_code == 90:  # 'Z'
                 self.undo_last_move()
                 return

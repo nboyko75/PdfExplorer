@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_remove_pages": 'Видалити вибрані сторінки ({count})?',
+
+    "pdf_keep_one_page": 'У PDF має залишитися принаймні одна сторінка.',
+
     'scan_wia_required': 'Для сканування потрібні Windows, WIA-драйвер сканера та pywin32.',
     'scan_next_page_prompt': 'Покладіть наступну сторінку в сканер. Сканувати ще одну, завершити чи скасувати весь імпорт?',
     'scan_next_page': 'Сканувати наступну',

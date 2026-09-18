@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_remove_pages": "是否删除所选页面（{count} 页）？",
     "app_title": "Document Explorer",
     "menu_help": "帮助",
     "menu_app_manual": "应用手册",

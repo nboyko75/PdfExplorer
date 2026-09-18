@@ -1,4 +1,5 @@
 TRANSLATIONS = {
+    "confirm_remove_pages": "Remove the selected pages ({count})?",
     "app_title": "Document Explorer",
     "menu_file": "File",
     "menu_navigation": "Navigation",

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_remove_pages": "선택한 페이지({count}개)를 삭제하시겠습니까?",
     "app_title": "Document Explorer",
     "menu_help": "도움말",
     "menu_app_manual": "앱 매뉴얼",
