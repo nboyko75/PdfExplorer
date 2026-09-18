@@ -4,6 +4,8 @@ import webbrowser
 
 import wx
 
+from common.consts import HELP_RELATIVE_PATH, MANUAL_RELATIVE_PATH
+
 try:
     import wx.html2 as html2
 except ImportError:  # pragma: no cover

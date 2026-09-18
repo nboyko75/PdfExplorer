@@ -628,9 +628,7 @@ def confirm_preview_change(owner, next_path):
     if not pdf_dirty:
         return True
 
-    # An Office editor can briefly remain dirty while the preview path has
-    # already been cleared (for example, when a Favorite is activated).  Do
-    # not pass that None value to os.path.normpath().
+    # Keep edits when the user selects the PDF that is already displayed.
     if (
         next_path is not None
         and current_path is not None
@@ -653,10 +651,7 @@ def confirm_preview_change(owner, next_path):
 
     try:
         if result == wx.ID_YES:
-            if office_dirty:
-                editor.save()
-            else:
-                save_pdf(current_path)
+            save_pdf(current_path)
         else:
             if pdf_dirty:
                 discard_pdf_changes(current_path)
@@ -2414,10 +2409,14 @@ def _show_import_from_scanner_dialog(owner, page_count):
     at_end_radio = destination_controls["at_end"]
     page_number_spin = destination_controls["page_number"]
 
+    multiple_pages = wx.CheckBox(panel, label=tr("scan_multiple_pages_label"))
+    multiple_pages.SetValue(True)
+
     button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
 
     root_sizer = wx.BoxSizer(wx.VERTICAL)
     root_sizer.Add(destination_sizer, 0, wx.EXPAND | wx.ALL, 12)
+    root_sizer.Add(multiple_pages, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     panel.SetSizer(root_sizer)
 
@@ -2425,22 +2424,20 @@ def _show_import_from_scanner_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
-    with persistent_dialog(dialog, "import_pdf_dialog_size") as modal_dialog:
-        result = modal_dialog.ShowModal()
-
-    if result != wx.ID_OK:
-        return None
-
-    if at_begin_radio.GetValue():
-        insert_at_index = 0
-    elif after_page_radio.GetValue():
-        insert_at_index = page_number_spin.GetValue()
-    else:
-        insert_at_index = page_count
-
-    return {
-        "insert_at_index": insert_at_index,
-    }
+    with persistent_dialog(dialog, "import_scanner_dialog_size") as modal_dialog:
+        if modal_dialog.ShowModal() != wx.ID_OK:
+            return None
+        # Read controls while their native windows still exist.
+        if at_begin_radio.GetValue():
+            insert_at_index = 0
+        elif after_page_radio.GetValue():
+            insert_at_index = page_number_spin.GetValue()
+        else:
+            insert_at_index = page_count
+        return {
+            "insert_at_index": insert_at_index,
+            "multiple_pages": multiple_pages.GetValue(),
+        }
 
 
 def on_preview_import_from_file(event):
@@ -2495,11 +2492,19 @@ def on_preview_import_from_scanner(event):
     if dialog_result is None:
         return
 
-    wx.MessageBox(
-        tr("scan_not_available_message"),
-        tr("preview_import_from_scanner_button"),
-        wx.OK | wx.ICON_INFORMATION,
-    )
+    from file_operations.scanner_import import scanned_pdf
+
+    target_path = owner.current_preview_path
+    try:
+        with scanned_pdf(owner, dialog_result["multiple_pages"]) as source_pdf:
+            if source_pdf is None:
+                return
+            with owner.busy_cursor():
+                import_pdf_pages(target_path, source_pdf, dialog_result["insert_at_index"])
+                show_pdf_feed(owner, target_path)
+                update_pdf_save_button_state(owner)
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("preview_import_from_scanner_button"), wx.OK | wx.ICON_ERROR)
 
 
 def on_preview_export_pages(event):

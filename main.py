@@ -23,8 +23,6 @@ import controls.help_form as help_form
 import common.menu_utils as menu_utils
 
 
-
-
 class FileExplorer(wx.Frame):
     def __init__(self, initial_path=None):
         super().__init__(None, title=tr("app_title"), size=(1400, 900))

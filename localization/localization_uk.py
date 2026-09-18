@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'scan_wia_required': 'Для сканування потрібні Windows, WIA-драйвер сканера та pywin32.',
+    'scan_next_page_prompt': 'Покладіть наступну сторінку в сканер. Сканувати ще одну, завершити чи скасувати весь імпорт?',
+    'scan_next_page': 'Сканувати наступну',
+    'scan_finish_import': 'Завершити імпорт',
+
     "video_volume": "Гучність",
     "video_stop": "Зупинити",
     "video_pause": "Пауза",
@@ -252,6 +257,11 @@ TRANSLATIONS = {
     "print_error_title": "Помилка друку",
     "print_error_unavailable": "Microsoft Universal Print недоступний у цій збірці.",
     "print_status_success": "Завдання друку надіслано до {printer}.",
+    "scan_wia_required": "Для сканування потрібні Windows, WIA-драйвер сканера та pywin32.",
+    "scan_next_page_prompt": "Покладіть наступну сторінку в сканер. Сканувати ще одну, завершити чи скасувати весь імпорт?",
+    "scan_next_page": "Сканувати наступну",
+    "scan_finish_import": "Завершити імпорт",
+    "scan_saved_message": "Сканований документ збережено в {output_path}",
     "scan_dialog_title": "Сканування документів",
     "scan_scanner_label": "Сканер",
     "scan_default_scanner": "Сканер за замовчуванням",
