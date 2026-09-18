@@ -196,9 +196,9 @@ class SearchFilesTests(unittest.TestCase):
         owner.select_list_item_by_path.assert_called_once_with(r"C:\search\demo.txt")
 
     def test_file_mask_adds_and_removes_office_extensions(self):
-        self.assertEqual(_normalize_file_mask("*.txt *.doc?", True, False), "*.txt *.doc?")
-        self.assertEqual(_normalize_file_mask("*.txt", True, True), "*.txt *.doc? *.xls?")
-        self.assertEqual(_normalize_file_mask("*.txt *.xls? *.doc?", False, False), "*.txt")
+        self.assertEqual(_normalize_file_mask("*.txt *.doc*", True, False), "*.txt *.doc*")
+        self.assertEqual(_normalize_file_mask("*.txt", True, True), "*.txt *.doc* *.xls*")
+        self.assertEqual(_normalize_file_mask("*.txt *.xls* *.doc*", False, False), "*.txt")
 
     def test_sync_file_mask_related_checkboxes_unchecks_missing_office_types(self):
         class DummyField:
@@ -609,13 +609,13 @@ class SearchFilesTests(unittest.TestCase):
                     raise AssertionError("recursive checkbox sync")
                 self.value = bool(value)
 
-        mask_field = DummyField("*.txt *.doc?")
+        mask_field = DummyField("*.txt *.doc*")
         word_chk = DummyCheckBox(True)
         excel_chk = DummyCheckBox(False)
 
         search_form_module._apply_file_mask_state(mask_field, word_chk, excel_chk)
 
-        self.assertEqual(mask_field.GetValue(), "*.txt *.doc?")
+        self.assertEqual(mask_field.GetValue(), "*.txt *.doc*")
         self.assertTrue(word_chk.GetValue())
         self.assertFalse(excel_chk.GetValue())
 

@@ -198,13 +198,13 @@ def _normalize_file_mask(mask_value, include_word=False, include_excel=False):
     tokens = []
     for token in _split_file_mask(mask_value):
         lowered = token.lower()
-        if lowered in {"*.doc?", "*.xls?"}:
+        if lowered in {"*.doc*", "*.xls*"}:
             continue
         tokens.append(token)
     if include_word:
-        tokens.append("*.doc?")
+        tokens.append("*.doc*")
     if include_excel:
-        tokens.append("*.xls?")
+        tokens.append("*.xls*")
     return " ".join(tokens)
 
 
@@ -231,8 +231,8 @@ def _sync_file_mask_related_checkboxes(file_mask_field, word_chk, excel_chk):
     if file_mask_field is None or word_chk is None or excel_chk is None:
         return
     mask_value = file_mask_field.GetValue() or ""
-    _safe_set_control_value(word_chk, _contains_file_mask_token(mask_value, "*.doc?"), "_word_checkbox_sync_guard")
-    _safe_set_control_value(excel_chk, _contains_file_mask_token(mask_value, "*.xls?"), "_excel_checkbox_sync_guard")
+    _safe_set_control_value(word_chk, _contains_file_mask_token(mask_value, "*.doc*"), "_word_checkbox_sync_guard")
+    _safe_set_control_value(excel_chk, _contains_file_mask_token(mask_value, "*.xls*"), "_excel_checkbox_sync_guard")
 
 
 def _apply_file_mask_state(file_mask_field, word_chk, excel_chk):
@@ -632,8 +632,8 @@ def _get_pause_button_label(paused=False):
 
 def _format_search_status(folder_name, file_name=None):
     current_folder = (os.path.dirname(file_name) or folder_name) if file_name else folder_name
-    left = f"{tr('search_status_file')}: {os.path.basename(file_name)}" if file_name else ""
-    right = f"{tr('search_status_folder')}: {current_folder}" if current_folder else ""
+    left = f"{tr('search_status_folder')}: {current_folder}" if current_folder else ""
+    right = f"{tr('search_status_file')}: {os.path.basename(file_name)}" if file_name else ""
     return left, right
 
 
@@ -1026,7 +1026,7 @@ class SearchDialog(wx.Dialog):
 
         status_bar = wx.StatusBar(panel, style=wx.STB_DEFAULT_STYLE)
         status_bar.SetFieldsCount(2)
-        status_bar.SetStatusWidths([-1, -2])
+        status_bar.SetStatusWidths([-2, -1])
         status_bar.SetStatusText("", 0)
         status_bar.SetStatusText("", 1)
 
