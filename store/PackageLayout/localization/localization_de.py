@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'help_manual_missing': 'Hilfedatei nicht gefunden:\n{path}',
+    'help_manual_viewer_unavailable': 'Der integrierte HTML-Betrachter ist nicht verfügbar. Wählen Sie „Im Browser öffnen“, um die Hilfe anzuzeigen.',
     "confirm_bulk_pdf_operation": '„{operation}“ ausführen für:\n{path}\n\nPDF-Dateien werden geändert und gespeichert. Bei einem Ordner werden auch alle PDF-Dateien in seinen Unterordnern verarbeitet.\n\nFortfahren?',
     "confirm_remove_pages": "Ausgewählte Seiten ({count}) löschen?",
     "app_title": "Document Explorer",

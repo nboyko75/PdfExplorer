@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'help_manual_missing': 'Файл справки не найден:\n{path}',
+    'help_manual_viewer_unavailable': 'Встроенный просмотрщик HTML недоступен. Нажмите «Открыть в браузере» для просмотра справки.',
     "confirm_bulk_pdf_operation": 'Выполнить «{operation}» для:\n{path}\n\nPDF-файлы будут изменены и сохранены. Для папки также будут обработаны все PDF-файлы в её подпапках.\n\nПродолжить?',
     "confirm_remove_pages": "Удалить выбранные страницы ({count})?",
     "app_title": "Document Explorer",

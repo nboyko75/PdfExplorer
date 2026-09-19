@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'help_manual_missing': 'File della guida non trovato:\n{path}',
+    'help_manual_viewer_unavailable': 'Il visualizzatore HTML integrato non è disponibile. Selezionare «Apri nel browser» per consultare la guida.',
     "confirm_bulk_pdf_operation": 'Eseguire «{operation}» per:\n{path}\n\nI file PDF verranno modificati e salvati. Per una cartella, verranno elaborati anche tutti i PDF nelle relative sottocartelle.\n\nContinuare?',
     "confirm_remove_pages": "Eliminare le pagine selezionate ({count})?",
     "app_title": "Document Explorer",

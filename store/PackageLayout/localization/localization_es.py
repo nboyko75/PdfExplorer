@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'help_manual_missing': 'No se encontró el archivo de ayuda:\n{path}',
+    'help_manual_viewer_unavailable': 'El visor HTML integrado no está disponible. Seleccione «Abrir en el navegador» para ver la ayuda.',
     "confirm_bulk_pdf_operation": 'Ejecutar «{operation}» para:\n{path}\n\nLos archivos PDF se modificarán y guardarán. Si se trata de una carpeta, también se procesarán todos los PDF de sus subcarpetas.\n\n¿Continuar?',
     "confirm_remove_pages": "¿Eliminar las páginas seleccionadas ({count})?",
     "app_title": "Document Explorer",

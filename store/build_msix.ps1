@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$ProjectRoot,
     [string]$AppName = 'DocExplorer',
     [string]$PackageName = 'PdfExplorer',
     [string]$Version = '1.0.0.0',
@@ -11,17 +11,34 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+        $ProjectRoot = Split-Path -Parent $PSScriptRoot
+    }
+    elseif ($MyInvocation.MyCommand.Path) {
+        $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+    else {
+        $ProjectRoot = (Get-Location).Path
+    }
+}
+
 $root = (Resolve-Path $ProjectRoot).Path
-$appDir = Join-Path $root 'dist\DocExplorer'
+$appDirCandidates = @(
+    (Join-Path $root 'dist\DocExplorer'),
+    (Join-Path $root 'dist')
+)
+$appDir = $appDirCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+if (-not $appDir) {
+    throw "The PyInstaller app output is missing. Run build.cmd first. Expected one of: $($appDirCandidates -join ', ')"
+}
+
 $storeDir = Join-Path $root 'store'
 $packageLayout = Join-Path $storeDir 'PackageLayout'
 $manifestPath = Join-Path $storeDir 'AppxManifest.xml'
 $outputPath = Join-Path $storeDir "$PackageName.msix"
 $outputUploadPath = Join-Path $storeDir "$PackageName.msixupload"
-
-if (-not (Test-Path $appDir)) {
-    throw "The PyInstaller app is missing at '$appDir'. Run build.cmd first."
-}
 
 if (-not (Test-Path $manifestPath)) {
     throw "The AppxManifest file is missing at '$manifestPath'."
@@ -43,6 +60,16 @@ if (Test-Path $packageLayout) {
 New-Item -ItemType Directory -Path $packageLayout -Force | Out-Null
 
 Copy-Item (Join-Path $appDir '*') $packageLayout -Recurse -Force
+
+$assetsDir = Join-Path $storeDir 'Assets'
+$packageAssetsDir = Join-Path $packageLayout 'Assets'
+if (Test-Path $assetsDir) {
+    if (-not (Test-Path $packageAssetsDir)) {
+        New-Item -ItemType Directory -Path $packageAssetsDir -Force | Out-Null
+    }
+    Copy-Item (Join-Path $assetsDir '*') $packageAssetsDir -Recurse -Force
+}
+
 Copy-Item $manifestPath (Join-Path $packageLayout 'AppxManifest.xml') -Force
 
 $files = Get-ChildItem -Path $storeDir -Filter '*.png' -File -Recurse
