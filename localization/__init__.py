@@ -3,6 +3,7 @@ import os
 from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
+    "confirm_bulk_pdf_operation": 'Run “{operation}” for:\n{path}\n\nPDF files will be modified and saved. For a folder, all PDF files in its subfolders will also be processed.\n\nContinue?',
     "confirm_remove_pages": 'Remove the selected pages ({count})?',
 
     "pdf_keep_one_page": 'A PDF must contain at least one page.',

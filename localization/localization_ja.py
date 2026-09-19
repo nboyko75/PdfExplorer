@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_bulk_pdf_operation": '次の対象に「{operation}」を実行しますか？\n{path}\n\nPDFファイルは変更され、保存されます。フォルダーの場合、サブフォルダー内のすべてのPDFファイルも処理されます。\n\n続行しますか？',
     "confirm_remove_pages": "選択したページ（{count} ページ）を削除しますか？",
     "app_title": "Document Explorer",
     "menu_help": "ヘルプ",

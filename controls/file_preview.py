@@ -538,8 +538,8 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_rotate_menu_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_move_page_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_remove_page_btn, 0, wx.RIGHT, 3)
-    owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 3)
+    owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_load_all_btn, 0, wx.RIGHT, 3)
 
     owner.preview_save_btn.Enable(False)
@@ -3060,10 +3060,10 @@ def on_preview_right_click(event):
     remove_page_item = menu.Append(-1, tr("preview_remove_page_button"))
     icon_manager.set_menu_icon2(remove_page_item, "delete")
     menu.AppendSeparator()
-    adjust_page_width_item = menu.Append(-1, tr("preview_adjust_page_width_button"))
-    icon_manager.set_menu_icon(adjust_page_width_item, wx.ART_REPORT_VIEW)
     optimize_item = menu.Append(-1, tr("preview_optimize_button"))
     icon_manager.set_menu_icon2(optimize_item, "ok")
+    adjust_page_width_item = menu.Append(-1, tr("preview_adjust_page_width_button"))
+    icon_manager.set_menu_icon(adjust_page_width_item, wx.ART_REPORT_VIEW)
 
     current_path = getattr(owner, "current_preview_path", None)
     is_pdf_preview = is_pdf_file(current_path)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_bulk_pdf_operation": '„{operation}“ ausführen für:\n{path}\n\nPDF-Dateien werden geändert und gespeichert. Bei einem Ordner werden auch alle PDF-Dateien in seinen Unterordnern verarbeitet.\n\nFortfahren?',
     "confirm_remove_pages": "Ausgewählte Seiten ({count}) löschen?",
     "app_title": "Document Explorer",
     "menu_file": "Datei",

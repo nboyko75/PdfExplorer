@@ -13,9 +13,9 @@ main{margin-left:270px;max-width:1120px;padding:28px 34px 70px} h1{color:var(--n
 @media(max-width:850px){nav{position:static;width:auto}main{margin:0;padding:20px}.command{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style></head><body>
-<nav><h1>DocExplorer Help</h1><p>Menu-by-menu animated guide</p><ul><li><a href="#file-menu">File menu</a></li><li><a href="#navigation-menu">Navigation menu</a></li><li><a href="#document-menu">Document menu</a></li><li><a href="#help-menu">Help menu</a></li><li><a href="#context-menus">Context menus</a></li></ul></nav>
+<nav><h1>DocExplorer Help</h1><p>Menu-by-menu animated guide</p><ul><li><a href="#file-menu">File menu</a></li><li><a href="#navigation-menu">Navigation menu</a></li><li><a href="#document-menu">Document menu</a></li></ul></nav>
 <main><h1>DocExplorer User Help</h1>
-<div class="intro"><p>This guide follows the exact structure of the main menu and all context menus in the supplied DocExplorer source. Each menu item has a separate unit and an animated visual demonstration.</p><p><strong>Tip:</strong> right-click an animated image to pause it by opening it in a separate browser tab, or revisit the section to replay it.</p></div>
+<div class="intro"><p>This guide follows the exact structure of the main menu and all context menus in the supplied DocExplorer source. Each menu item has a separate unit and an animated visual demonstration.</p></div>
 <h2 id="file-menu">File menu</h2>
     <section class="command" id="command-scan">
       <div class="copy"><h3>Scan</h3><p>Open the scanner window, choose a device and acquire pages.</p></div>
@@ -125,21 +125,9 @@ main{margin-left:270px;max-width:1120px;padding:28px 34px 70px} h1{color:var(--n
       <div class="copy"><h3>Zoom out</h3><p>Decrease the preview scale.</p></div>
       <img src="gifs/zoom-out.gif" alt="Animated demonstration of Zoom out">
     </section>
-    <section class="command" id="command-one-wide">
-      <div class="copy"><h3>Show 1 page wide</h3><p>Fit one page to the preview width.</p></div>
-      <img src="gifs/one-wide.gif" alt="Animated demonstration of Show 1 page wide">
-    </section>
-    <section class="command" id="command-two-wide">
-      <div class="copy"><h3>Show 2 pages wide</h3><p>Arrange two pages in each preview row.</p></div>
-      <img src="gifs/two-wide.gif" alt="Animated demonstration of Show 2 pages wide">
-    </section>
-    <section class="command" id="command-one-tall">
-      <div class="copy"><h3>Show 1 page tall</h3><p>Fit a complete page vertically in the preview.</p></div>
-      <img src="gifs/one-tall.gif" alt="Animated demonstration of Show 1 page tall">
-    </section>
-    <section class="command" id="command-manual-scale">
-      <div class="copy"><h3>Manual scale</h3><p>Use the zoom controls instead of an automatic fit mode.</p></div>
-      <img src="gifs/manual-scale.gif" alt="Animated demonstration of Manual scale">
+    <section class="command" id="command-auto-scale">
+      <div class="copy"><h3>Show 1-2 page wide or 1 page tall</h3><p>Fit one-two page wide or one page tall to the preview.</p></div>
+      <img src="gifs/zoom-auto.gif" alt="Animated demonstration of Show 1-2 page wide or 1 page tall">
     </section>
     <section class="command" id="command-rotate">
       <div class="copy"><h3>Rotate</h3><p>Rotate the selected PDF page or image.</p></div>
@@ -164,13 +152,5 @@ main{margin-left:270px;max-width:1120px;padding:28px 34px 70px} h1{color:var(--n
     <section class="command" id="command-optimize">
       <div class="copy"><h3>Optimize</h3><p>Reduce the size of the current PDF while preserving usable quality.</p></div>
       <img src="gifs/optimize.gif" alt="Animated demonstration of Optimize">
-    </section>
-    <section class="command" id="command-optimize-all">
-      <div class="copy"><h3>Optimize all PDF files</h3><p>Optimize a selected PDF or every PDF in a selected folder.</p></div>
-      <img src="gifs/optimize-all.gif" alt="Animated demonstration of Optimize all PDF files">
-    </section>
-    <section class="command" id="command-adjust-all">
-      <div class="copy"><h3>Adjust page width in all PDF files</h3><p>Normalize page widths in a selected PDF or folder of PDFs.</p></div>
-      <img src="gifs/adjust-all.gif" alt="Animated demonstration of Adjust page width in all PDF files">
     </section>
 </main></body></html>

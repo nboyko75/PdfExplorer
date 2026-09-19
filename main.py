@@ -194,9 +194,10 @@ class FileExplorer(wx.Frame):
         self.document_menu.AppendSeparator()
         self.doc_move_page_item = self.document_menu.Append(wx.ID_ANY, tr("preview_move_page_button"))
         self.doc_remove_page_item = self.document_menu.Append(wx.ID_ANY, tr("preview_remove_page_button"))
-        self.doc_adjust_page_width_item = self.document_menu.Append(wx.ID_ANY, tr("preview_adjust_page_width_button"))
+        self.document_menu.AppendSeparator()
         self.doc_optimize_item = self.document_menu.Append(wx.ID_ANY, tr("preview_optimize_button"))
         self.doc_optimize_all_item = self.document_menu.Append(wx.ID_ANY, tr("tree_optimize_all_pdf"))
+        self.doc_adjust_page_width_item = self.document_menu.Append(wx.ID_ANY, tr("preview_adjust_page_width_button"))
         self.doc_adjust_all_page_width_item = self.document_menu.Append(wx.ID_ANY, tr("tree_adjust_page_width_all_pdf"))
         self.menu_bar.Append(self.document_menu, tr("menu_document"))
 

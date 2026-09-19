@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_bulk_pdf_operation": 'Виконати «{operation}» для:\n{path}\n\nPDF-файли буде змінено та збережено. Для папки також буде оброблено всі PDF-файли в її підпапках.\n\nПродовжити?',
     "confirm_remove_pages": 'Видалити вибрані сторінки ({count})?',
 
     "pdf_keep_one_page": 'У PDF має залишитися принаймні одна сторінка.',

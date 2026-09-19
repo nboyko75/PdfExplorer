@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_bulk_pdf_operation": 'Eseguire «{operation}» per:\n{path}\n\nI file PDF verranno modificati e salvati. Per una cartella, verranno elaborati anche tutti i PDF nelle relative sottocartelle.\n\nContinuare?',
     "confirm_remove_pages": "Eliminare le pagine selezionate ({count})?",
     "app_title": "Document Explorer",
     "menu_file": "File",

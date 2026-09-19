@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "confirm_bulk_pdf_operation": '다음 대상에 “{operation}” 작업을 실행하시겠습니까?\n{path}\n\nPDF 파일이 수정되고 저장됩니다. 폴더인 경우 하위 폴더의 모든 PDF 파일도 처리됩니다.\n\n계속하시겠습니까?',
     "confirm_remove_pages": "선택한 페이지({count}개)를 삭제하시겠습니까?",
     "app_title": "Document Explorer",
     "menu_help": "도움말",

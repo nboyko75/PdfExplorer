@@ -762,10 +762,28 @@ def on_tree_right_click(owner, event):
     _show_tree_context_menu(owner, menu, event)
 
 
+def _confirm_bulk_pdf_operation(owner, base_path, title_key):
+    title = tr(title_key)
+    dialog = wx.MessageDialog(
+        owner,
+        tr("confirm_bulk_pdf_operation", operation=title, path=base_path),
+        title,
+        wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+    )
+    try:
+        dialog.SetYesNoLabels(tr("confirm_yes"), tr("confirm_no"))
+        return dialog.ShowModal() == wx.ID_YES
+    finally:
+        dialog.Destroy()
+
+
 def optimize_all_pdf_in_path(owner, path):
     base_path = normalize_tree_path(path)
     if not _is_folder_or_single_pdf(base_path):
         wx.MessageBox(tr("tree_no_folder_or_pdf_selected"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+
+    if not _confirm_bulk_pdf_operation(owner, base_path, "tree_optimize_all_pdf"):
         return
 
     optimized_count = 0
@@ -794,6 +812,9 @@ def adjust_page_width_all_pdf_in_path(owner, path):
     base_path = normalize_tree_path(path)
     if not _is_folder_or_single_pdf(base_path):
         wx.MessageBox(tr("tree_no_folder_or_pdf_selected"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+
+    if not _confirm_bulk_pdf_operation(owner, base_path, "tree_adjust_page_width_all_pdf"):
         return
 
     adjusted_count = 0
