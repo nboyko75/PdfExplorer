@@ -3,13 +3,13 @@
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap rescap">
-  <Identity Name="DocumentExplorer.PDFExplorer"
-            Publisher="CN=YourPublisherName"
+  <Identity Name="DocumentExplorer.DocExplorer"
+            Publisher="CN=Mykola Boiko"
             Version="1.0.0.0" />
 
   <Properties>
     <DisplayName>Document Explorer</DisplayName>
-    <PublisherDisplayName>Your Publisher Name</PublisherDisplayName>
+    <PublisherDisplayName>Mykola Boiko</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Document Explorer helps you browse folders, preview PDF and Office files, and manage PDF workflows.</Description>
   </Properties>

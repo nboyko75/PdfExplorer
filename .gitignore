@@ -7,7 +7,8 @@ dist/
 pdf/
 .pdf_explorer_settings.json
 .todo.txt
-*.zip
 pytest_print_check.txt
 failure_output.txt
 verification_shift_preview.py
+*.zip
+*.msix
