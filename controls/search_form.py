@@ -811,6 +811,8 @@ class SearchDialog(wx.Dialog):
         self.settings = load_settings()
         self.state = _restore_search_form_state(self.settings)
         self.search_state = {"running": False, "stopped": False, "thread": None, "stop_event": None}
+        self._search_busy_cursor = False
+        self._closing = False
         self.controls = {}
         self._restore_state()
         self._build_ui()
@@ -1088,6 +1090,8 @@ class SearchDialog(wx.Dialog):
         }
 
     def _render_results(self, matches):
+        if self._closing:
+            return
         result_list = self.controls["result_list"]
         result_list.DeleteAllItems()
         for match_path in matches:
@@ -1185,16 +1189,55 @@ class SearchDialog(wx.Dialog):
             finally:
                 wx.CallAfter(self._reset_search_ui)
 
-        thread = threading.Thread(target=worker, daemon=False)
-        self.search_state["thread"] = thread
-        thread.start()
+        self._begin_search_busy_cursor()
+        try:
+            thread = threading.Thread(target=worker, daemon=False)
+            self.search_state["thread"] = thread
+            thread.start()
+        except Exception as exc:
+            self._reset_search_ui()
+            wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
+
+    def _begin_search_busy_cursor(self):
+        if self._search_busy_cursor:
+            return
+        self._search_busy_cursor = True
+        self._search_saved_cursors = []
+        wait_cursor = wx.Cursor(wx.CURSOR_WAIT)
+        normal_cursor = wx.Cursor(wx.CURSOR_ARROW)
+        stop_button = self.controls["stop_btn"]
+
+        # A global busy cursor overrides the Stop button's cursor on Windows.
+        # Set window cursors instead, preserving each control's original cursor.
+        def apply_cursor(window, over_stop=False):
+            over_stop = over_stop or window is stop_button
+            self._search_saved_cursors.append((window, window.GetCursor()))
+            window.SetCursor(normal_cursor if over_stop else wait_cursor)
+            for child in window.GetChildren():
+                apply_cursor(child, over_stop)
+
+        apply_cursor(self)
+
+    def _end_search_busy_cursor(self):
+        if self._search_busy_cursor:
+            self._search_busy_cursor = False
+            saved_cursors = self._search_saved_cursors
+            self._search_saved_cursors = []
+            for window, cursor in saved_cursors:
+                if window:
+                    window.SetCursor(cursor)
 
     def _set_status(self, folder_name, file_name=None):
+        if self._closing:
+            return
         left_text, right_text = _format_search_status(folder_name, file_name)
         self.controls["status_bar"].SetStatusText(left_text, 0)
         self.controls["status_bar"].SetStatusText(right_text, 1)
 
     def _reset_search_ui(self):
+        self._end_search_busy_cursor()
+        if self._closing:
+            return
         self.search_state["running"] = False
         self.search_state["stopped"] = False
         self.search_state["thread"] = None
@@ -1203,6 +1246,8 @@ class SearchDialog(wx.Dialog):
         self.controls["search_btn"].Enable(True)
 
     def _stop_search(self, _event=None):
+        if self._closing:
+            return
         if not self.search_state["running"]:
             return
         self.search_state["stopped"] = True
@@ -1315,12 +1360,14 @@ class SearchDialog(wx.Dialog):
                 pass
 
     def _on_close(self, _event=None):
+        self._closing = True
         stop_event = self.search_state.get("stop_event")
         if stop_event is not None:
             stop_event.set()
         thread = self.search_state.get("thread")
         if thread is not None and thread.is_alive():
             thread.join()
+        self._end_search_busy_cursor()
         self._save_geometry()
         self.Destroy()
         setattr(self.owner, "_search_form_dialog", None)
