@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'menu_file': '파일',
+    'menu_navigation': '탐색',
+    'menu_document': '문서',
+    'help_manual_missing': '도움말 파일을 찾을 수 없습니다:\n{path}',
+    'help_manual_viewer_unavailable': '내장 HTML 뷰어를 사용할 수 없습니다. «브라우저에서 열기»를 선택하여 도움말을 확인하세요.',
     "confirm_bulk_pdf_operation": '다음 대상에 “{operation}” 작업을 실행하시겠습니까?\n{path}\n\nPDF 파일이 수정되고 저장됩니다. 폴더인 경우 하위 폴더의 모든 PDF 파일도 처리됩니다.\n\n계속하시겠습니까?',
     "confirm_remove_pages": "선택한 페이지({count}개)를 삭제하시겠습니까?",
     "app_title": "Document Explorer",

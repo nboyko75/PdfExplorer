@@ -1,0 +1,103 @@
+{
+  "title": "Benutzerhandbuch",
+  "contents": "Inhalt",
+  "note": "Abbildungen und Animationen zeigen die englische Oberfläche; ihre Erläuterungen sind übersetzt. Windows-Design, Anzeigeskalierung und Programmversion können das Erscheinungsbild verändern.",
+  "sections": [
+    [
+      "Über DocExplorer",
+      "DocExplorer ist ein Windows-Dateimanager zum Suchen, Anzeigen und Bearbeiten von Dokumenten. Er verbindet Ordnerbaum, Favoriten, Windows-Verknüpfungen, detaillierte Dateiliste und Vorschau. PDFs lassen sich direkt im Programm bearbeiten.\\nSie können Namen, Typen, Größen und Änderungsdaten prüfen, PDF-, Bild-, Text-, HTML- und unterstützte Office-Dateien anzeigen und Namen/Inhalte mit Masken, regulären Ausdrücken, Datums- und Größenfiltern durchsuchen. PDF-Änderungen werden vorgemerkt und anschließend gespeichert oder verworfen. Kopieren, Ausschneiden, Einfügen, Umbenennen, Löschen, Archivieren, Entpacken, Scannen und Drucken sind verfügbar. Die Oberfläche unterstützt elf Sprachen.\\nOffice-Vorschau und -Druck benötigen kompatible Microsoft-Office-Komponenten. Scannen verwendet Windows Image Acquisition (WIA). Entpacken hängt von den installierten Archivwerkzeugen ab."
+    ],
+    [
+      "Erste Schritte",
+      "Starten Sie DocExplorer. Fenstergröße, Trennleisten, Sprache, letzter Ordner, Favoriten und viele Dialogeinstellungen werden wiederhergestellt.\\nWählen Sie einen Ordner im Baum oder geben Sie seinen Pfad in die Adressleiste ein und drücken Sie Enter. Eine in der mittleren Liste ausgewählte Datei erscheint rechts, wenn Vorschau und Format unterstützt werden. Doppelklicken öffnet einen Ordner beziehungsweise eine Datei mit der zugeordneten Windows-Anwendung. Verschieben Sie Trennleisten zum Anpassen der Bereiche. Unter Datei > Optionen wählen Sie Sprache und Vorschau-/PDF-Einstellungen.\\nPDF-Seitenänderungen bleiben zunächst im Speicher. Speichern schreibt sie auf den Datenträger; Abbrechen verwirft sie."
+    ],
+    [
+      "Hauptfenster",
+      "Zurück und Vorwärts bewegen sich durch den Verlauf. Suchen öffnet die Dateisuche. Beenden schließt das Programm nach Klärung ungespeicherter PDF-Änderungen. Die Adressleiste akzeptiert Datei- und Ordnerpfade. Versteckte steuert die Anzeige versteckter Objekte.\\nDie Dateileiste bietet Scannen, Öffnen, Nach oben, Neuer Ordner, Drucken, Kopieren, Ausschneiden, Einfügen, Umbenennen und In den Papierkorb. Filter begrenzt die aktuelle Liste und ist von der Inhaltssuche unabhängig. Klicken auf eine Spaltenüberschrift sortiert; Doppelklicken öffnet ein Objekt."
+    ],
+    [
+      "Dateien und Ordner navigieren",
+      "Der linke Baum zeigt die Ordnerhierarchie. Erweitern Sie einen Knoten mit dem Pfeil, wählen Sie einen Ordner zum Laden und öffnen Sie mit Nach oben dessen übergeordneten Ordner. Adressleiste und Verlauf bieten alternative Wege.\\nÖffnen öffnet die Auswahl; Öffnen mit wählt eine andere Anwendung. Aktualisieren (F5) lädt den aktuellen Ordner und relevante Baumknoten neu. Neuer Ordner erzeugt am aktuellen Ort einen eindeutigen Namen. Umbenennen ändert den Namen. Ziehen und Ablegen verschiebt oder kopiert unterstützte Objekte zwischen den Bereichen. Versteckte Objekte erscheinen mit abgeblendeten Symbolen.\\nDatei- und Kontextmenüs aktivieren nur zur Auswahl passende Befehle."
+    ],
+    [
+      "Favoriten und Windows-Verknüpfungen",
+      "Favoriten speichern häufig benötigte Ordner. Über Navigation oder Kontextmenü fügen Sie Ordner hinzu oder entfernen sie. Pfeilschaltflächen oder Ziehen der Zeilen ändern die Reihenfolge.\\nDer Verknüpfungsbereich kann Desktop, Dokumente, Downloads, Bilder, Musik, Videos und Papierkorb zeigen. Seine Umschaltung blendet ihn ein/aus. Rechtsklicken auf die Liste bestimmt sichtbare Einträge.\\nPapierkorb zeigt gelöschte Objekte in der Dateiliste; das Kontextmenü bietet Wiederherstellen, Endgültig löschen und Alles leeren."
+    ],
+    [
+      "Dokumentvorschau",
+      "Wählen Sie eine Datei für die rechte Vorschau. Vorschau aktiviert die allgemeine Anzeige, MS Office separat die Office-Konvertierung. Unterstützt werden PDF-Miniaturen und -Layouts, Rasterbilder mit Zoom/Drehung, Text und Quellcode, HTML im eingebetteten Browser sowie Office-Dokumente. Lange Textvorschauen können zur Leistungsverbesserung gekürzt werden.\\nDiese Version konvertiert Word und Excel in HTML, PowerPoint in PDF; Microsoft Office ist erforderlich. Heften Sie eine Registerkarte an, um sie beim Navigieren zu behalten. Lösen oder schließen Sie nicht mehr benötigte Registerkarten. Große Dokumente laden zunächst die eingestellte Seitenzahl; Alle laden zeigt den Rest.\\nJe nach Office-Version kann während der Konvertierung kurz ein Dokumentfenster erscheinen oder aktiviert werden."
+    ],
+    [
+      "PDF-Dateien bearbeiten",
+      "Wählen Sie PDF und Seite. Drehen Sie die Seite links/rechts oder alle Seiten. Seite verschieben fragt die Zielposition ab; Seite entfernen löscht sie aus der vorgemerkten Fassung. Import aus Datei fügt Seiten eines anderen PDFs hinzu, Import vom Scanner gescannte Seiten. Export schreibt ausgewählte Seiten in eine separate PDF-Datei.\\nSeitenbreite anpassen vereinheitlicht gescannte Seitenbreiten. Optimieren komprimiert eingebettete Bilder anhand der Optionen erneut. Speichern übernimmt Änderungen, Speichern unter erstellt eine weitere PDF-Datei, Abbrechen lädt die gespeicherte Fassung.\\nOptimierung kann Bildqualität verringern. Wählen Sie DPI sowie Farb-/Schwarzweißkompression unter Datei > Optionen sorgfältig und bewahren Sie wichtige Originale auf."
+    ],
+    [
+      "In Dateien suchen",
+      "Suchordner legt den Ausgangspunkt fest; Unterordner einbeziehen sucht rekursiv. Dateimasken werden durch Leerzeichen, Kommas oder Semikolons getrennt, etwa *.pdf *.txt. Word und Excel schalten *.doc* und *.xls* um.\\nName und Inhalt lassen sich unabhängig aktivieren. Sind beide aktiv, müssen beide passen. Text sucht normal; Regulärer Ausdruck nutzt Python-Syntax. Groß-/Kleinschreibung und Ganzes Wort schränken Treffer ein. Datum und Größe Von/Bis sind optionale Grenzen.\\nSuchen startet; Stopp fordert den Abbruch an. Doppelklicken auf einen Treffer wählt die Datei im Hauptfenster und zeigt ihre Vorschau. Verlauf, Größe, Position und Spaltenbreiten werden gespeichert.\\nInhaltsextraktion unterstützt Text/Quellcode, PDF-Text und moderne Office-Dokumente. Gescannte PDFs ohne OCR-Textebene sind nicht nach sichtbaren Wörtern durchsuchbar."
+    ],
+    [
+      "Dateioperationen und Archive",
+      "Wählen Sie ein oder mehrere Objekte vor Kopieren, Ausschneiden, In den Papierkorb, Endgültig löschen oder Zum Archiv hinzufügen. Einfügen verwendet den aktuellen Ordner. Tastenkürzel: Ctrl+C, Ctrl+X und Ctrl+V.\\nZum Archiv hinzufügen packt ausgewählte Dateien/Ordner. Hier entpacken extrahiert in den aktuellen Ordner. Entpacken nach erstellt oder wählt einen Zielordner. Formate hängen von installierten Hilfsprogrammen und Einstellungen ab.\\nEndgültiges Löschen umgeht den Papierkorb und kann in DocExplorer nicht rückgängig gemacht werden. Prüfen Sie Auswahl und Pfad vor der Bestätigung."
+    ],
+    [
+      "Papierkorb",
+      "Öffnen Sie den Papierkorb über Windows-Verknüpfungen. Die Liste zeigt gelöschte Objekte und ursprüngliche Metadaten, soweit Windows sie liefert. Rechtsklicken > Wiederherstellen bringt ein Objekt in den ursprünglichen Ordner zurück. Endgültig löschen entfernt die Auswahl; Alles leeren leert den gesamten Papierkorb.\\nFehlt der ursprüngliche Ordner oder der Zugriff, kann die Wiederherstellung scheitern. Erstellen Sie den Ordner neu oder sorgen Sie für passende Berechtigungen und versuchen Sie es erneut."
+    ],
+    [
+      "Scannen",
+      "Wählen Sie Datei > Scannen oder die Scanner-Schaltfläche. Der Windows-WIA-Dialog steuert gerätespezifische Quelle, Farbe und Auflösung.\\nWählen Sie PDF für mehrere Seiten oder JPEG für ein Bild. Mehrere Seiten fügt weitere Scans zu einem PDF hinzu. Bestimmen Sie Ausgabedateiname und Öffnen nach dem Scan. Existiert die Datei, überschreiben Sie sie, erstellen eine nummerierte Kopie oder brechen ab.\\nErforderlich sind ein WIA-kompatibler Scanner und installierter Windows-Treiber."
+    ],
+    [
+      "Drucken",
+      "Wählen Sie eine Datei und Ctrl+P oder Datei > Drucken. Bestimmen Sie Drucker, Kopien und Alle Seiten oder Ausgewählte Seiten. Seitenangaben akzeptieren etwa 1,3-5. Druckerparameter öffnet die Windows-Druckereigenschaften.\\nAusgewählte Seiten lassen sich bei unterstützten PDF- und Office-Dokumenten drucken. Druckränder und Skalierung hängen vom Druckertreiber und der Dokumentanwendung ab."
+    ],
+    [
+      "Optionen und Sprache",
+      "Optionen umfasst Sprache, Vorschaugrenzen und -verhalten, PDF-Qualität/DPI, erweiterte Farb-/Schwarzweißkodierung und Scanvorgaben. Übernehmen speichert die Werte. Einige Beschriftungen ändern sich sofort; starten Sie neu, wenn eine Windows-Komponente die alte Sprache behält.\\nSprachen: Englisch, Ukrainisch, Deutsch, Französisch, Spanisch, Italienisch, brasilianisches Portugiesisch, Japanisch, Koreanisch, vereinfachtes Chinesisch und Russisch. Die Hilfe öffnet sich in der gewählten Oberflächensprache."
+    ],
+    [
+      "Tastenkürzel",
+      "F1: Hilfe. F5: aktualisieren. Ctrl+P: ausgewähltes/aktuelles Dokument drucken. Ctrl+C / Ctrl+X / Ctrl+V: kopieren / ausschneiden / einfügen. Ctrl+D: Auswahl in den Papierkorb. Shift+Delete: endgültig löschen. Enter oder Doppelklick: öffnen/aktivieren. Ctrl+Z: unterstützte vorgemerkte PDF-Operation rückgängig machen."
+    ],
+    [
+      "Fehlerbehebung und Sicherheit",
+      "Leere Vorschau: Vorschau aktivieren. Für Word/Excel/PowerPoint MS Office aktivieren und Office-Installation prüfen. Große Konvertierungen abwarten und Datei erneut auswählen. Extern öffnen, um Beschädigung oder Sperrung zu prüfen.\\nKeine Inhaltstreffer: Ordner, Maske und Unterordner prüfen. Sind Name und Inhalt aktiv, müssen beide passen. Datums-/Größengrenzen entfernen und erneut suchen. Gescannte Bilder benötigen OCR-Text.\\nAndere Symbole oder Papierkorbverhalten in der EXE: mit DocExplorer.spec bauen, damit Bilder, Übersetzungen und Handbuch enthalten sind. Windows-Metadaten variieren mit Konto, Sprache und Berechtigungen. Nach externen Dateioperationen aktualisieren.\\nVor Optimierung, endgültigem Löschen oder umfangreichen PDF-Änderungen sichern. Speichern unter bewahrt Originale. Bei Zugriffs-/Freigabefehlern Dateien in anderen Programmen schließen. PDF-Schreiben oder Entpacken nicht unterbrechen."
+    ]
+  ],
+  "help": [
+    "Scannerfenster öffnen, Gerät wählen und Seiten erfassen.",
+    "Ausgewählten Ordner oder ausgewählte Datei öffnen.",
+    "Die Datei mit einer anderen installierten Anwendung öffnen oder eine Anwendung auswählen.",
+    "Ausgewählte Datei oder Ordner umbenennen.",
+    "Ordner am aktuellen Ort erstellen.",
+    "Ordnerbaum und Dateiliste neu laden. F5.",
+    "Druckdialog für die ausgewählte Datei öffnen. Ctrl+P.",
+    "Dateien/Ordner kopieren und anschließend einfügen. Ctrl+C / Ctrl+V.",
+    "Dateien/Ordner ausschneiden und zum Verschieben einfügen. Ctrl+X / Ctrl+V.",
+    "Auswahl in den Windows-Papierkorb verschieben. Ctrl+D.",
+    "Auswahl ohne Papierkorb endgültig löschen. Shift+Delete.",
+    "Archiv aus ausgewählten Dateien oder Ordnern erstellen.",
+    "Archiv in den aktuellen Ordner entpacken.",
+    "Zielordner erstellen oder auswählen und dorthin entpacken.",
+    "Sprache, Vorschau, Oberfläche und weitere Optionen einstellen.",
+    "Programmzustand speichern und DocExplorer schließen.",
+    "Vorherigen oder nächsten Ort im Verlauf öffnen.",
+    "Übergeordneten Ordner öffnen.",
+    "Ordner zu Favoriten hinzufügen oder daraus entfernen.",
+    "Nach Dateinamen, Inhalten und Filtern suchen.",
+    "Seiten einer anderen unterstützten Datei zum aktuellen PDF hinzufügen.",
+    "Seiten scannen und zum aktuellen PDF hinzufügen.",
+    "Ausgewählte PDF-Seiten in eine neue Datei exportieren.",
+    "Vorgemerkte PDF-Änderungen in der aktuellen Datei speichern.",
+    "PDF-Änderungen verwerfen und gespeichertes Dokument laden.",
+    "Vorschau vergrößern.",
+    "Vorschau verkleinern.",
+    "Eine oder zwei Seiten nebeneinander oder eine ganze Seite in der Höhe einpassen.",
+    "Ausgewählte PDF-Seite oder Bild drehen.",
+    "Alle PDF-Seiten um 90 Grad drehen.",
+    "PDF-Seite an eine neue Position verschieben.",
+    "Ausgewählte Seite aus dem PDF entfernen.",
+    "Seitenbreiten im aktuellen PDF vereinheitlichen.",
+    "PDF-Dateigröße bei brauchbarer Qualität reduzieren."
+  ]
+}

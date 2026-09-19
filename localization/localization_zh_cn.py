@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'menu_file': '文件',
+    'menu_navigation': '导航',
+    'menu_document': '文档',
+    'help_manual_missing': '找不到帮助文件：\n{path}',
+    'help_manual_viewer_unavailable': '内置 HTML 查看器不可用。请选择“在浏览器中打开”查看帮助。',
     "confirm_bulk_pdf_operation": '对以下目标执行“{operation}”：\n{path}\n\nPDF 文件将被修改并保存。如果目标是文件夹，也会处理其子文件夹中的所有 PDF 文件。\n\n是否继续？',
     "confirm_remove_pages": "是否删除所选页面（{count} 页）？",
     "app_title": "Document Explorer",

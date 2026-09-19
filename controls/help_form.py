@@ -1,6 +1,7 @@
 import os
 import sys
 import webbrowser
+from pathlib import Path
 
 import wx
 
@@ -21,20 +22,39 @@ def _resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+SUPPORTED_HELP_LOCALES = frozenset(("en", "uk", "de", "fr", "es", "it", "pt_br", "ja", "ko", "zh_cn", "ru"))
+
+
+def _localized_resource_path(relative_path, locale_code):
+    """Resolve a bundled manual without letting a locale escape the docs folder."""
+    code = str(locale_code or "en").lower().replace("-", "_")
+    if code not in SUPPORTED_HELP_LOCALES:
+        code = code.split("_", 1)[0]
+    if code not in SUPPORTED_HELP_LOCALES:
+        code = "en"
+    stem, extension = os.path.splitext(relative_path)
+    for candidate in (f"{stem}_{code}{extension}", f"{stem}_en{extension}", relative_path):
+        path = _resource_path(candidate)
+        if os.path.isfile(path):
+            return path
+    return _resource_path(relative_path)
+
+
 def _open_local_file(path):
     if hasattr(os, "startfile"):
         os.startfile(path)
     else:  # pragma: no cover
-        webbrowser.open("file:///" + os.path.abspath(path).replace(os.sep, "/"))
+        webbrowser.open(Path(path).resolve().as_uri())
 
 
 def show_app_manual_form(owner):
     """Show the menu-structured, animated offline help."""
-    help_path = _resource_path(HELP_RELATIVE_PATH)
-    manual_path = _resource_path(MANUAL_RELATIVE_PATH)
+    locale_code = getattr(owner, "current_locale", "en")
+    help_path = _localized_resource_path(HELP_RELATIVE_PATH, locale_code)
+    manual_path = _localized_resource_path(MANUAL_RELATIVE_PATH, locale_code)
     if not os.path.isfile(help_path):
         wx.MessageBox(
-            f"Help file was not found:\n{help_path}",
+            tr("help_manual_missing", path=help_path),
             tr("menu_app_manual"),
             style=wx.OK | wx.ICON_ERROR,
         )
@@ -61,12 +81,12 @@ def show_app_manual_form(owner):
 
     if html2 is not None:
         viewer = html2.WebView.New(panel)
-        viewer.LoadURL("file:///" + os.path.abspath(help_path).replace(os.sep, "/"))
+        viewer.LoadURL(Path(help_path).resolve().as_uri())
     else:
         viewer = wx.Panel(panel)
         message = wx.StaticText(
             viewer,
-            label="The embedded HTML viewer is unavailable. Select Open in browser to view Help.",
+            label=tr("help_manual_viewer_unavailable"),
         )
         fallback_sizer = wx.BoxSizer(wx.VERTICAL)
         fallback_sizer.Add(message, 0, wx.ALL, 18)

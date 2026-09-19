@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'menu_file': 'ファイル',
+    'menu_navigation': 'ナビゲーション',
+    'menu_document': 'ドキュメント',
+    'help_manual_missing': 'ヘルプファイルが見つかりません:\n{path}',
+    'help_manual_viewer_unavailable': '内蔵 HTML ビューアーを利用できません。「ブラウザーで開く」を選んでヘルプを表示してください。',
     "confirm_bulk_pdf_operation": '次の対象に「{operation}」を実行しますか？\n{path}\n\nPDFファイルは変更され、保存されます。フォルダーの場合、サブフォルダー内のすべてのPDFファイルも処理されます。\n\n続行しますか？',
     "confirm_remove_pages": "選択したページ（{count} ページ）を削除しますか？",
     "app_title": "Document Explorer",

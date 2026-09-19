@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'help_manual_missing': 'Fichier d’aide introuvable :\n{path}',
+    'help_manual_viewer_unavailable': 'La visionneuse HTML intégrée est indisponible. Sélectionnez « Ouvrir dans le navigateur » pour consulter l’aide.',
     "confirm_bulk_pdf_operation": 'Exécuter « {operation} » pour :\n{path}\n\nLes fichiers PDF seront modifiés et enregistrés. Pour un dossier, tous les fichiers PDF de ses sous-dossiers seront également traités.\n\nContinuer ?',
     "confirm_remove_pages": "Supprimer les pages sélectionnées ({count}) ?",
     "app_title": "Document Explorer",

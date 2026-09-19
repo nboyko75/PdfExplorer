@@ -1,0 +1,103 @@
+{
+  "title": "Manuel d’utilisation",
+  "contents": "Sommaire",
+  "note": "Les illustrations et animations reproduisent l’interface anglaise ; leurs explications sont traduites. L’apparence peut varier selon le thème Windows, la mise à l’échelle et la version.",
+  "sections": [
+    [
+      "À propos de DocExplorer",
+      "DocExplorer est un explorateur de fichiers Windows destiné à rechercher, consulter et traiter des documents. Il réunit arborescence, favoris, raccourcis Windows, liste détaillée et aperçu. Les PDF se modifient directement dans l’application.\\nConsultez noms, types, tailles et dates de modification ; affichez PDF, images, texte, HTML et documents Office pris en charge ; recherchez noms/contenus avec masques, expressions régulières, dates et tailles. Les modifications PDF sont préparées puis enregistrées ou annulées. Copier, couper, coller, renommer, supprimer, archiver, extraire, numériser et imprimer sont disponibles. L’interface propose onze langues.\\nL’aperçu et l’impression Office nécessitent des composants Microsoft Office compatibles. La numérisation utilise Windows Image Acquisition (WIA). L’extraction dépend des outils d’archivage installés."
+    ],
+    [
+      "Premiers pas",
+      "Lancez DocExplorer. Il restaure taille de fenêtre, séparateurs, langue, dernier dossier, favoris et de nombreux réglages des dialogues.\\nChoisissez un dossier dans l’arbre ou saisissez son chemin dans la barre d’adresse puis Entrée. Sélectionnez un fichier au centre pour l’afficher à droite si l’aperçu est actif et le format reconnu. Un double-clic ouvre un dossier ou lance l’application Windows associée au fichier. Déplacez les séparateurs pour redimensionner les volets. Fichier > Options règle la langue et l’aperçu/PDF.\\nLes modifications PDF restent en mémoire : Enregistrer les écrit sur disque ; Annuler les abandonne."
+    ],
+    [
+      "Fenêtre principale",
+      "Précédent et Suivant parcourent l’historique. Rechercher ouvre la recherche de fichiers. Quitter ferme l’application après traitement des modifications PDF non enregistrées. La barre d’adresse accepte fichiers et dossiers. Masqués contrôle l’affichage des éléments cachés.\\nLa barre de fichiers propose Numériser, Ouvrir, Monter, Nouveau dossier, Imprimer, Copier, Couper, Coller, Renommer et Mettre à la corbeille. Filtre réduit la liste courante, indépendamment de la recherche de contenu. Cliquez sur un en-tête pour trier ; double-cliquez pour ouvrir."
+    ],
+    [
+      "Parcourir fichiers et dossiers",
+      "L’arbre gauche représente la hiérarchie. Développez un nœud avec sa flèche, sélectionnez un dossier pour le charger et utilisez Monter pour son parent. La barre d’adresse et l’historique offrent d’autres accès.\\nOuvrir ouvre la sélection ; Ouvrir avec choisit une autre application. Actualiser (F5) recharge le dossier courant et les nœuds concernés. Nouveau dossier crée un nom unique à l’emplacement courant. Renommer change le nom. Le glisser-déposer déplace ou copie les éléments pris en charge entre volets. Les éléments cachés s’affichent avec des icônes atténuées.\\nLes menus Fichier et contextuels n’activent que les actions adaptées à la sélection."
+    ],
+    [
+      "Favoris et raccourcis Windows",
+      "Les favoris regroupent les dossiers fréquents. Ajoutez ou retirez un dossier via Navigation ou le menu contextuel. Les flèches ou le déplacement des lignes changent leur ordre.\\nLes raccourcis peuvent afficher Bureau, Documents, Téléchargements, Images, Musique, Vidéos et Corbeille. Le bouton de bascule montre/masque cette section. Un clic droit sur la liste choisit les entrées visibles.\\nLa Corbeille affiche les éléments supprimés dans la liste ; son menu propose Restaurer, Supprimer définitivement et Tout vider."
+    ],
+    [
+      "Aperçu des documents",
+      "Sélectionnez un fichier pour l’aperçu à droite. Aperçu active l’affichage général ; MS Office commande séparément la conversion Office. Sont pris en charge les PDF avec miniatures/dispositions, images matricielles avec zoom/rotation, texte et code source, HTML dans le navigateur intégré et documents Office. Les textes longs peuvent être tronqués pour préserver la réactivité.\\nCette version convertit Word/Excel en HTML et PowerPoint en PDF ; Microsoft Office est requis. Épinglez un onglet pour le conserver pendant la navigation ; détachez ou fermez les onglets inutiles. Les grands documents chargent d’abord le nombre de pages configuré ; Tout charger affiche le reste.\\nSelon la version Office, une fenêtre de document peut apparaître ou s’activer brièvement pendant la conversion."
+    ],
+    [
+      "Modifier les PDF",
+      "Sélectionnez le PDF et une page. Tournez-la à gauche/droite ou tournez toutes les pages. Déplacer la page demande une position cible ; Supprimer la page la retire de la version en cours. Importer depuis un fichier ajoute les pages d’un autre PDF ; depuis le scanner ajoute des pages numérisées. Exporter écrit les pages choisies dans un PDF distinct.\\nAjuster la largeur uniformise les pages numérisées. Optimiser recompresse les images selon les Options. Enregistrer applique les changements, Enregistrer sous crée un autre PDF, Annuler recharge la version sur disque.\\nL’optimisation peut diminuer la qualité. Réglez soigneusement DPI et compression couleur/monochrome dans Fichier > Options et conservez les originaux importants."
+    ],
+    [
+      "Rechercher dans les fichiers",
+      "Dossier de recherche définit la racine ; Inclure les sous-dossiers recherche récursivement. Les masques sont séparés par espaces, virgules ou points-virgules, par exemple *.pdf *.txt. Word et Excel activent les motifs *.doc* et *.xls*.\\nNom et contenu s’activent indépendamment. Si les deux sont actifs, les deux doivent correspondre. Texte effectue une recherche normale ; Expression régulière utilise la syntaxe Python. Respecter la casse et Mot entier limitent les correspondances. Les champs date/taille De/À sont facultatifs.\\nRechercher démarre ; Arrêter demande l’annulation. Double-cliquez sur un résultat pour sélectionner et prévisualiser le fichier dans la fenêtre principale. Historique, taille, position et largeurs de colonnes sont mémorisés.\\nL’extraction prend en charge texte/code, texte PDF et documents Office modernes. Les PDF numérisés sans couche OCR ne sont pas recherchables par leurs mots visibles."
+    ],
+    [
+      "Opérations et archives",
+      "Sélectionnez un ou plusieurs éléments avant Copier, Couper, Mettre à la corbeille, Supprimer définitivement ou Ajouter à l’archive. Coller utilise le dossier courant. Raccourcis : Ctrl+C, Ctrl+X et Ctrl+V.\\nAjouter à l’archive regroupe les fichiers/dossiers sélectionnés. Extraire ici utilise le dossier courant. Extraire vers crée ou sélectionne la destination. Les formats dépendent des outils installés et des réglages.\\nLa suppression définitive contourne la Corbeille et n’est pas annulable dans DocExplorer. Vérifiez sélection et chemin avant confirmation."
+    ],
+    [
+      "Corbeille",
+      "Ouvrez la Corbeille via les raccourcis Windows. La liste montre les éléments supprimés et leurs métadonnées d’origine si Windows les fournit. Clic droit > Restaurer renvoie un élément dans son dossier initial. Supprimer définitivement retire la sélection ; Tout vider vide la corbeille entière.\\nLa restauration peut échouer si le dossier initial manque ou si l’accès est refusé. Recréez le dossier ou obtenez les droits nécessaires, puis réessayez."
+    ],
+    [
+      "Numérisation",
+      "Choisissez Fichier > Numériser ou le bouton du scanner. Le dialogue Windows WIA règle source, couleur et résolution propres au périphérique.\\nChoisissez PDF pour plusieurs pages ou JPEG pour une image. Plusieurs pages permet d’ajouter les acquisitions au même PDF. Définissez le nom de sortie et l’ouverture du résultat. Si le fichier existe, remplacez-le, créez une copie numérotée ou annulez.\\nUn scanner compatible WIA et son pilote Windows sont requis."
+    ],
+    [
+      "Impression",
+      "Sélectionnez un fichier et Ctrl+P ou Fichier > Imprimer. Choisissez imprimante, nombre de copies et Toutes les pages ou Pages sélectionnées. Les plages acceptent par exemple 1,3-5. Paramètres de l’imprimante ouvre les propriétés Windows.\\nL’impression de pages sélectionnées fonctionne pour les PDF et documents Office pris en charge. Marges imprimables et échelle dépendent du pilote et de l’application du document."
+    ],
+    [
+      "Options et langue",
+      "Options comprend langue, limites/comportement de l’aperçu, qualité/DPI PDF, encodages couleur/monochrome avancés et réglages de numérisation. Appliquer enregistre les valeurs. Certains libellés changent immédiatement ; redémarrez si un composant Windows conserve l’ancienne langue.\\nLangues : anglais, ukrainien, allemand, français, espagnol, italien, portugais brésilien, japonais, coréen, chinois simplifié et russe. L’aide s’ouvre dans la langue de l’interface."
+    ],
+    [
+      "Raccourcis clavier",
+      "F1 : aide. F5 : actualiser. Ctrl+P : imprimer le document sélectionné/courant. Ctrl+C / Ctrl+X / Ctrl+V : copier / couper / coller. Ctrl+D : mettre la sélection à la corbeille. Shift+Delete : supprimer définitivement. Entrée ou double-clic : ouvrir/activer. Ctrl+Z : annuler une opération PDF préparée prise en charge."
+    ],
+    [
+      "Dépannage et sécurité",
+      "Aperçu vide : activez Aperçu. Pour Word/Excel/PowerPoint, activez MS Office et vérifiez son installation. Attendez la conversion des gros fichiers puis resélectionnez-les. Ouvrez le fichier ailleurs pour vérifier corruption ou verrouillage.\\nAucun résultat de contenu : vérifiez dossier, masque et sous-dossiers. Nom et contenu doivent tous deux correspondre s’ils sont actifs. Retirez les limites date/taille. Les images numérisées nécessitent un texte OCR.\\nIcônes ou Corbeille différentes dans l’EXE : construisez avec DocExplorer.spec pour inclure images, traductions et manuel. Les métadonnées Windows varient selon compte, langue et droits. Actualisez après des opérations externes.\\nSauvegardez avant optimisation, suppression définitive ou modifications PDF importantes. Enregistrer sous préserve l’original. Fermez les fichiers dans les autres programmes en cas d’erreur d’accès/partage. N’interrompez pas l’écriture PDF ni l’extraction d’archives."
+    ]
+  ],
+  "help": [
+    "Ouvrez la fenêtre du scanner, choisissez le périphérique et numérisez les pages.",
+    "Ouvrez le dossier ou fichier sélectionné avec l’action associée.",
+    "Ouvrez le fichier avec une autre application installée ou choisissez une application.",
+    "Renommez le fichier ou dossier sélectionné.",
+    "Créez un dossier à l’emplacement courant.",
+    "Rechargez l’arbre et la liste de fichiers. F5.",
+    "Ouvrez le dialogue d’impression du fichier sélectionné. Ctrl+P.",
+    "Copiez les fichiers/dossiers puis collez-les. Ctrl+C / Ctrl+V.",
+    "Coupez les fichiers/dossiers puis collez-les pour les déplacer. Ctrl+X / Ctrl+V.",
+    "Déplacez la sélection vers la Corbeille Windows. Ctrl+D.",
+    "Supprimez définitivement la sélection sans passer par la Corbeille. Shift+Delete.",
+    "Créez une archive des fichiers ou dossiers sélectionnés.",
+    "Extrayez l’archive dans le dossier courant.",
+    "Créez ou choisissez un dossier cible et extrayez-y l’archive.",
+    "Réglez langue, aperçu, interface et autres options.",
+    "Enregistrez l’état de l’application et fermez DocExplorer.",
+    "Accédez à l’emplacement précédent ou suivant de l’historique.",
+    "Ouvrez le dossier parent.",
+    "Ajoutez un dossier aux favoris ou retirez-le de la liste.",
+    "Recherchez par nom, contenu et filtres.",
+    "Ajoutez au PDF courant les pages d’un autre fichier pris en charge.",
+    "Numérisez des pages et ajoutez-les au PDF courant.",
+    "Exportez les pages PDF sélectionnées vers un nouveau fichier.",
+    "Enregistrez les modifications PDF dans le fichier courant.",
+    "Abandonnez les modifications PDF et rechargez le document enregistré.",
+    "Agrandissez l’aperçu.",
+    "Réduisez l’aperçu.",
+    "Ajustez une ou deux pages en largeur, ou une page entière en hauteur.",
+    "Tournez la page PDF ou l’image sélectionnée.",
+    "Tournez toutes les pages PDF de 90 degrés.",
+    "Déplacez une page PDF vers une nouvelle position.",
+    "Supprimez la page sélectionnée du PDF.",
+    "Uniformisez la largeur des pages du PDF courant.",
+    "Réduisez la taille du PDF en conservant une qualité utilisable."
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "title": "Manual del usuario",
+  "contents": "Contenido",
+  "note": "Las ilustraciones y animaciones muestran la interfaz en inglés; sus explicaciones están traducidas. El aspecto puede variar según el tema de Windows, la escala de pantalla y la versión.",
+  "sections": [
+    [
+      "Acerca de DocExplorer",
+      "DocExplorer es un explorador de archivos para Windows dedicado a buscar, visualizar y trabajar con documentos. Combina árbol de carpetas, favoritos, accesos de Windows, lista detallada y vista previa. Permite editar PDF sin salir de la aplicación.\\nConsulte nombres, tipos, tamaños y fechas; visualice PDF, imágenes, texto, HTML y archivos Office compatibles; busque nombres/contenidos con máscaras, expresiones regulares, fechas y tamaños. Los cambios PDF se preparan y luego se guardan o cancelan. Puede copiar, cortar, pegar, renombrar, eliminar, archivar, extraer, escanear e imprimir. La interfaz admite once idiomas.\\nLa vista previa e impresión Office requieren componentes Microsoft Office compatibles. El escaneo usa Windows Image Acquisition (WIA). La extracción depende de las herramientas de archivo instaladas."
+    ],
+    [
+      "Primeros pasos",
+      "Inicie DocExplorer. Se restauran tamaño de ventana, separadores, idioma, última carpeta, favoritos y numerosos ajustes de diálogos.\\nElija una carpeta en el árbol o escriba su ruta en la barra de direcciones y pulse Enter. Seleccione un archivo en el centro para verlo a la derecha si la vista previa está habilitada y el formato es compatible. Un doble clic abre la carpeta o el archivo con su aplicación Windows asociada. Arrastre los separadores para ajustar los paneles. Archivo > Opciones permite elegir idioma y ajustes de vista previa/PDF.\\nLos cambios de páginas PDF permanecen en memoria: Guardar los escribe en disco; Cancelar los descarta."
+    ],
+    [
+      "Ventana principal",
+      "Atrás y Adelante recorren el historial. Buscar abre la búsqueda de archivos. Salir cierra la aplicación tras resolver los cambios PDF pendientes. La barra de direcciones acepta rutas de carpetas y archivos. Ocultos controla la visibilidad de elementos ocultos.\\nLa barra de archivos ofrece Escanear, Abrir, Subir, Nueva carpeta, Imprimir, Copiar, Cortar, Pegar, Renombrar y Mover a la Papelera. Filtro reduce la lista actual; no es la búsqueda de contenido. Haga clic en una cabecera para ordenar y doble clic en un elemento para abrirlo."
+    ],
+    [
+      "Navegar por archivos y carpetas",
+      "El árbol izquierdo muestra la jerarquía. Expanda nodos con la flecha, seleccione carpetas para cargarlas y use Subir para ir a la carpeta superior. También puede usar la dirección y el historial.\\nAbrir abre la selección; Abrir con elige otra aplicación. Actualizar (F5) recarga la carpeta y los nodos relacionados. Nueva carpeta crea un nombre único en la ubicación actual. Renombrar cambia el nombre. Arrastrar y soltar mueve o copia elementos compatibles entre paneles. Los elementos ocultos aparecen con iconos atenuados.\\nLos menús Archivo y contextuales solo habilitan acciones válidas para la selección."
+    ],
+    [
+      "Favoritos y accesos de Windows",
+      "Favoritos guarda carpetas frecuentes. Añada o quite carpetas desde Navegación o el menú contextual. Cambie su orden con las flechas o arrastrando filas.\\nLa sección de accesos puede mostrar Escritorio, Documentos, Descargas, Imágenes, Música, Vídeos y Papelera. Su botón muestra/oculta la sección. Un clic derecho en la lista permite elegir entradas visibles.\\nLa Papelera muestra elementos eliminados en la lista; su menú permite Restaurar, Eliminar permanentemente y Vaciar todo."
+    ],
+    [
+      "Vista previa de documentos",
+      "Seleccione un archivo para verlo a la derecha. Vista previa habilita la visualización general; MS Office controla por separado la conversión de Office. Se admiten PDF con miniaturas/disposiciones, imágenes ráster con zoom/rotación, texto y código fuente, HTML en el navegador integrado y documentos Office. Los textos largos pueden truncarse para mantener la rapidez.\\nEsta versión convierte Word y Excel a HTML, y PowerPoint a PDF; requiere Microsoft Office. Fije una pestaña para conservarla al navegar; desfije o cierre las innecesarias. Los documentos grandes cargan primero el número configurado de páginas; Cargar todo muestra las restantes.\\nSegún la versión Office, durante la conversión puede aparecer o activarse brevemente una ventana de documento."
+    ],
+    [
+      "Editar archivos PDF",
+      "Seleccione el PDF y una página. Gírela a izquierda/derecha o gire todas las páginas. Mover página solicita la posición de destino; Eliminar página la quita de la versión en edición. Importar desde archivo añade páginas de otro PDF; desde escáner añade páginas escaneadas. Exportar escribe las páginas elegidas en un PDF separado.\\nAjustar ancho uniforma las páginas escaneadas. Optimizar recomprime imágenes según las Opciones. Guardar aplica los cambios, Guardar como crea otro PDF y Cancelar restaura la versión del disco.\\nLa optimización puede reducir la calidad. Elija cuidadosamente DPI y compresión color/monocromo en Archivo > Opciones y conserve originales importantes."
+    ],
+    [
+      "Buscar en archivos",
+      "Carpeta de búsqueda define la raíz; Incluir subcarpetas busca recursivamente. Las máscaras se separan con espacios, comas o punto y coma, por ejemplo *.pdf *.txt. Word y Excel alternan los patrones *.doc* y *.xls*.\\nNombre y contenido se habilitan por separado. Si ambos están activos, ambos deben coincidir. Texto hace búsqueda normal; Expresión regular usa sintaxis Python. Distinguir mayúsculas y Palabra completa limitan coincidencias. Fecha y tamaño Desde/Hasta son límites opcionales.\\nBuscar inicia; Detener solicita cancelar. El doble clic en un resultado selecciona el archivo en la ventana principal y lo previsualiza. El diálogo recuerda historial, tamaño, posición y anchos de columnas.\\nLa extracción admite texto/código, texto PDF y documentos Office modernos. Un PDF escaneado sin capa OCR no se encuentra por las palabras de la imagen."
+    ],
+    [
+      "Operaciones y archivos comprimidos",
+      "Seleccione uno o varios elementos antes de Copiar, Cortar, Mover a la Papelera, Eliminar permanentemente o Añadir al archivo. Pegar usa la carpeta actual. Atajos: Ctrl+C, Ctrl+X y Ctrl+V.\\nAñadir al archivo comprime la selección. Extraer aquí usa la carpeta actual. Extraer en crea o selecciona un destino. Los formatos dependen de herramientas instaladas y configuración.\\nLa eliminación permanente omite la Papelera y no puede deshacerse en DocExplorer. Revise selección y ruta antes de confirmar."
+    ],
+    [
+      "Papelera de reciclaje",
+      "Abra la Papelera desde los accesos de Windows. La lista muestra objetos eliminados y sus metadatos originales cuando Windows los proporciona. Clic derecho > Restaurar devuelve un elemento a su carpeta original. Eliminar permanentemente borra la selección; Vaciar todo vacía la Papelera completa.\\nRestaurar puede fallar si falta la carpeta original o se deniega acceso. Vuelva a crearla u obtenga los permisos necesarios e inténtelo otra vez."
+    ],
+    [
+      "Escanear",
+      "Elija Archivo > Escanear o el botón del escáner. El diálogo Windows WIA controla origen, color y resolución específicos del dispositivo.\\nElija PDF para varias páginas o JPEG para una imagen. Varias páginas añade capturas al mismo PDF. Indique nombre de salida y si desea abrir el resultado. Si el archivo existe, sobrescríbalo, cree una copia numerada o cancele.\\nSe requiere escáner compatible con WIA y controlador Windows instalado."
+    ],
+    [
+      "Imprimir",
+      "Seleccione un archivo y Ctrl+P o Archivo > Imprimir. Elija impresora, copias y Todas las páginas o Páginas seleccionadas. Los intervalos aceptan valores como 1,3-5. Parámetros de impresora abre sus propiedades Windows.\\nSe pueden imprimir páginas seleccionadas de PDF y documentos Office compatibles. Márgenes y escala dependen del controlador y la aplicación del documento."
+    ],
+    [
+      "Opciones e idioma",
+      "Opciones incluye idioma, límites/comportamiento de vista previa, calidad/DPI PDF, codificación avanzada color/monocromo y valores de escaneo. Aplicar guarda los valores. Algunas etiquetas cambian inmediatamente; reinicie si un componente Windows mantiene el idioma anterior.\\nIdiomas: inglés, ucraniano, alemán, francés, español, italiano, portugués brasileño, japonés, coreano, chino simplificado y ruso. La ayuda se abre en el idioma de la interfaz."
+    ],
+    [
+      "Atajos de teclado",
+      "F1: ayuda. F5: actualizar. Ctrl+P: imprimir documento seleccionado/actual. Ctrl+C / Ctrl+X / Ctrl+V: copiar / cortar / pegar. Ctrl+D: mover selección a la Papelera. Shift+Delete: eliminar permanentemente. Enter o doble clic: abrir/activar. Ctrl+Z: deshacer una operación PDF pendiente compatible."
+    ],
+    [
+      "Solución de problemas y seguridad",
+      "Vista previa vacía: active Vista previa. Para Word/Excel/PowerPoint active MS Office y compruebe su instalación. Espere la conversión de archivos grandes y vuelva a seleccionarlos. Abra el archivo externamente para comprobar daños o bloqueo.\\nSin resultados de contenido: revise carpeta, máscara y subcarpetas. Nombre y contenido deben coincidir si ambos están activos. Quite límites de fecha/tamaño. Las imágenes escaneadas necesitan texto OCR.\\nIconos o Papelera distintos en el EXE: compile con DocExplorer.spec para incluir imágenes, traducciones y manual. Los metadatos Windows varían por cuenta, idioma y permisos. Actualice después de operaciones externas.\\nHaga copias antes de optimizar, eliminar permanentemente o editar ampliamente PDF. Guardar como conserva originales. Cierre archivos en otras aplicaciones ante errores de acceso/uso compartido. No interrumpa escrituras PDF ni extracción de archivos."
+    ]
+  ],
+  "help": [
+    "Abra la ventana del escáner, elija un dispositivo y capture páginas.",
+    "Abra la carpeta o archivo seleccionado con la acción asociada.",
+    "Abra el archivo con otra aplicación instalada o elija una aplicación.",
+    "Cambie el nombre del archivo o carpeta seleccionado.",
+    "Cree una carpeta en la ubicación actual.",
+    "Recargue el árbol y la lista de archivos. F5.",
+    "Abra el diálogo de impresión del archivo seleccionado. Ctrl+P.",
+    "Copie archivos/carpetas al portapapeles y péguelos. Ctrl+C / Ctrl+V.",
+    "Corte archivos/carpetas y péguelos para moverlos. Ctrl+X / Ctrl+V.",
+    "Mueva la selección a la Papelera de Windows. Ctrl+D.",
+    "Elimine permanentemente sin pasar por la Papelera. Shift+Delete.",
+    "Cree un archivo comprimido con la selección.",
+    "Extraiga el archivo en la carpeta actual.",
+    "Cree o elija una carpeta de destino y extraiga allí.",
+    "Elija idioma, vista previa, interfaz y otros ajustes.",
+    "Guarde el estado y cierre DocExplorer.",
+    "Vaya a la ubicación anterior o siguiente del historial.",
+    "Abra la carpeta superior.",
+    "Añada una carpeta a Favoritos o quítela de la lista.",
+    "Busque por nombre, contenido y filtros.",
+    "Añada al PDF actual páginas de otro archivo compatible.",
+    "Escanee páginas y añádalas al PDF actual.",
+    "Exporte páginas PDF seleccionadas a un nuevo archivo.",
+    "Guarde los cambios PDF pendientes en el archivo actual.",
+    "Descarte cambios PDF y recargue el documento guardado.",
+    "Aumente el zoom de vista previa.",
+    "Reduzca el zoom de vista previa.",
+    "Ajuste una o dos páginas al ancho, o una página completa al alto.",
+    "Gire la página PDF o imagen seleccionada.",
+    "Gire todas las páginas PDF 90 grados.",
+    "Mueva una página PDF a una nueva posición.",
+    "Elimine la página seleccionada del PDF.",
+    "Uniforme el ancho de las páginas del PDF actual.",
+    "Reduzca el tamaño del PDF manteniendo una calidad utilizable."
+  ]
+}
