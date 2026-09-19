@@ -116,6 +116,7 @@ class FileExplorer(wx.Frame):
         # global key hook for undo
         self.Bind(wx.EVT_CHAR_HOOK, self.on_key)
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_ACTIVATE, self.on_clipboard_activate)
 
     # ---------------- UI ----------------
     @contextmanager
@@ -297,6 +298,12 @@ class FileExplorer(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.on_app_manual, self.help_manual_item)
         self.Bind(wx.EVT_MENU, self.on_about, self.help_about_item)
+
+    def on_clipboard_activate(self, event):
+        if event.GetActive():
+            wx.CallAfter(self.update_list_toolbar_buttons)
+            wx.CallAfter(self._update_main_menu_state)
+        event.Skip()
 
     def on_main_menu_open(self, event):
         if event.GetMenu() == self.file_menu:

@@ -25,26 +25,84 @@ def _unique_preserving_order(paths):
     return unique_paths
 
 
-def _read_native_clipboard_paths():
+def _clipboard_sequence_number():
+    """Identify clipboard replacements, including copying the same paths again."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            return ctypes.windll.user32.GetClipboardSequenceNumber()
+        except Exception:
+            pass
+    return None
+
+
+def _read_native_clipboard():
+    """Return (paths, mode); None means the clipboard is temporarily unavailable."""
+    if os.name == "nt":
+        try:
+            import win32clipboard
+        except ImportError:
+            pass
+        else:
+            try:
+                win32clipboard.OpenClipboard()
+                try:
+                    if not win32clipboard.IsClipboardFormatAvailable(15):  # CF_HDROP
+                        return [], None
+                    paths = list(win32clipboard.GetClipboardData(15))
+                    effect_format = win32clipboard.RegisterClipboardFormat("Preferred DropEffect")
+                    mode = CLIPBOARD_MODE_COPY
+                    if win32clipboard.IsClipboardFormatAvailable(effect_format):
+                        effect = win32clipboard.GetClipboardData(effect_format)
+                        if isinstance(effect, bytes) and len(effect) >= 4:
+                            effect = int.from_bytes(effect[:4], "little")
+                            if effect & 2 and not effect & 1:
+                                mode = CLIPBOARD_MODE_CUT
+                    return [os.path.normpath(p) for p in paths if isinstance(p, str) and p], mode
+                finally:
+                    win32clipboard.CloseClipboard()
+            except Exception:
+                # wx also supports CF_HDROP; try it if the native read failed.
+                pass
+
     clipboard = getattr(wx, "TheClipboard", None)
     if clipboard is None or not hasattr(clipboard, "Open"):
-        return []
-
+        return None
     try:
         if not clipboard.Open():
-            return []
+            return None
         try:
             data = wx.FileDataObject()
             if not clipboard.GetData(data):
-                return []
-            return [os.path.normpath(path) for path in data.GetFilenames() if isinstance(path, str) and path]
+                return [], None
+            paths = [os.path.normpath(p) for p in data.GetFilenames() if isinstance(p, str) and p]
+            return paths, CLIPBOARD_MODE_COPY if paths else None
         finally:
-            try:
-                clipboard.Close()
-            except Exception:
-                pass
+            clipboard.Close()
     except Exception:
-        return []
+        return None
+
+
+def _read_native_clipboard_paths():
+    snapshot = _read_native_clipboard()
+    return snapshot[0] if snapshot is not None else []
+
+
+def _sync_clipboard(owner):
+    sequence = _clipboard_sequence_number()
+    own_sequence = getattr(owner, "_file_clipboard_sequence", None)
+    snapshot = _read_native_clipboard()
+    if snapshot is None:
+        # Never paste stale paths while another application owns the clipboard.
+        return [], None
+    paths, mode = snapshot
+    own_paths = getattr(owner, "_file_clipboard_written_paths", None)
+    if paths and paths == own_paths and (sequence is None or sequence == own_sequence):
+        # Our wx payload contains filenames; retain the local Copy/Cut intent.
+        mode = getattr(owner, "_file_clipboard_written_mode", mode)
+    owner.file_clipboard_paths = paths
+    owner.file_clipboard_mode = mode
+    return paths, mode
 
 
 def _write_native_clipboard(paths, mode):
@@ -83,7 +141,10 @@ def _set_clipboard(owner, paths, mode, update_toolbar_callback=None):
 
     owner.file_clipboard_paths = [os.path.normpath(path) for path in paths]
     owner.file_clipboard_mode = mode
-    _write_native_clipboard(owner.file_clipboard_paths, mode)
+    if _write_native_clipboard(owner.file_clipboard_paths, mode):
+        owner._file_clipboard_sequence = _clipboard_sequence_number()
+        owner._file_clipboard_written_paths = list(owner.file_clipboard_paths)
+        owner._file_clipboard_written_mode = mode
 
     if update_toolbar_callback is not None:
         if getattr(update_toolbar_callback, "__self__", None) is not None:
@@ -100,34 +161,18 @@ def _set_clipboard(owner, paths, mode, update_toolbar_callback=None):
 
 
 def _get_clipboard_paths(owner):
-    paths = getattr(owner, "file_clipboard_paths", None)
-    if isinstance(paths, list) and paths:
-        return [path for path in paths if isinstance(path, str) and path]
-
-    native_paths = _read_native_clipboard_paths()
-    if native_paths:
-        owner.file_clipboard_paths = [os.path.normpath(path) for path in native_paths]
-        return owner.file_clipboard_paths
-    return []
+    return _sync_clipboard(owner)[0]
 
 
 def _get_clipboard_mode(owner):
-    mode = getattr(owner, "file_clipboard_mode", None)
-    if mode in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT):
-        return mode
-
-    paths = _read_native_clipboard_paths()
-    if paths:
-        owner.file_clipboard_mode = CLIPBOARD_MODE_COPY
-        owner.file_clipboard_paths = [os.path.normpath(path) for path in paths]
-        return owner.file_clipboard_mode
-    return None
+    return _sync_clipboard(owner)[1]
 
 
 def _can_paste_into_directory(owner, target_dir):
-    if not isinstance(target_dir, str) or not target_dir:
+    if not isinstance(target_dir, str) or not target_dir or not os.path.isdir(target_dir):
         return False
-    return bool(os.path.isdir(target_dir) and _get_clipboard_mode(owner) and _get_clipboard_paths(owner))
+    paths, mode = _sync_clipboard(owner)
+    return bool(paths and mode)
 
 
 def _confirm_overwrite_existing_path(owner, target_path):
@@ -349,8 +394,14 @@ def paste_into_path(
         if not can_paste_into_directory_callback(owner, target_dir):
             return
 
-        clipboard_mode = get_clipboard_mode_callback(owner)
-        source_paths = unique_preserving_order_callback(get_clipboard_paths_callback(owner))
+        if get_clipboard_mode_callback is _get_clipboard_mode and get_clipboard_paths_callback is _get_clipboard_paths:
+            clipboard_paths, clipboard_mode = _sync_clipboard(owner)
+        else:
+            clipboard_mode = get_clipboard_mode_callback(owner)
+            clipboard_paths = get_clipboard_paths_callback(owner)
+        source_paths = unique_preserving_order_callback(clipboard_paths)
+        if clipboard_mode not in (CLIPBOARD_MODE_COPY, CLIPBOARD_MODE_CUT) or not source_paths:
+            return
         errors = []
         affected_dirs = [target_dir]
         moved_preview_target = None
