@@ -2,6 +2,7 @@ __pycache__/
 .vscode/
 .venv/
 .idea/
+store/Assets/
 build/
 dist/
 pdf/

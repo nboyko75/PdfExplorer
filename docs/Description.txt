@@ -1,0 +1,30 @@
+Pdf&DocExplorer helps you find, preview, and manage documents in one place. Browse folders, search file contents, and work with PDFs using an integrated preview pane.
+
+Previewing Microsoft Word, Excel, and PowerPoint documents requires the corresponding Microsoft Office applications to be installed. HTML-based previews use Microsoft Edge WebView2 Runtime.
+
+BROWSE AND FIND FILES
+• Navigate folders using a familiar folder tree and file list.
+• Keep frequently used locations close at hand with Favorites and standard Windows shortcuts.
+• Search by file name or text within supported documents.
+• Jump from a search result directly to the file’s location.
+
+PREVIEW DOCUMENTS
+• View PDFs with page thumbnails, zoom, and scrolling.
+• Preview Word documents, Excel spreadsheets, and PowerPoint presentations.
+• View images, animated GIFs, and supported text files.
+• Keep documents open in pinned preview tabs while browsing other files.
+
+WORK WITH PDFs
+• Rotate, delete, and reorder pages.
+• Select multiple pages to perform operations together.
+• Import pages from another PDF.
+• Convert images to PDF and export PDF pages as images.
+• Adjust page widths and optimize PDF file size.
+
+MANAGE YOUR WORKSPACE
+• Create folders and copy, move, rename, or delete files.
+• Browse the Recycle Bin and restore deleted items.
+• Import documents from a connected scanner.
+• Resume browsing from your last-used folder.
+
+Pdf&DocExplorer brings file navigation, document previews, and practical PDF tools together in a single Windows application.

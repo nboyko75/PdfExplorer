@@ -2,9 +2,9 @@
 param(
     [string]$ProjectRoot,
     [string]$AppName = 'DocExplorer',
-    [string]$PackageName = 'PdfExplorer',
+    [string]$PackageName = 'DocExplorer',
     [string]$Version = '1.0.0.0',
-    [string]$Publisher = 'CN=YourPublisherName',
+    [string]$Publisher = 'CN=Nick Boiko',
     [string]$CertificatePath = '',
     [string]$CertificatePassword = ''
 )

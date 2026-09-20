@@ -1,0 +1,23 @@
+Browse files with a folder tree, file list, and integrated document preview.
+
+Search by file name or text within supported documents.
+
+Preview PDFs with page thumbnails, zoom, and scrolling.
+
+Preview Word, Excel, and PowerPoint files using installed Microsoft Office applications.
+
+View images, animated GIFs, and supported text files.
+
+Keep multiple documents available in pinned preview tabs.
+
+Rotate, delete, reorder, and import PDF pages, with multi-page selection.
+
+Convert images to PDF and export PDF pages as images.
+
+Optimize PDF file size and adjust page widths.
+
+Scan documents directly into your selected folder.
+
+Access favorite folders and standard Windows locations quickly.
+
+Copy, move, rename, and delete files, and restore items from the Recycle Bin.

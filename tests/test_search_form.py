@@ -1410,8 +1410,8 @@ class SearchFilesTests(unittest.TestCase):
     def test_select_tree_item_by_path_does_not_set_file_path_in_path_box(self):
         import controls.tree_control as tree_control
 
-        file_path = os.path.join("D:\\", "Projects", "PdfExplorer", "notes.txt")
-        folder_path = os.path.join("D:\\", "Projects", "PdfExplorer")
+        file_path = os.path.join("D:\\", "Projects", "DocExplorer", "notes.txt")
+        folder_path = os.path.join("D:\\", "Projects", "DocExplorer")
 
         class FakePathBox:
             def __init__(self):
