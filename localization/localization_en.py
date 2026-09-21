@@ -226,3 +226,7 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "Optimized: {optimized_count}\nFailed: {failed_count}",
     "tree_adjust_page_width_all_done": "Adjusted: {adjusted_count}\nFailed: {failed_count}",
 }
+
+
+# Microsoft Store licensing
+TRANSLATIONS.update({'license_title': 'DocExplorer — Microsoft Store', 'license_checking': 'Checking your Microsoft Store license…', 'license_retry': 'Check again', 'license_buy': 'Open Microsoft Store', 'license_exit': 'Exit', 'license_error': 'The Microsoft Store license could not be verified. Connect to the Internet, sign in to Microsoft Store with the purchasing account, and try again.', 'license_expired': 'The trial has expired or no active license was found. Purchase DocExplorer in Microsoft Store, then click Check again. Exit lets you save any pending document changes.', 'license_trial': 'Trial: {days} day(s) remaining.\nExpires: {date}\n\nYou can purchase the full version in Microsoft Store.', 'license_store_failed': 'Microsoft Store could not be opened.'})

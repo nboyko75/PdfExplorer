@@ -3,6 +3,7 @@
 
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
+import importlib.util
 
 pywin32_hiddenimports = [
     "pythoncom",
@@ -39,6 +40,13 @@ pymupdf_hiddenimports = [
     'fitz',
 ]
 
+# Store support is bundled in both builds, but activated only by package identity.
+# Fail the build rather than silently shipping an MSIX without its licensing bridge.
+for module in ("winrt.runtime", "winrt.windows.services.store", "winrt.runtime.interop"):
+    if importlib.util.find_spec(module) is None:
+        raise RuntimeError("Install store/requirements-msix.txt with the build Python first")
+store_hiddenimports = collect_submodules("winrt")
+
 a = Analysis(
     [str(project_dir / 'main.py')],
     pathex=[str(project_dir), str(venv_site_packages)],
@@ -48,7 +56,7 @@ a = Analysis(
         (str(project_dir / "localization"), "localization"),
         (str(project_dir / "docs"), "docs"),
     ] + pymupdf_datas,
-    hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports + ["wx.html2"],
+    hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports + store_hiddenimports + ["wx.html2"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -13,5 +13,9 @@ pdf/
 pytest_print_check.txt
 failure_output.txt
 verification_shift_preview.py
+*.exe
 *.zip
 *.msix
+store/PackageLayout/DocExplorer.exe
+store/DocExplorer.msix
+

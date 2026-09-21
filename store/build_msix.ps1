@@ -3,7 +3,7 @@ param(
     [string]$ProjectRoot,
     [string]$AppName = 'DocExplorer',
     [string]$PackageName = 'DocExplorer',
-    [string]$Version = '1.0.0.0',
+    [string]$Version = '1.0.1.0',
     [string]$Publisher = 'CN=Nick Boiko',
     [string]$CertificatePath = '',
     [string]$CertificatePassword = ''
@@ -43,6 +43,16 @@ $outputUploadPath = Join-Path $storeDir "$PackageName.msixupload"
 if (-not (Test-Path $manifestPath)) {
     throw "The AppxManifest file is missing at '$manifestPath'."
 }
+
+[xml]$manifestXml = Get-Content -Path $manifestPath
+$ns = New-Object System.Xml.XmlNamespaceManager($manifestXml.NameTable)
+$ns.AddNamespace('m', $manifestXml.DocumentElement.NamespaceURI)
+$identity = $manifestXml.SelectSingleNode('/m:Package/m:Identity', $ns)
+if (-not $identity) {
+    throw "The AppxManifest file does not contain a Package/Identity node."
+}
+$identity.Version = $Version
+$manifestXml.Save($manifestPath)
 
 $makeAppx = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe'
 if (-not (Test-Path $makeAppx)) {

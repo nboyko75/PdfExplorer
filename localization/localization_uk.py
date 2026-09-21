@@ -320,3 +320,7 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "Оптимізовано: {optimized_count}\nПомилки: {failed_count}",
     "tree_adjust_page_width_all_done": "Підігнано: {adjusted_count}\nПомилки: {failed_count}",
 }
+
+
+# Microsoft Store licensing
+TRANSLATIONS.update({'license_title': 'DocExplorer — Microsoft Store', 'license_checking': 'Перевірка ліцензії Microsoft Store…', 'license_retry': 'Перевірити знову', 'license_buy': 'Відкрити Microsoft Store', 'license_exit': 'Вийти', 'license_error': 'Не вдалося перевірити ліцензію Microsoft Store. Підключіться до інтернету, увійдіть у Microsoft Store з обліковим записом покупця та повторіть спробу.', 'license_expired': 'Пробний період закінчився або активну ліцензію не знайдено. Придбайте DocExplorer у Microsoft Store та натисніть «Перевірити знову». Кнопка «Вийти» дозволяє зберегти незбережені зміни документів.', 'license_trial': 'Пробний період: залишилося днів — {days}.\nЗавершення: {date}\n\nПовну версію можна придбати в Microsoft Store.', 'license_store_failed': 'Не вдалося відкрити Microsoft Store.'})

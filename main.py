@@ -1150,7 +1150,14 @@ class FileExplorer(wx.Frame):
 if __name__ == "__main__":
     app = wx.App(False)
     wx.InitAllImageHandlers()
+    from controls.store_license import startup_license, LicenseMonitor
+    load_locale(str(load_settings().get("ui_locale", "uk")).lower().replace("-", "_"))
+    store_license = startup_license()
+    if store_license is None:
+        sys.exit(0)
     initial_path = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else None
     frame = FileExplorer(initial_path=initial_path)
     frame.Show()
+    if store_license.state != "unpackaged":
+        frame.store_license_monitor = LicenseMonitor(frame, store_license)
     app.MainLoop()
