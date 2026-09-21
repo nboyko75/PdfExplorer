@@ -5,7 +5,7 @@ import sys
 import wx
 
 from localization import tr
-from file_operations.pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_page
+from file_operations.pdf_utils import get_pdf_page_count, is_pdf_file, move_pdf_pages
 import file_operations.copy_and_paste as copy_and_paste
 
 if not hasattr(wx, "DATADOBJECT_PREFERRED"):
@@ -288,7 +288,7 @@ class PdfPageDropTarget(wx.DropTarget):
                 self.owner.show_drop_frame(self.page_index, self.page_panel, x, y)
         except Exception:
             pass
-        return wx.DragCopy
+        return wx.DragMove
 
     def OnDragOver(self, x, y, d):
         try:
@@ -297,7 +297,7 @@ class PdfPageDropTarget(wx.DropTarget):
                 self.owner.show_drop_frame(self.page_index, self.page_panel, x, y)
         except Exception:
             pass
-        return wx.DragCopy
+        return wx.DragMove
 
     def OnLeave(self):
         try:
@@ -305,7 +305,6 @@ class PdfPageDropTarget(wx.DropTarget):
             self.owner.hide_drop_frame()
         except Exception:
             pass
-        self.page_panel = None
 
     def OnDrop(self, x, y):
         try:
@@ -316,26 +315,20 @@ class PdfPageDropTarget(wx.DropTarget):
         return True
 
     def OnData(self, x, y, default):
-        try:
-            self.GetData()
-            if self.insert_before is not None:
-                insert_before = self.insert_before
-            else:
-                try:
-                    size = self.page_panel.GetSize()
-                    insert_before = y < (size.y // 2)
-                except Exception:
-                    insert_before = True
-
-            if self.owner:
-                owner_drop_handler = getattr(self.owner, "handle_pdf_page_drop", None)
-                if callable(owner_drop_handler):
-                    owner_drop_handler(self.page_index, self.data.GetText(), insert_before=insert_before)
-                else:
-                    handle_pdf_page_drop(self.owner, self.page_index, self.data.GetText(), insert_before=insert_before)
-        except Exception:
-            pass
-        return wx.DragCopy
+        if not self.GetData():
+            return wx.DragNone
+        if self.insert_before is not None:
+            insert_before = self.insert_before
+        else:
+            insert_before = y < (self.page_panel.GetSize().y / 2)
+        payload = self.data.GetText()
+        if not self.owner:
+            return wx.DragNone
+        # Rebuilding the preview destroys drop targets. Wait until the native
+        # drag/drop callback has returned before changing the document/UI.
+        wx.CallAfter(handle_pdf_page_drop, self.owner, self.page_index,
+                     payload, insert_before=insert_before)
+        return wx.DragMove
 
 
 def create_drag_overlay(owner):
@@ -472,34 +465,31 @@ def start_pdf_page_drag(owner, page_panel):
 
 def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
     try:
+        from controls import file_preview
+        source_path, source_index = payload.rsplit("\n", 1)
+        source_index = int(source_index)
+        path = owner.current_pdf_path
+        if not is_pdf_file(source_path) or not is_pdf_file(path):
+            return False
+        if os.path.normcase(os.path.abspath(source_path)) != os.path.normcase(os.path.abspath(path)):
+            return False
+        page_count = get_pdf_page_count(path)
+        if not (0 <= source_index < page_count and 0 <= target_index < page_count):
+            return False
+        # The destination is a gap in the ORIGINAL page order. The PDF helper
+        # accounts for removal of the source page exactly once.
+        boundary = target_index if insert_before else target_index + 1
+        if boundary in (source_index, source_index + 1):
+            return False
         with owner.busy_cursor():
-            source_path, source_index = payload.split("\n", 1)
-            source_index = int(source_index)
-            if not is_pdf_file(source_path) or not is_pdf_file(owner.current_pdf_path):
-                return
-            if source_path != owner.current_pdf_path:
-                return
-
-            try:
-                page_count = get_pdf_page_count(owner.current_pdf_path)
-            except Exception:
-                page_count = None
-
-            if page_count is None:
-                return
-
-            if source_index == target_index:
-                return
-
-            if source_index < target_index and insert_before:
-                target_index -= 1
-
-            if source_index < target_index and not insert_before:
-                target_index -= 1
-
-            try:
-                move_pdf_page(owner.current_pdf_path, source_index, target_index)
-            except Exception:
-                pass
-    except Exception:
-        pass
+            new_indices = move_pdf_pages(path, [source_index], boundary)
+            file_preview.show_pdf_feed(owner, path, force_all_pages=True)
+            owner.selected_pdf_page_indices = set(new_indices)
+            owner.pdf_selection_anchor = new_indices[0]
+            owner.pdf_selection_active = new_indices[0]
+            file_preview._paint_pdf_page_selection(owner)
+            file_preview.update_pdf_save_button_state(owner)
+        return True
+    except Exception as exc:
+        wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+        return False
