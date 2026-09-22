@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, Mock
 import sys
 import types
-from common.store_license import classify, query_license, store_uri
+from common.store_license import classify, query_license, require_store_runtime, store_uri
 
 
 class StoreLicenseTests(unittest.TestCase):
@@ -28,6 +28,11 @@ class StoreLicenseTests(unittest.TestCase):
     def test_invalid_expiration_fails_closed(self):
         self.assertEqual(classify(True, True, None, self.now).state, 'error')
         self.assertFalse(classify(True, True, datetime(2027, 1, 1), self.now).allowed)
+
+    @patch('common.store_license.importlib.util.find_spec', side_effect=ModuleNotFoundError("No module named 'winrt'"))
+    def test_require_store_runtime_handles_missing_parent_package(self, _):
+        with self.assertRaisesRegex(RuntimeError, 'Install store/requirements-msix.txt'):
+            require_store_runtime()
 
     @patch('common.store_license.package_family_name', return_value=None)
     def test_unpacked_exe_does_not_import_winrt(self, _):

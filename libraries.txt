@@ -6,3 +6,16 @@
 .\.venv\Scripts\python.exe -m pip install .\Whl\winrt_windows_foundation-3.2.1-cp310-cp310-win_amd64.whl
 .\.venv\Scripts\python.exe -m pip install .\Whl\winrt_windows_foundation_collections-3.2.1-cp310-cp310-win_amd64.whl
 .\.venv\Scripts\python.exe -m pip install .\Whl\winrt_windows_services_store-3.2.1-cp310-cp310-win_amd64.whl
+
+.\.venv\Scripts\python.exe -m PyInstaller --clean DocExplorer.spec
+
+************************************************************************************************************************
+d:\python\python310\python.exe -m pip install .\Whl\pywin32-312-cp310-cp310-win_amd64.whl
+d:\python\python310\python.exe -m pip install .\Whl\pillow-10.3.0-cp310-cp310-win_amd64.whl
+
+d:\python\python310\python.exe -m pip install .\Whl\winrt_runtime-3.2.1-cp310-cp310-win_amd64.whl
+d:\python\python310\python.exe -m pip install .\Whl\winrt_windows_foundation-3.2.1-cp310-cp310-win_amd64.whl
+d:\python\python310\python.exe -m pip install .\Whl\winrt_windows_foundation_collections-3.2.1-cp310-cp310-win_amd64.whl
+d:\python\python310\python.exe -m pip install .\Whl\winrt_windows_services_store-3.2.1-cp310-cp310-win_amd64.whl
+
+d:\python\python310\python.exe -m PyInstaller --clean DocExplorer.spec 

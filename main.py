@@ -20,6 +20,8 @@ import controls.filelist as filelist
 import controls.scan_form as scan_form
 import controls.about_form as about_form
 import controls.help_form as help_form
+from controls.explorer_tabs import ExplorerTabs
+from controls.main_menu_bar import MainMenuBar
 import common.menu_utils as menu_utils
 
 
@@ -130,11 +132,11 @@ class FileExplorer(wx.Frame):
             if not was_busy and wx.IsBusy():
                 wx.EndBusyCursor()
 
-    def _build_main_menu_bar(self):
+    def _build_main_menu_bar(self, parent):
         if not hasattr(self, "icon_manager") or self.icon_manager is None:
             self.icon_manager = image_utils.IconManager()
 
-        self.menu_bar = wx.MenuBar()
+        self.menu_bar = MainMenuBar(parent, self)
         list_context = lambda: filelist.build_list_command_context(self, source="main")
 
         self.file_menu = wx.Menu()
@@ -206,7 +208,6 @@ class FileExplorer(wx.Frame):
         self.help_about_item = self.help_menu.Append(wx.ID_ANY, tr("menu_about"))
         self.menu_bar.Append(self.help_menu, tr("menu_help"))
 
-        self.SetMenuBar(self.menu_bar)
         self._apply_main_menu_icons()
 
         self._bind_main_menu_items()
@@ -405,11 +406,14 @@ class FileExplorer(wx.Frame):
         if not hasattr(self, "icon_manager") or self.icon_manager is None:
             self.icon_manager = image_utils.IconManager()
 
-        self._build_main_menu_bar()
-
         panel = wx.Panel(self)
+        self._build_main_menu_bar(panel)
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.explorer_tabs = ExplorerTabs(panel, self)
+        main_sizer.Add(self.explorer_tabs, 0, wx.EXPAND)
+        main_sizer.Add(self.menu_bar, 0, wx.EXPAND)
 
         # ===== Toolbar =====
         toolbar = wx.BoxSizer(wx.HORIZONTAL)
@@ -760,6 +764,8 @@ class FileExplorer(wx.Frame):
             self.filter_label.SetLabel(tr("filter_label"))
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
         if hasattr(self, "menu_bar") and self.menu_bar is not None:
+            for index, key in enumerate(("menu_file", "menu_navigation", "menu_document", "menu_help")):
+                self.menu_bar.SetMenuLabel(index, tr(key))
             self.file_menu.SetTitle(tr("menu_file"))
             self.navigation_menu.SetTitle(tr("menu_navigation"))
             self.document_menu.SetTitle(tr("menu_document"))
@@ -873,6 +879,21 @@ class FileExplorer(wx.Frame):
         # Handle Ctrl+Z for undo
         try:
             key_code = event.GetKeyCode()
+            if key_code == wx.WXK_F1:
+                self.on_app_manual(event)
+                return
+            if key_code == wx.WXK_F10 and not event.ShiftDown():
+                self.menu_bar.focus_first()
+                return
+            if event.ControlDown() and key_code == ord("T"):
+                self.explorer_tabs.add()
+                return
+            if event.ControlDown() and key_code == ord("W"):
+                self.explorer_tabs.close()
+                return
+            if event.ControlDown() and key_code == wx.WXK_TAB:
+                self.explorer_tabs.cycle(event.ShiftDown())
+                return
             if (key_code == wx.WXK_DELETE
                     and wx.Window.FindFocus() is getattr(self, "favorite_list", None)):
                 favorite_panel.on_favorite_key_down(self, event)
@@ -984,6 +1005,7 @@ class FileExplorer(wx.Frame):
     # ---------------- LIST ----------------
     def load_folder(self, path):
         navigation_utils.load_folder(self, path)
+        self.explorer_tabs.location_changed(path)
 
     def refresh_list_item_size(self, path):
         return filelist.refresh_list_item_size(self, path)

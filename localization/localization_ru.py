@@ -302,3 +302,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "Оптимизировано: {optimized_count}\nОшибки: {failed_count}",
     "tree_adjust_page_width_all_done": "Подогнано: {adjusted_count}\nОшибки: {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': 'Новая вкладка', 'explorer_close_tab': 'Закрыть вкладку', 'explorer_folder_unavailable': 'Папка недоступна:\n{path}'})

@@ -291,3 +291,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "최적화됨: {optimized_count}\n실패: {failed_count}",
     "tree_adjust_page_width_all_done": "맞춤 완료: {adjusted_count}\n실패: {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': '새 탭', 'explorer_close_tab': '탭 닫기', 'explorer_folder_unavailable': '폴더를 사용할 수 없습니다:\n{path}'})

@@ -4,6 +4,7 @@ __pycache__/
 .idea/
 store/Assets/
 store/PackageLayout/
+store/Screenshots/
 store/requirements-msix.txt
 build/
 dist/

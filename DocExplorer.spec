@@ -4,6 +4,7 @@
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
 import importlib.util
+import sys
 
 pywin32_hiddenimports = [
     "pythoncom",
@@ -42,9 +43,23 @@ pymupdf_hiddenimports = [
 
 # Store support is bundled in both builds, but activated only by package identity.
 # Fail the build rather than silently shipping an MSIX without its licensing bridge.
+missing_store_modules = []
 for module in ("winrt.runtime", "winrt.windows.services.store", "winrt.runtime.interop"):
-    if importlib.util.find_spec(module) is None:
-        raise RuntimeError("Install store/requirements-msix.txt with the build Python first")
+    try:
+        available = importlib.util.find_spec(module) is not None
+    except ModuleNotFoundError:
+        # find_spec imports parent packages for dotted module names.
+        available = False
+    if not available:
+        missing_store_modules.append(module)
+if missing_store_modules:
+    requirements = project_dir / "store" / "requirements-msix.txt"
+    raise RuntimeError(
+        "Microsoft Store dependencies are missing from the build Python: "
+        + ", ".join(missing_store_modules)
+        + f'\nInstall them with:\n"{sys.executable}" -m pip install -r "{requirements}"'
+        + f'\nThen build with:\n"{sys.executable}" -m PyInstaller --clean "{project_dir / "DocExplorer.spec"}"'
+    )
 store_hiddenimports = collect_submodules("winrt")
 
 a = Analysis(

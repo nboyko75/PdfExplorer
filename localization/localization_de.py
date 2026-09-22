@@ -302,3 +302,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "Optimiert: {optimized_count}\nFehlgeschlagen: {failed_count}",
     "tree_adjust_page_width_all_done": "Angepasst: {adjusted_count}\nFehlgeschlagen: {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': 'Neuer Tab', 'explorer_close_tab': 'Tab schließen', 'explorer_folder_unavailable': 'Ordner nicht verfügbar:\n{path}'})

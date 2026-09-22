@@ -302,3 +302,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "Optimizados: {optimized_count}\nFallidos: {failed_count}",
     "tree_adjust_page_width_all_done": "Ajustados: {adjusted_count}\nFallidos: {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': 'Nueva pestaña', 'explorer_close_tab': 'Cerrar pestaña', 'explorer_folder_unavailable': 'Carpeta no disponible:\n{path}'})

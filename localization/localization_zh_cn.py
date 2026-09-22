@@ -291,3 +291,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "已优化: {optimized_count}\n失败: {failed_count}",
     "tree_adjust_page_width_all_done": "已调整: {adjusted_count}\n失败: {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': '新建标签页', 'explorer_close_tab': '关闭标签页', 'explorer_folder_unavailable': '文件夹不可用：\n{path}'})

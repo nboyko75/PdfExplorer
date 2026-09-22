@@ -302,3 +302,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "Optimises : {optimized_count}\nEchecs : {failed_count}",
     "tree_adjust_page_width_all_done": "Ajustes : {adjusted_count}\nEchecs : {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': 'Nouvel onglet', 'explorer_close_tab': 'Fermer l’onglet', 'explorer_folder_unavailable': 'Dossier indisponible :\n{path}'})

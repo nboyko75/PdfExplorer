@@ -291,3 +291,5 @@ TRANSLATIONS = {
     "tree_optimize_all_done": "最適化: {optimized_count}\n失敗: {failed_count}",
     "tree_adjust_page_width_all_done": "調整: {adjusted_count}\n失敗: {failed_count}",
 }
+
+TRANSLATIONS.update({'explorer_new_tab': '新しいタブ', 'explorer_close_tab': 'タブを閉じる', 'explorer_folder_unavailable': 'フォルダーを利用できません:\n{path}'})
