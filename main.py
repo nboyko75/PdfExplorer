@@ -1184,6 +1184,50 @@ class ExplorerWorkspace(wx.Panel):
         if hasattr(self, "refresh"):
             self.refresh()
 
+    def refresh_current_folder_preserving_context(self):
+        """Update directory contents without reopening previews or changing history."""
+        if self._closing_workspace or self is not self.host.active_workspace:
+            return
+        selected = set(filelist.get_selected_list_paths(self))
+        focused = self.list.GetFocusedItem()
+        focused_path = self._list_item_paths.get(focused)
+        top = self.list.GetTopItem()
+        top_path = self._list_item_paths.get(top)
+        tree_item = self.tree.GetSelection()
+        tree_path = self.tree.GetItemData(tree_item) if tree_item and tree_item.IsOk() else None
+        restoring = getattr(self, '_restoring_list_selection', False)
+        syncing = getattr(self, '_syncing_tree_from_path', False)
+        updating = self.updating_tree
+        self._restoring_list_selection = True
+        self._syncing_tree_from_path = True
+        self.updating_tree = True
+        self.Freeze()
+        try:
+            filelist.refresh_current_list_folder(self)
+            rows = {path: row for row, path in self._list_item_paths.items()}
+            for path in selected:
+                if path in rows:
+                    self.list.SetItemState(rows[path], wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
+            if focused_path in rows:
+                self.list.SetItemState(rows[focused_path], wx.LIST_STATE_FOCUSED, wx.LIST_STATE_FOCUSED)
+            if self.list.GetItemCount():
+                self.list.EnsureVisible(rows.get(top_path, min(top, self.list.GetItemCount() - 1)))
+            if tree_path:
+                item = filelist._find_tree_item_without_expanding(self, tree_path)
+                if item is not None and item.IsOk():
+                    self.tree.SelectItem(item)
+        except OSError:
+            # A disconnected drive or a folder removed externally must not
+            # turn window activation into a repeating error dialog.
+            pass
+        finally:
+            self._restoring_list_selection = restoring
+            self._syncing_tree_from_path = syncing
+            self.updating_tree = updating
+            self.Thaw()
+        self._update_main_menu_state()
+        self.update_list_toolbar_buttons()
+
     def refresh(self):
         self.load_folder(self.path_box.GetValue())
 
@@ -1294,6 +1338,7 @@ class FileExplorer(wx.Frame):
                 workspace.list.SetFocus()
         finally:
             self._switching_tabs = False
+        self.request_active_folder_refresh()
 
     def close_tab(self, workspace=None):
         workspace = workspace or self.active_workspace
@@ -1348,7 +1393,23 @@ class FileExplorer(wx.Frame):
         else:
             event.Skip()
 
+    def request_active_folder_refresh(self):
+        if self._closing or getattr(self, '_folder_refresh_pending', False):
+            return
+        self._folder_refresh_pending = True
+        wx.CallAfter(self._refresh_active_folder)
+
+    def _refresh_active_folder(self):
+        self._folder_refresh_pending = False
+        if not self or self._closing:
+            return
+        workspace = self.active_workspace
+        if workspace is not None and not workspace._closing_workspace:
+            workspace.refresh_current_folder_preserving_context()
+
     def _on_activate(self, event):
+        if event.GetActive():
+            self.request_active_folder_refresh()
         if self.active_workspace is not None:
             self.active_workspace.on_clipboard_activate(event)
         else:

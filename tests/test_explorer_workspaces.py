@@ -70,8 +70,10 @@ class Frame:
 # Compile the real host class, bypassing platform-specific application imports.
 source = ast.parse((ROOT / 'main.py').read_text(encoding='utf-8'))
 frame_class = next(n for n in source.body if isinstance(n, ast.ClassDef) and n.name == 'FileExplorer')
+scheduled = []
 env = {
-    'wx': SimpleNamespace(Frame=Frame, Window=SimpleNamespace(FindFocus=lambda: None)),
+    'wx': SimpleNamespace(Frame=Frame, Window=SimpleNamespace(FindFocus=lambda: None),
+                          CallAfter=lambda callback: scheduled.append(callback)),
     'workspace_scope': workspace_scope,
     'set_active_workspace': set_active_workspace,
     'save_window_geometry': lambda host: None,
@@ -96,6 +98,8 @@ class Workspace:
     def __init__(self, label):
         self._pdf_session_bytes = {}
         self._restoring_layout = False
+        self._closing_workspace = False
+        self.refresh_count = 0
         self.label = label
         self.folder = label + '/folder'
         self.selected_file = label + '/file.pdf'
@@ -120,6 +124,12 @@ class Workspace:
 
     def Layout(self):
         pass
+
+    def refresh_current_folder_preserving_context(self):
+        self.refresh_count += 1
+
+    def on_clipboard_activate(self, event):
+        event.Skip()
 
     def apply_initial_layout(self):
         pass
@@ -168,6 +178,8 @@ class WorkspaceTests(unittest.TestCase):
         h.explorer_tabs = SimpleNamespace(mark_active=lambda w: None, rebuild=lambda: None)
         h.workspace_sizer = SimpleNamespace(Detach=lambda w: None)
         h.activate_tab(self.a)
+        scheduled.clear()
+        h._folder_refresh_pending = False
 
     def tearDown(self):
         set_active_workspace(None)
@@ -306,6 +318,24 @@ class WorkspaceTests(unittest.TestCase):
         self.host.remember_tab_layout(self.a, latest)
         self.host.close_tab(self.a)
         self.assertEqual(self.host.last_tab_layout, latest)
+
+    def test_tab_switch_refreshes_only_final_active_tab(self):
+        self.host.activate_tab(self.b)
+        self.host.activate_tab(self.a)
+        self.assertEqual(len(scheduled), 1)
+        scheduled.pop()()
+        self.assertEqual(self.a.refresh_count, 1)
+        self.assertEqual(self.b.refresh_count, 0)
+
+    def test_window_activation_refreshes_but_deactivation_does_not(self):
+        event = Event(self.host)
+        event.GetActive = lambda: False
+        self.host._on_activate(event)
+        self.assertEqual(scheduled, [])
+        event.GetActive = lambda: True
+        self.host._on_activate(event)
+        scheduled.pop()()
+        self.assertEqual(self.a.refresh_count, 1)
 
     def test_cycle_in_both_directions(self):
         self.host.cycle_tab()

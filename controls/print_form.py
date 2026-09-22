@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 
 import wx
 
@@ -340,6 +341,52 @@ def _print_office_document_pages(document_path, printer_name, copies=1, page_num
                 pass
 
 
+# Shell printing is asynchronous: the viewer may open the PDF after startfile
+# returns, or even after DocExplorer exits. Never delete it on handoff/exit.
+_PRINT_TEMP_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+
+
+def _get_print_temp_directory():
+    directory = os.path.join(tempfile.gettempdir(), "DocExplorer", "print_jobs")
+    os.makedirs(directory, exist_ok=True)
+    cutoff = time.time() - _PRINT_TEMP_MAX_AGE_SECONDS
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not (entry.name.startswith("pdfexplorer_print_") and entry.name.endswith(".pdf")):
+                    continue
+                try:
+                    if (entry.is_file(follow_symlinks=False)
+                            and entry.stat(follow_symlinks=False).st_mtime < cutoff):
+                        os.remove(entry.path)
+                except OSError:
+                    # A viewer may still hold a file open; retry on a later print.
+                    pass
+    except OSError:
+        pass
+    return directory
+
+
+def _create_print_subset(document_path, page_numbers):
+    directory = _get_print_temp_directory()
+    fd, temp_path = tempfile.mkstemp(prefix="pdfexplorer_print_", suffix=".pdf", dir=directory)
+    os.close(fd)
+    try:
+        # Both handles must be closed before launching an external viewer.
+        with fitz.open(document_path) as pdf_doc, fitz.open() as subset_doc:
+            for page_index in page_numbers:
+                subset_doc.insert_pdf(pdf_doc, from_page=page_index, to_page=page_index)
+            subset_doc.save(temp_path)
+    except Exception:
+        # This incomplete file has never been handed to the viewer.
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+        raise
+    return temp_path
+
+
 def _print_with_selected_printer(document_path, printer_name, copies=1, page_numbers=None):
     if not isinstance(document_path, str) or not document_path or not os.path.exists(document_path):
         raise FileNotFoundError(document_path)
@@ -360,18 +407,7 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
         if fitz is None:
             raise ValueError(tr("print_error_unavailable"))
 
-        pdf_doc = fitz.open(document_path)
-        temp_fd, temp_path = tempfile.mkstemp(prefix="pdfexplorer_print_", suffix=".pdf")
-        os.close(temp_fd)
-        try:
-            subset_doc = fitz.open()
-            for page_index in page_numbers:
-                subset_doc.insert_pdf(pdf_doc, from_page=page_index, to_page=page_index)
-            subset_doc.save(temp_path)
-            subset_doc.close()
-            print_target = temp_path
-        finally:
-            pdf_doc.close()
+        print_target = _create_print_subset(document_path, page_numbers)
 
     original_default = win32print.GetDefaultPrinter()
     try:
@@ -391,12 +427,6 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
             win32print.SetDefaultPrinter(original_default)
         except Exception:
             pass
-
-        if print_target != document_path:
-            try:
-                os.remove(print_target)
-            except Exception:
-                pass
 
     return selected_printer
 

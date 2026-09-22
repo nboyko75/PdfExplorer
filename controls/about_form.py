@@ -12,7 +12,7 @@ def show_about_form(owner):
 
     version = wx.StaticText(panel, label="Version 1.0")
     description = wx.StaticText(panel, label="Document Explorer")
-    copyright = wx.StaticText(panel, label="(c) Nick Boyko")
+    copyright = wx.StaticText(panel, label="(c) AW Software")
 
     close_btn = wx.Button(panel, wx.ID_OK, tr("exit_button"))
 

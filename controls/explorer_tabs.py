@@ -15,7 +15,8 @@ class TabHeading(wx.Panel):
         self.SetMinSize(self.FromDIP((180, 28)))
         self.SetMaxSize((-1, self.FromDIP(28)))
         row = wx.BoxSizer(wx.HORIZONTAL)
-        self.label = wx.StaticText(self, label='', style=wx.ALIGN_CENTER | wx.ST_ELLIPSIZE_END)
+        self.label = wx.StaticText(self, label='', style=wx.ALIGN_CENTER | wx.ST_ELLIPSIZE_END | wx.ST_NO_AUTORESIZE)
+        self.label.SetMinSize((1, -1))
         row.Add(self.label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, self.FromDIP(6))
         # The close button is inside the heading with no gap or sizer border.
         self.close_button = wx.Button(self, label='×', style=wx.BU_EXACTFIT | wx.BORDER_NONE,
@@ -51,6 +52,8 @@ class TabHeading(wx.Panel):
         self.SetName(title)
         self.SetToolTip(path)
         self.label.SetToolTip(path)
+        self.Layout()
+        self.Refresh()
 
     def set_active(self, active):
         self.active = active
