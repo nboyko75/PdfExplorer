@@ -25,6 +25,7 @@ for source in (wx, getattr(wx, "adv", None)):
 PERSISTED_LAYOUT_KEYS = {
     "window_position",
     "window_size",
+    "window_maximized",
     "options_form_position",
     "options_form_size",
     "search_form_position",

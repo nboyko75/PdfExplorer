@@ -1343,6 +1343,9 @@ class SearchDialog(wx.Dialog):
         parent_folder = os.path.dirname(full_path)
         if not parent_folder:
             return
+        host = getattr(self.owner, "host", None)
+        if host is not None:
+            host.activate_tab(self.owner)
         if hasattr(self.owner, "path_box"):
             self.owner.path_box.SetValue(parent_folder)
         if hasattr(self.owner, "open_path"):

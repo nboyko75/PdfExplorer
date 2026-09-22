@@ -21,19 +21,28 @@ import controls.scan_form as scan_form
 import controls.about_form as about_form
 import controls.help_form as help_form
 from controls.explorer_tabs import ExplorerTabs
-from controls.main_menu_bar import MainMenuBar
+from common.workspace_context import scoped_workspace, workspace_scope, set_active_workspace
 import common.menu_utils as menu_utils
 
 
-class FileExplorer(wx.Frame):
-    def __init__(self, initial_path=None):
-        super().__init__(None, title=tr("app_title"), size=(1400, 900))
+TAB_LAYOUT_KEYS = (
+    "main_splitter_sash", "preview_splitter_sash", "favorite_splitter_sash",
+    "favorite_standard_shortcuts_splitter_sash", "favorite_panel_above_tree",
+    "standard_shortcuts_visible",
+)
 
-        icon_path = os.path.join(os.path.dirname(__file__), "images", "main.ico")
-        if os.path.isfile(icon_path):
-            self.SetIcon(wx.Icon(icon_path))
+@scoped_workspace
+class ExplorerWorkspace(wx.Panel):
+    def __init__(self, parent, host, initial_path=None):
+        self.host = host
+        self._pdf_session_bytes = {}
+        self._closing_workspace = False
+        self._restoring_layout = True
+        super().__init__(parent)
 
         settings = load_settings()
+        settings.update(host.last_tab_layout)
+        self._pending_layout_settings = dict(settings)
         self.history = []
         self.history_index = -1
         self.show_hidden = bool(settings.get("show_hidden", False))
@@ -102,8 +111,6 @@ class FileExplorer(wx.Frame):
         self.restore_list_view_state(settings)
         self.bind_events()
 
-        restore_window_geometry(self, settings)
-        wx.CallAfter(self.restore_splitter_positions, settings)
 
         opened_initial_path = False
         if initial_path:
@@ -115,10 +122,6 @@ class FileExplorer(wx.Frame):
         elif not opened_initial_path:
             self.open_path(os.path.expanduser("~"))
 
-        # global key hook for undo
-        self.Bind(wx.EVT_CHAR_HOOK, self.on_key)
-        self.Bind(wx.EVT_CLOSE, self.on_close)
-        self.Bind(wx.EVT_ACTIVATE, self.on_clipboard_activate)
 
     # ---------------- UI ----------------
     @contextmanager
@@ -132,11 +135,11 @@ class FileExplorer(wx.Frame):
             if not was_busy and wx.IsBusy():
                 wx.EndBusyCursor()
 
-    def _build_main_menu_bar(self, parent):
+    def _build_main_menu_bar(self):
         if not hasattr(self, "icon_manager") or self.icon_manager is None:
             self.icon_manager = image_utils.IconManager()
 
-        self.menu_bar = MainMenuBar(parent, self)
+        self.menu_bar = wx.MenuBar()
         list_context = lambda: filelist.build_list_command_context(self, source="main")
 
         self.file_menu = wx.Menu()
@@ -303,8 +306,10 @@ class FileExplorer(wx.Frame):
 
     def on_clipboard_activate(self, event):
         if event.GetActive():
-            wx.CallAfter(self.update_list_toolbar_buttons)
-            wx.CallAfter(self._update_main_menu_state)
+            wx.CallAfter(lambda: self.update_list_toolbar_buttons()
+                         if self and not self._closing_workspace else None)
+            wx.CallAfter(lambda: self._update_main_menu_state()
+                         if self and not self._closing_workspace else None)
         event.Skip()
 
     def on_main_menu_open(self, event):
@@ -406,14 +411,10 @@ class FileExplorer(wx.Frame):
         if not hasattr(self, "icon_manager") or self.icon_manager is None:
             self.icon_manager = image_utils.IconManager()
 
-        panel = wx.Panel(self)
-        self._build_main_menu_bar(panel)
+        panel = self
+        self._build_main_menu_bar()
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        self.explorer_tabs = ExplorerTabs(panel, self)
-        main_sizer.Add(self.explorer_tabs, 0, wx.EXPAND)
-        main_sizer.Add(self.menu_bar, 0, wx.EXPAND)
 
         # ===== Toolbar =====
         toolbar = wx.BoxSizer(wx.HORIZONTAL)
@@ -622,6 +623,10 @@ class FileExplorer(wx.Frame):
         navigation_utils.save_last_folder(self)
 
     def save_splitter_positions(self):
+        if (getattr(self, '_restoring_layout', False)
+                or getattr(self.host, '_switching_tabs', False)
+                or self._closing_workspace):
+            return
         main_sash = None
         preview_sash = None
         favorite_sash = None
@@ -650,19 +655,36 @@ class FileExplorer(wx.Frame):
         if persisted_page_view_mode not in file_preview.VALID_PAGE_VIEW_MODES:
             persisted_page_view_mode = file_preview.PAGE_VIEW_MODE_1_TALL
 
-        update_settings(
-            {
-                "main_splitter_sash": main_sash,
-                "preview_splitter_sash": preview_sash,
-                "favorite_splitter_sash": favorite_sash,
-                "favorite_standard_shortcuts_splitter_sash": int(favorite_standard_shortcuts_sash),
-                "favorite_panel_above_tree": bool(self.favorite_panel_above_tree),
-                "favorite_paths": list(self.favorite_paths),
-                "standard_shortcuts_visible": bool(self.standard_shortcuts_visible),
-                "standard_shortcuts_visibility": dict(self.standard_shortcuts_visibility),
-                "pdf_page_view_mode": persisted_page_view_mode,
-            }
-        )
+        values = {
+            "main_splitter_sash": main_sash,
+            "preview_splitter_sash": preview_sash,
+            "favorite_splitter_sash": favorite_sash,
+            "favorite_standard_shortcuts_splitter_sash": int(favorite_standard_shortcuts_sash),
+            "favorite_panel_above_tree": bool(self.favorite_panel_above_tree),
+            "favorite_paths": list(self.favorite_paths),
+            "standard_shortcuts_visible": bool(self.standard_shortcuts_visible),
+            "standard_shortcuts_visibility": dict(self.standard_shortcuts_visibility),
+            "pdf_page_view_mode": persisted_page_view_mode,
+        }
+        self.host.remember_tab_layout(self, values)
+        # A save from an older tab must not replace the latest layout defaults.
+        values.update(self.host.last_tab_layout)
+        update_settings(values)
+
+    def on_splitter_changed(self, event):
+        event.Skip()
+        self.save_splitter_positions()
+
+    def apply_initial_layout(self):
+        settings = self._pending_layout_settings
+        if settings is None:
+            return
+        try:
+            self.restore_splitter_positions(settings)
+        finally:
+            self._pending_layout_settings = None
+            self._restoring_layout = False
+        self._last_layout_snapshot = {key: settings.get(key) for key in TAB_LAYOUT_KEYS}
 
     def restore_splitter_positions(self, settings=None):
         if settings is None:
@@ -707,53 +729,45 @@ class FileExplorer(wx.Frame):
             if hasattr(self, "favorite_panel") and self.favorite_panel is not None and hasattr(self.favorite_panel, "GetSizer"):
                 self.favorite_panel.GetSizer().Layout()
 
-    def on_close(self, event):
-        if not file_preview.confirm_preview_change(self, None):
-            event.Veto()
-            return
-
+    def confirm_close(self):
+        # PDF buffers belong to this workspace, including inactive preview tabs.
         unsaved_pdf_paths = get_unsaved_pdf_paths()
-        if unsaved_pdf_paths:
-            dialog = wx.MessageDialog(
-                self,
-                tr("confirm_save_before_exit", count=len(unsaved_pdf_paths)),
-                tr("app_title"),
-                wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
-            )
-            dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
-            result = dialog.ShowModal()
-            dialog.Destroy()
-
-            if result == wx.ID_CANCEL:
-                event.Veto()
-                return
-
-            try:
-                with self.busy_cursor():
-                    if result == wx.ID_YES:
-                        for path in unsaved_pdf_paths:
-                            save_pdf(path)
-                    else:
-                        for path in unsaved_pdf_paths:
-                            discard_pdf_changes(path)
-            except Exception as exc:
-                wx.MessageBox(str(exc), tr("app_title"), style=wx.OK | wx.ICON_ERROR)
-                event.Veto()
-                return
-
+        if not unsaved_pdf_paths:
+            return True
+        dialog = wx.MessageDialog(
+            self, tr("confirm_save_before_exit", count=len(unsaved_pdf_paths)),
+            tr("app_title"), wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
+        )
+        dialog.SetYesNoCancelLabels(tr("confirm_yes"), tr("confirm_no"), tr("cancel_button"))
+        result = dialog.ShowModal()
+        dialog.Destroy()
+        if result == wx.ID_CANCEL:
+            return False
         try:
-            file_preview.video_preview.close_video_preview(self)
-            file_preview.close_office_preview(self, save_changes=False)
-            self.save_splitter_positions()
-            self.save_list_view_state()
-            save_window_geometry(self)
-            self.save_last_folder()
-        except Exception:
-            pass
-        event.Skip()
+            with self.busy_cursor():
+                for path in unsaved_pdf_paths:
+                    if result == wx.ID_YES:
+                        save_pdf(path)
+                    else:
+                        discard_pdf_changes(path)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+            return False
+        return True
+
+    def dispose(self):
+        self._closing_workspace = True
+        search_dialog = getattr(self, '_search_form_dialog', None)
+        if search_dialog:
+            search_dialog.Close()
+        file_preview.video_preview.close_video_preview(self)
+        file_preview.close_office_preview(self, save_changes=False)
+        self._pdf_session_bytes.clear()
+        self.menu_bar.Destroy()
+        self.Destroy()
 
     def refresh_locale(self):
-        self.SetTitle(tr("app_title"))
+        self.host.SetTitle(tr("app_title"))
         self.back_btn.SetToolTip(tr("back_button"))
         self.forward_btn.SetToolTip(tr("forward_button"))
         self.exit_btn.SetToolTip(tr("exit_button"))
@@ -766,10 +780,6 @@ class FileExplorer(wx.Frame):
         if hasattr(self, "menu_bar") and self.menu_bar is not None:
             for index, key in enumerate(("menu_file", "menu_navigation", "menu_document", "menu_help")):
                 self.menu_bar.SetMenuLabel(index, tr(key))
-            self.file_menu.SetTitle(tr("menu_file"))
-            self.navigation_menu.SetTitle(tr("menu_navigation"))
-            self.document_menu.SetTitle(tr("menu_document"))
-            self.help_menu.SetTitle(tr("menu_help"))
             self.file_scan_item.SetItemLabel(tr("scan"))
             self.file_open_item.SetItemLabel(tr("context_open"))
             self.file_open_with_item.SetItemLabel(tr("context_open_with"))
@@ -882,17 +892,14 @@ class FileExplorer(wx.Frame):
             if key_code == wx.WXK_F1:
                 self.on_app_manual(event)
                 return
-            if key_code == wx.WXK_F10 and not event.ShiftDown():
-                self.menu_bar.focus_first()
-                return
             if event.ControlDown() and key_code == ord("T"):
-                self.explorer_tabs.add()
+                self.host.add_tab()
                 return
             if event.ControlDown() and key_code == ord("W"):
-                self.explorer_tabs.close()
+                self.host.close_tab()
                 return
             if event.ControlDown() and key_code == wx.WXK_TAB:
-                self.explorer_tabs.cycle(event.ShiftDown())
+                self.host.cycle_tab(event.ShiftDown())
                 return
             if (key_code == wx.WXK_DELETE
                     and wx.Window.FindFocus() is getattr(self, "favorite_list", None)):
@@ -1005,7 +1012,7 @@ class FileExplorer(wx.Frame):
     # ---------------- LIST ----------------
     def load_folder(self, path):
         navigation_utils.load_folder(self, path)
-        self.explorer_tabs.location_changed(path)
+        self.host.explorer_tabs.location_changed(self, path)
 
     def refresh_list_item_size(self, path):
         return filelist.refresh_list_item_size(self, path)
@@ -1014,6 +1021,14 @@ class FileExplorer(wx.Frame):
         return filelist.select_list_item_by_path(self, path)
 
     def on_preview_resize(self, event):
+        if self._closing_workspace or not self.IsShownOnScreen():
+            event.Skip()
+            return
+        size = tuple(self.filePreview.GetClientSize())
+        if size == getattr(self, '_last_preview_size', None):
+            event.Skip()
+            return
+        self._last_preview_size = size
         image_utils.refresh_image_preview_bitmap(self)
 
         if is_pdf_file(self.current_preview_path):
@@ -1021,8 +1036,10 @@ class FileExplorer(wx.Frame):
                 self._pdf_preview_resize_refresh_pending = True
 
                 def _refresh_pdf_preview_after_resize():
+                    if not self or self._closing_workspace:
+                        return
                     self._pdf_preview_resize_refresh_pending = False
-                    if is_pdf_file(self.current_preview_path):
+                    if self.IsShownOnScreen() and is_pdf_file(self.current_preview_path):
                         file_preview.show_pdf_feed(self, self.current_preview_path)
 
                 wx.CallAfter(_refresh_pdf_preview_after_resize)
@@ -1045,6 +1062,8 @@ class FileExplorer(wx.Frame):
 
         file_preview.bind_preview_events(self)
         self.filePreview.Bind(wx.EVT_SIZE, self.on_preview_resize)
+        for splitter in (self.main_splitter, self.fileSplitter, self.favorite_splitter):
+            splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.on_splitter_changed)
 
     def on_tree_expand(self, event):
         return tree_control.on_tree_expand(self, event)
@@ -1145,7 +1164,7 @@ class FileExplorer(wx.Frame):
         show_options_form(self)
 
     def on_exit(self, _):
-        self.Close()
+        self.host.Close()
 
     def on_search_in_files(self, _=None):
         import controls.search_form as search_form
@@ -1167,6 +1186,209 @@ class FileExplorer(wx.Frame):
 
     def refresh(self):
         self.load_folder(self.path_box.GetValue())
+
+
+class FileExplorer(wx.Frame):
+    """One native window hosting independent, persistent explorer panels."""
+    def __init__(self, initial_path=None):
+        super().__init__(None, title=tr("app_title"), size=(1400, 900))
+        self.workspaces = []
+        self.active_workspace = None
+        self._routing_menu = False
+        self._closing = False
+        self._switching_tabs = False
+        self._geometry_save_timer = None
+        settings = load_settings()
+        self.last_tab_layout = {key: settings[key] for key in TAB_LAYOUT_KEYS if key in settings}
+        icon_path = os.path.join(os.path.dirname(__file__), "images", "main.ico")
+        if os.path.isfile(icon_path):
+            self.SetIcon(wx.Icon(icon_path))
+        self.body = wx.Panel(self)
+        self.body_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.explorer_tabs = ExplorerTabs(self.body, self)
+        self.body_sizer.Add(self.explorer_tabs, 0, wx.EXPAND)
+        self.workspace_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.body_sizer.Add(self.workspace_sizer, 1, wx.EXPAND)
+        self.body.SetSizer(self.body_sizer)
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self.body, 1, wx.EXPAND)
+        self.SetSizer(frame_sizer)
+        self.Bind(wx.EVT_MENU, self._route_menu_event)
+        self.Bind(wx.EVT_UPDATE_UI, self._route_menu_event)
+        self.Bind(wx.EVT_MENU_OPEN, self._on_menu_open)
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_key)
+        self.Bind(wx.EVT_ACTIVATE, self._on_activate)
+        self.Bind(wx.EVT_CLOSE, self._on_close)
+        restore_window_geometry(self, settings)
+        self.Bind(wx.EVT_MOVE, self._on_geometry_changed)
+        self.Bind(wx.EVT_SIZE, self._on_geometry_changed)
+        self.add_tab(initial_path)
+
+    def remember_tab_layout(self, workspace, values):
+        if (self._switching_tabs or workspace is not self.active_workspace
+                or workspace._restoring_layout):
+            return
+        layout = {key: values.get(key) for key in TAB_LAYOUT_KEYS}
+        if layout != getattr(workspace, '_last_layout_snapshot', None):
+            self.last_tab_layout = dict(layout)
+            workspace._last_layout_snapshot = dict(layout)
+
+    def _on_geometry_changed(self, event):
+        event.Skip()
+        if (event.GetEventObject() is not self or self._closing
+                or self._switching_tabs or not self.IsShownOnScreen() or self.IsIconized()):
+            return
+        if self._geometry_save_timer is not None:
+            self._geometry_save_timer.Stop()
+        self._geometry_save_timer = wx.CallLater(250, self._save_geometry)
+
+    def _save_geometry(self):
+        self._geometry_save_timer = None
+        if self and not self._closing:
+            save_window_geometry(self)
+
+    def add_tab(self, path=None):
+        if self._closing:
+            return
+        if path is None and self.active_workspace is not None:
+            path = self.active_workspace.path_box.GetValue()
+        self.Freeze()
+        try:
+            workspace = ExplorerWorkspace(self.body, self, initial_path=path)
+            workspace.Hide()
+            self.workspaces.append(workspace)
+            self.workspace_sizer.Add(workspace, 1, wx.EXPAND)
+            self.explorer_tabs.rebuild()
+            self.activate_tab(workspace)
+        finally:
+            self.Thaw()
+
+    def activate_tab(self, workspace):
+        if workspace not in self.workspaces or self._closing:
+            return
+        if workspace is self.active_workspace:
+            return
+        self._switching_tabs = True
+        try:
+            previous = self.active_workspace
+            if previous is not None:
+                previous._last_focus = wx.Window.FindFocus()
+                previous.Hide()
+            # Detach without destroying: every workspace retains its own menu bar.
+            self.SetMenuBar(None)
+            self.active_workspace = workspace
+            set_active_workspace(workspace)
+            self.SetMenuBar(workspace.menu_bar)
+            workspace.Show()
+            self.Layout()
+            self.body.Layout()
+            workspace.Layout()
+            workspace.apply_initial_layout()
+            workspace._update_main_menu_state()
+            workspace.update_list_toolbar_buttons()
+            self.explorer_tabs.mark_active(workspace)
+            focus = getattr(workspace, '_last_focus', None)
+            if focus and focus.IsShownOnScreen():
+                focus.SetFocus()
+            else:
+                workspace.list.SetFocus()
+        finally:
+            self._switching_tabs = False
+
+    def close_tab(self, workspace=None):
+        workspace = workspace or self.active_workspace
+        if workspace not in self.workspaces or self._closing:
+            return
+        if len(self.workspaces) == 1:
+            self.Close()
+            return
+        # Switch first so the confirmation identifies the tab being closed.
+        self.activate_tab(workspace)
+        if not workspace.confirm_close():
+            return
+        index = self.workspaces.index(workspace)
+        replacement = self.workspaces[index - 1] if index else self.workspaces[1]
+        self.activate_tab(replacement)
+        self.workspace_sizer.Detach(workspace)
+        self.workspaces.remove(workspace)
+        workspace.dispose()
+        self.explorer_tabs.rebuild()
+        self.body.Layout()
+
+    def cycle_tab(self, backwards=False):
+        index = self.workspaces.index(self.active_workspace)
+        self.activate_tab(self.workspaces[(index + (-1 if backwards else 1)) % len(self.workspaces)])
+
+    def _route_menu_event(self, event):
+        workspace = self.active_workspace
+        if self._routing_menu or workspace is None:
+            event.Skip()
+            return
+        original = event.GetEventObject()
+        self._routing_menu = True
+        try:
+            # Existing preview handlers resolve their owner from the event.
+            event.SetEventObject(workspace)
+            with workspace_scope(workspace):
+                workspace.GetEventHandler().ProcessEvent(event)
+        finally:
+            event.SetEventObject(original)
+            self._routing_menu = False
+
+    def _on_menu_open(self, event):
+        if self.active_workspace is not None:
+            self.active_workspace._update_main_menu_state()
+            self.active_workspace.on_main_menu_open(event)
+        else:
+            event.Skip()
+
+    def _on_key(self, event):
+        if self.active_workspace is not None:
+            self.active_workspace.on_key(event)
+        else:
+            event.Skip()
+
+    def _on_activate(self, event):
+        if self.active_workspace is not None:
+            self.active_workspace.on_clipboard_activate(event)
+        else:
+            event.Skip()
+
+    def confirm_all_tabs(self):
+        original = self.active_workspace
+        # Ask all tabs before destroying any panel; Cancel leaves every tab open.
+        for workspace in list(self.workspaces):
+            self.activate_tab(workspace)
+            if not workspace.confirm_close():
+                return False
+        if original is not None:
+            self.activate_tab(original)
+        return True
+
+    def _on_close(self, event):
+        if self._closing:
+            event.Skip()
+            return
+        if not self.confirm_all_tabs():
+            event.Veto()
+            return
+        original = self.active_workspace
+        if original is not None:
+            original.save_list_view_state()
+            original.save_last_folder()
+        update_settings(self.last_tab_layout)
+        if self._geometry_save_timer is not None:
+            self._geometry_save_timer.Stop()
+            self._geometry_save_timer = None
+        save_window_geometry(self)
+        self._closing = True
+        self.SetMenuBar(None)
+        self.active_workspace = None
+        set_active_workspace(None)
+        for workspace in self.workspaces:
+            workspace.dispose()
+        self.workspaces.clear()
+        event.Skip()
 
 
 if __name__ == "__main__":

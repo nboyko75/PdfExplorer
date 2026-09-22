@@ -242,14 +242,17 @@ def save_window_geometry(frame):
     if frame.IsIconized():
         return
 
-    position = frame.GetPosition()
-    size = frame.GetSize()
-    update_settings(
-        {
+    maximized = bool(frame.IsMaximized())
+    geometry = {"window_maximized": maximized}
+    # Keep the normal bounds when maximized, so Restore returns to that size.
+    if not maximized:
+        position = frame.GetPosition()
+        size = frame.GetSize()
+        geometry.update({
             "window_position": [int(position.x), int(position.y)],
             "window_size": [int(size.x), int(size.y)],
-        }
-    )
+        })
+    update_settings(geometry)
 
 
 def save_control_geometry(control, settings_prefix):
@@ -303,6 +306,9 @@ def restore_window_geometry(frame, settings=None):
     if isinstance(position, list) and len(position) == 2:
         x, y = int(position[0]), int(position[1])
         frame.SetPosition((x, y))
+
+    if settings.get("window_maximized", False):
+        frame.Maximize(True)
 
 
 def set_column_image_on_left(list_ctrl, column_index):

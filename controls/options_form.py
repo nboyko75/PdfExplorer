@@ -297,9 +297,15 @@ class OptionsDialog(wx.Dialog):
                         self.owner.refresh_locale()
 
                     try:
+                        host = getattr(self.owner, "host", None)
+                        if host is not None and not host.confirm_all_tabs():
+                            return
                         _restart_application()
-                        self.owner.Hide()
-                        self.owner.Destroy()
+                        if host is not None:
+                            host.Close()
+                        else:
+                            self.owner.Hide()
+                            self.owner.Destroy()
                         if hasattr(wx, "GetApp") and wx.GetApp() is not None:
                             wx.GetApp().ExitMainLoop()
                         sys.exit(0)

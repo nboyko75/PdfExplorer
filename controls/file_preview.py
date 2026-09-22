@@ -1922,12 +1922,18 @@ def _get_preview_owner_from_event(event, fallback_owner=None):
     else:
         owner = None
 
+    if getattr(owner, "active_workspace", None) is not None:
+        owner = owner.active_workspace
+
     while owner is not None and not hasattr(owner, "current_preview_path"):
         owner = owner.GetParent() if hasattr(owner, "GetParent") else None
 
     # EVT_MENU events may come from menu/menu-item objects that are not in the window tree.
     if owner is None:
         for top_level in wx.GetTopLevelWindows():
+            if getattr(top_level, "active_workspace", None) is not None:
+                owner = top_level.active_workspace
+                break
             if hasattr(top_level, "current_preview_path"):
                 owner = top_level
                 break
@@ -3101,3 +3107,8 @@ def on_preview_right_click(event):
 
     popup_window.PopupMenu(menu)
     menu.Destroy()
+
+
+# Deferred callbacks must use the PDF buffers of their own explorer tab.
+from common.workspace_context import scope_owner_callbacks
+scope_owner_callbacks(globals())

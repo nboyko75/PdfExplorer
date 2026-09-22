@@ -1,187 +1,157 @@
-"""Folder tabs; the expensive preview controls are shared by all tabs."""
+"""Compact tab headings; each heading selects a persistent explorer workspace."""
 import ntpath
-import os
-from dataclasses import dataclass, field
-
 import wx
-from file_operations.recycle_bin import RECYCLE_BIN_PATH, is_virtual_shell_path
+from file_operations.recycle_bin import RECYCLE_BIN_PATH
 from localization import tr
 
 
-@dataclass
-class FolderTab:
-    path: str = ''
-    history: list = field(default_factory=list)
-    history_index: int = -1
-    query: str = ''
-    sort_column: object = None
-    sort_direction: int = 0
-    selection: list = field(default_factory=list)
-    top_item: int = 0
-
-
-class ExplorerTabs(wx.Panel):
-    def __init__(self, parent, owner):
-        super().__init__(parent)
-        self.owner = owner
-        self.tabs = [FolderTab()]
-        self.active = 0
-        self.switching = False
-        self.buttons = []
+class TabHeading(wx.Panel):
+    def __init__(self, parent, host, workspace):
+        super().__init__(parent, style=wx.BORDER_NONE)
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.active = False
+        self.host = host
+        self.workspace = workspace
+        self.SetMinSize(self.FromDIP((180, 28)))
+        self.SetMaxSize((-1, self.FromDIP(28)))
         row = wx.BoxSizer(wx.HORIZONTAL)
-        self.strip = wx.ScrolledWindow(self, style=wx.HSCROLL)
-        self.strip.SetScrollRate(20, 0)
-        self.strip.SetMinSize((-1, self.FromDIP(30)))
-        self.strip.ShowScrollbars(wx.SHOW_SB_NEVER, wx.SHOW_SB_NEVER)
-        self.strip.Bind(wx.EVT_MOUSEWHEEL, self._on_wheel)
-        self.tab_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.strip.SetSizer(self.tab_sizer)
-        row.Add(self.strip, 1, wx.EXPAND)
-        self.add_button = wx.Button(self, label='+', size=self.FromDIP((34, 30)))
-        self.add_button.SetToolTip(tr('explorer_new_tab') + ' (Ctrl+T)')
-        self.add_button.Bind(wx.EVT_BUTTON, lambda event: self.add())
-        row.Add(self.add_button, 0, wx.EXPAND)
+        self.label = wx.StaticText(self, label='', style=wx.ALIGN_CENTER | wx.ST_ELLIPSIZE_END)
+        row.Add(self.label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, self.FromDIP(6))
+        # The close button is inside the heading with no gap or sizer border.
+        self.close_button = wx.Button(self, label='×', style=wx.BU_EXACTFIT | wx.BORDER_NONE,
+                                      size=self.FromDIP((18, 18)))
+        self.close_button.SetMinSize(self.FromDIP((18, 18)))
+        self.close_button.Show(len(host.workspaces) > 1)
+        self.close_button.SetToolTip(tr('explorer_close_tab') + ' (Ctrl+W)')
+        row.Add(self.close_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, self.FromDIP(1))
         self.SetSizer(row)
-        self.rebuild()
+        self.Bind(wx.EVT_PAINT, self._on_paint)
+        self.Bind(wx.EVT_SIZE, self._on_size)
+        self.Bind(wx.EVT_LEFT_DOWN, self._select)
+        self.label.Bind(wx.EVT_LEFT_DOWN, self._select)
+        self.Bind(wx.EVT_MIDDLE_UP, self._close)
+        self.label.Bind(wx.EVT_MIDDLE_UP, self._close)
+        self.close_button.Bind(wx.EVT_BUTTON, self._close)
+        self.update_title()
+        self.set_active(False)
 
-    def title(self, tab):
-        if tab.path.lower() == RECYCLE_BIN_PATH.lower():
-            return tr('favorite_shortcut_recycle_bin')
-        return ntpath.basename(tab.path.rstrip('\\/')) or tab.path or tr('explorer_new_tab')
+    def _select(self, event):
+        self.host.activate_tab(self.workspace)
+
+    def _close(self, event):
+        wx.CallAfter(self.host.close_tab, self.workspace)
+
+    def update_title(self):
+        path = getattr(self.workspace, '_list_folder_path', '')
+        if path.lower() == RECYCLE_BIN_PATH.lower():
+            title = tr('favorite_shortcut_recycle_bin')
+        else:
+            title = ntpath.basename(path.rstrip('\\/')) or path or tr('explorer_new_tab')
+        self.label.SetLabel(title.replace('&', '&&'))
+        self.SetName(title)
+        self.SetToolTip(path)
+        self.label.SetToolTip(path)
+
+    def set_active(self, active):
+        self.active = active
+        colour = wx.Colour(207, 228, 247) if active else wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE)
+        for control in (self, self.label, self.close_button):
+            control.SetBackgroundColour(colour)
+            control.Refresh()
+
+
+    def _on_size(self, event):
+        self.Refresh()
+        event.Skip()
+
+    def _on_paint(self, event):
+        dc = wx.AutoBufferedPaintDC(self)
+        dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()))
+        dc.Clear()
+        width, height = self.GetClientSize()
+        if width < 2 or height < 2:
+            return
+        fill = self.GetBackgroundColour()
+        border = wx.SystemSettings.GetColour(
+            wx.SYS_COLOUR_HIGHLIGHT if self.active else wx.SYS_COLOUR_BTNSHADOW)
+        gc = wx.GraphicsContext.Create(dc)
+        if gc is None:
+            dc.SetBrush(wx.Brush(fill))
+            dc.SetPen(wx.Pen(border))
+            dc.DrawRectangle(0, 0, width, height)
+            return
+        # Only the upper corners are rounded; the bottom meets the toolbar.
+        left, top, right, bottom = 0.5, 0.5, width - 0.5, height - 0.5
+        radius = min(float(self.FromDIP(6)), (right - left) / 2, (bottom - top) / 2)
+        tangent = radius * 0.55228475
+        path = gc.CreatePath()
+        path.MoveToPoint(left, bottom)
+        path.AddLineToPoint(left, top + radius)
+        path.AddCurveToPoint(left, top + radius - tangent,
+                             left + radius - tangent, top, left + radius, top)
+        path.AddLineToPoint(right - radius, top)
+        path.AddCurveToPoint(right - radius + tangent, top,
+                             right, top + radius - tangent, right, top + radius)
+        path.AddLineToPoint(right, bottom)
+        path.CloseSubpath()
+        gc.SetBrush(wx.Brush(fill))
+        gc.SetPen(wx.Pen(border))
+        gc.DrawPath(path)
+
+
+class ExplorerTabs(wx.ScrolledWindow):
+    def __init__(self, parent, host):
+        super().__init__(parent, style=wx.HSCROLL | wx.BORDER_NONE)
+        self.host = host
+        self.headings = {}
+        self.row = wx.BoxSizer(wx.HORIZONTAL)
+        self.SetSizer(self.row)
+        self.SetScrollRate(20, 0)
+        self.ShowScrollbars(wx.SHOW_SB_NEVER, wx.SHOW_SB_NEVER)
+        self.SetMinSize((-1, self.FromDIP(28)))
+        self.SetMaxSize((-1, self.FromDIP(28)))
+        self.Bind(wx.EVT_MOUSEWHEEL, self._on_wheel)
 
     def rebuild(self):
-        self.tab_sizer.Clear(True)
-        self.buttons = []
-        for index, tab in enumerate(self.tabs):
-            button = wx.ToggleButton(self.strip, label=self.title(tab).replace('&', '&&'),
-                                     size=self.FromDIP((180, 30)))
-            button.SetValue(index == self.active)
-            button.SetToolTip(tab.path)
-            button.Bind(wx.EVT_TOGGLEBUTTON, lambda event, i=index: self.select(i))
-            button.Bind(wx.EVT_MIDDLE_UP, lambda event, i=index: self.close(i))
-            self.tab_sizer.Add(button, 0, wx.EXPAND)
-            self.buttons.append(button)
-        self.close_button = wx.Button(self.strip, label='×', size=self.FromDIP((28, 30)))
-        self.close_button.SetToolTip(tr('explorer_close_tab') + ' (Ctrl+W)')
-        self.close_button.Enable(len(self.tabs) > 1)
-        self.close_button.Bind(wx.EVT_BUTTON, lambda event: self.close())
-        self.tab_sizer.Add(self.close_button, 0, wx.EXPAND)
-        self.strip.FitInside()
+        self.row.Clear(True)
+        self.headings = {}
+        for workspace in self.host.workspaces:
+            heading = TabHeading(self, self.host, workspace)
+            self.headings[workspace] = heading
+            self.row.Add(heading, 0, wx.EXPAND)
+        self.add_button = wx.Button(self, label='+', style=wx.BU_EXACTFIT,
+                                    size=self.FromDIP((24, 28)))
+        self.add_button.SetMinSize(self.FromDIP((24, 28)))
+        self.add_button.SetToolTip(tr('explorer_new_tab') + ' (Ctrl+T)')
+        self.add_button.Bind(wx.EVT_BUTTON, lambda event: wx.CallAfter(self.host.add_tab))
+        # No expanding spacer: + immediately follows the last heading.
+        self.row.Add(self.add_button, 0, wx.EXPAND)
         self.Layout()
-        self.strip.Scroll(self.active * self.FromDIP(180) // 20, 0)
+        self.FitInside()
+        self.mark_active(self.host.active_workspace)
+
+    def mark_active(self, workspace):
+        for page, heading in self.headings.items():
+            heading.set_active(page is workspace)
+        heading = self.headings.get(workspace)
+        if heading is not None:
+            # wx.ScrolledWindow has no ScrollChildIntoView (it is a
+            # wx.lib.scrolledpanel helper), so scroll using logical coordinates.
+            left = self.CalcUnscrolledPosition(heading.GetPosition()).x
+            width = heading.GetSize().width
+            view_start = self.GetViewStart()[0] * 20
+            client_width = self.GetClientSize().width
+            if left < view_start:
+                self.Scroll(max(0, left // 20), 0)
+            elif left + width > view_start + client_width:
+                self.Scroll(max(0, (left + width - client_width + 19) // 20), 0)
+
+    def location_changed(self, workspace, path):
+        heading = self.headings.get(workspace)
+        if heading is not None:
+            heading.update_title()
 
     def _on_wheel(self, event):
-        x, _ = self.strip.GetViewStart()
+        x, _ = self.GetViewStart()
         delta = event.GetWheelDelta() or 120
-        self.strip.Scroll(max(0, x - int(event.GetWheelRotation() / delta) * 3), 0)
-
-    def location_changed(self, path):
-        if self.switching:
-            return
-        tab = self.tabs[self.active]
-        tab.path = path
-        button = self.buttons[self.active]
-        button.SetLabel(self.title(tab).replace('&', '&&'))
-        button.SetToolTip(path)
-
-    def capture(self):
-        owner = self.owner
-        tab = self.tabs[self.active]
-        tab.path = getattr(owner, '_list_folder_path', '') or owner.path_box.GetValue()
-        tab.history = list(owner.history)
-        tab.history_index = owner.history_index
-        tab.query = owner.search_box.GetValue()
-        tab.sort_column = owner.list_sort_column
-        tab.sort_direction = owner.list_sort_direction
-        tab.selection = []
-        item = owner.list.GetFirstSelected()
-        while item != -1:
-            path = owner._list_item_paths.get(item)
-            if path:
-                tab.selection.append(path)
-            item = owner.list.GetNextSelected(item)
-        tab.top_item = owner.list.GetTopItem()
-
-    def select(self, index):
-        if index == self.active:
-            self.buttons[index].SetValue(True)
-            return True
-        owner = self.owner
-        target = self.tabs[index]
-        path = target.path
-        if not path or (not is_virtual_shell_path(path) and not os.path.isdir(path)):
-            wx.MessageBox(tr('explorer_folder_unavailable', path=path), tr('app_title'), wx.OK | wx.ICON_WARNING)
-            self.rebuild()
-            return False
-        if not owner.confirm_preview_change(path):
-            self.rebuild()
-            return False
-        self.capture()
-        previous = self.active
-        self.switching = True
-        owner.Freeze()
-        try:
-            owner.search_box.ChangeValue(target.query)
-            owner.list_sort_column = target.sort_column
-            owner.list_sort_direction = target.sort_direction
-            if not owner.open_path(path, add_history=False):
-                self.restore_state(self.tabs[previous])
-                return False
-            self.active = index
-            owner.history = list(target.history) or [path]
-            owner.history_index = target.history_index if target.history else 0
-            owner.show_file_preview(path)
-            owner._restoring_list_selection = True
-            try:
-                for row, item_path in owner._list_item_paths.items():
-                    if item_path in target.selection:
-                        owner.list.SetItemState(row, wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
-            finally:
-                owner._restoring_list_selection = False
-            if owner.list.GetItemCount():
-                owner.list.EnsureVisible(min(target.top_item, owner.list.GetItemCount() - 1))
-            owner._update_main_menu_state()
-            return True
-        except OSError as exc:
-            self.active = previous
-            self.restore_state(self.tabs[previous])
-            wx.MessageBox(str(exc), tr('app_title'), wx.OK | wx.ICON_WARNING)
-            return False
-        finally:
-            self.switching = False
-            owner.Thaw()
-            self.rebuild()
-
-    def restore_state(self, tab):
-        owner = self.owner
-        owner.search_box.ChangeValue(tab.query)
-        owner.list_sort_column = tab.sort_column
-        owner.list_sort_direction = tab.sort_direction
-        owner.history = list(tab.history)
-        owner.history_index = tab.history_index
-        try:
-            owner.open_path(tab.path, add_history=False)
-        except OSError:
-            pass
-
-    def add(self):
-        path = getattr(self.owner, '_list_folder_path', '') or os.path.expanduser('~')
-        self.tabs.append(FolderTab(path=path))
-        if not self.select(len(self.tabs) - 1):
-            self.tabs.pop()
-            self.rebuild()
-
-    def close(self, index=None):
-        index = self.active if index is None else index
-        if len(self.tabs) == 1:
-            return
-        if index == self.active:
-            if not self.select(index - 1 if index else 1):
-                return
-        del self.tabs[index]
-        if index < self.active:
-            self.active -= 1
-        self.rebuild()
-
-    def cycle(self, backwards=False):
-        self.select((self.active + (-1 if backwards else 1)) % len(self.tabs))
+        self.Scroll(max(0, x - int(event.GetWheelRotation() / delta) * 3), 0)

@@ -30,7 +30,7 @@ try:
 except ImportError:
     fitz = None
 
-_PDF_SESSION_BYTES = {}
+from common.workspace_context import pdf_sessions
 
 
 def _normalize_show_pages_limit(raw_limit, default_limit):
@@ -283,24 +283,24 @@ def _normalize_pdf_session_path(path):
 
 
 def _get_pdf_session_bytes(path):
-    return _PDF_SESSION_BYTES.get(_normalize_pdf_session_path(path))
+    return pdf_sessions().get(_normalize_pdf_session_path(path))
 
 
 def _set_pdf_session_bytes(path, pdf_bytes):
-    _PDF_SESSION_BYTES[_normalize_pdf_session_path(path)] = pdf_bytes
+    pdf_sessions()[_normalize_pdf_session_path(path)] = pdf_bytes
 
 
 def has_unsaved_pdf_changes(path):
-    return isinstance(path, str) and _normalize_pdf_session_path(path) in _PDF_SESSION_BYTES
+    return isinstance(path, str) and _normalize_pdf_session_path(path) in pdf_sessions()
 
 
 def get_unsaved_pdf_paths():
-    return sorted(_PDF_SESSION_BYTES.keys())
+    return sorted(pdf_sessions().keys())
 
 
 def discard_pdf_changes(path):
     if isinstance(path, str):
-        _PDF_SESSION_BYTES.pop(_normalize_pdf_session_path(path), None)
+        pdf_sessions().pop(_normalize_pdf_session_path(path), None)
 
 
 def _read_pdf_bytes(path):
