@@ -88,18 +88,25 @@ def _read_native_clipboard_paths():
     return snapshot[0] if snapshot is not None else []
 
 
+def _clipboard_state_owner(owner):
+    """Copy/Cut intent belongs to the window, not an individual explorer tab."""
+    host = getattr(owner, "host", None)
+    return host if host is not None else owner
+
+
 def _sync_clipboard(owner):
+    state_owner = _clipboard_state_owner(owner)
     sequence = _clipboard_sequence_number()
-    own_sequence = getattr(owner, "_file_clipboard_sequence", None)
+    own_sequence = getattr(state_owner, "_file_clipboard_sequence", None)
     snapshot = _read_native_clipboard()
     if snapshot is None:
         # Never paste stale paths while another application owns the clipboard.
         return [], None
     paths, mode = snapshot
-    own_paths = getattr(owner, "_file_clipboard_written_paths", None)
+    own_paths = getattr(state_owner, "_file_clipboard_written_paths", None)
     if paths and paths == own_paths and (sequence is None or sequence == own_sequence):
         # Our wx payload contains filenames; retain the local Copy/Cut intent.
-        mode = getattr(owner, "_file_clipboard_written_mode", mode)
+        mode = getattr(state_owner, "_file_clipboard_written_mode", mode)
     owner.file_clipboard_paths = paths
     owner.file_clipboard_mode = mode
     return paths, mode
@@ -142,9 +149,10 @@ def _set_clipboard(owner, paths, mode, update_toolbar_callback=None):
     owner.file_clipboard_paths = [os.path.normpath(path) for path in paths]
     owner.file_clipboard_mode = mode
     if _write_native_clipboard(owner.file_clipboard_paths, mode):
-        owner._file_clipboard_sequence = _clipboard_sequence_number()
-        owner._file_clipboard_written_paths = list(owner.file_clipboard_paths)
-        owner._file_clipboard_written_mode = mode
+        state_owner = _clipboard_state_owner(owner)
+        state_owner._file_clipboard_sequence = _clipboard_sequence_number()
+        state_owner._file_clipboard_written_paths = list(owner.file_clipboard_paths)
+        state_owner._file_clipboard_written_mode = mode
 
     if update_toolbar_callback is not None:
         if getattr(update_toolbar_callback, "__self__", None) is not None:

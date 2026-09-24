@@ -64,6 +64,49 @@ class ExplorerClipboardTests(unittest.TestCase):
             self.assertTrue(file.exists())
             self.assertTrue(folder.exists())
 
+    def test_cut_and_copy_between_tabs(self):
+        for mode in ('cut', 'copy'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as root:
+                root = Path(root)
+                source = root / 'source'
+                source.mkdir()
+                file = source / 'file.txt'
+                file.write_text('data')
+                folder = source / 'folder'
+                folder.mkdir()
+                (folder / 'nested.txt').write_text('nested')
+                target = root / 'target'
+                target.mkdir()
+                host = types.SimpleNamespace()
+                first = types.SimpleNamespace(host=host)
+                second = types.SimpleNamespace(host=host)
+                paths = [str(file), str(folder)]
+                refresh = mock.Mock()
+                with mock.patch.object(self.module, '_write_native_clipboard', return_value=True), \
+                     mock.patch.object(self.module, '_clipboard_sequence_number', return_value=10), \
+                     mock.patch.object(self.module, '_read_native_clipboard', return_value=(paths, 'copy')):
+                    self.module._set_clipboard(first, paths, mode, mock.Mock())
+                    self.module.paste_into_path(second, str(target),
+                                                refresh_callback=refresh,
+                                                update_toolbar_callback=mock.Mock())
+                self.assertEqual((target / 'file.txt').read_text(), 'data')
+                self.assertEqual((target / 'folder/nested.txt').read_text(), 'nested')
+                self.assertEqual(file.exists(), mode == 'copy')
+                self.assertEqual(folder.exists(), mode == 'copy')
+                if mode == 'cut':
+                    self.assertIn(str(source), refresh.call_args.kwargs['affected_dirs'])
+
+    def test_external_copy_same_paths_replaces_cut_from_other_tab(self):
+        host = types.SimpleNamespace()
+        first = types.SimpleNamespace(host=host)
+        second = types.SimpleNamespace(host=host)
+        with mock.patch.object(self.module, '_write_native_clipboard', return_value=True), \
+             mock.patch.object(self.module, '_clipboard_sequence_number', return_value=10):
+            self.module._set_clipboard(first, ['file.txt'], 'cut', mock.Mock())
+        with mock.patch.object(self.module, '_clipboard_sequence_number', return_value=11), \
+             mock.patch.object(self.module, '_read_native_clipboard', return_value=(['file.txt'], 'copy')):
+            self.assertEqual(self.module._sync_clipboard(second)[1], 'copy')
+
     def test_windows_hdrop_and_drop_effect(self):
         native = mock.Mock()
         native.IsClipboardFormatAvailable.return_value = True
