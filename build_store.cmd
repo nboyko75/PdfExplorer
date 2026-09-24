@@ -1,0 +1,1 @@
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\store\build_msix.ps1 -ProjectRoot . -Version 1.0.3.0
