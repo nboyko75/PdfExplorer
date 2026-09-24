@@ -158,17 +158,44 @@ def _get_project_root_dir():
 
 
 def _get_settings_file_path():
-    return os.path.join(_get_project_root_dir(), ".pdf_explorer_settings.json")
+    base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "DocExplorer", ".pdf_explorer_settings.json")
+
+
+def _legacy_settings_paths():
+    # Keep existing preferences when upgrading from source or portable builds.
+    roots = [_get_project_root_dir()]
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        roots.extend([os.path.join(exe_dir, "common")])
+        if os.path.basename(exe_dir).lower() == "docexplorer":
+            dist_dir = os.path.dirname(exe_dir)
+        else:
+            dist_dir = exe_dir
+        if os.path.basename(dist_dir).lower() == "dist":
+            project_dir = os.path.dirname(dist_dir)
+            roots.extend([dist_dir, os.path.join(project_dir, "common"), project_dir])
+    else:
+        roots.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return [os.path.join(root, ".pdf_explorer_settings.json") for root in roots]
 
 
 def load_settings():
     settings_file = _get_settings_file_path()
-    try:
-        if os.path.isfile(settings_file):
-            with open(settings_file, "r", encoding="utf-8") as handle:
-                return json.load(handle)
-    except Exception:
-        pass
+    candidates = [settings_file]
+    if not os.path.isfile(settings_file):
+        candidates.extend(_legacy_settings_paths())
+    for candidate in candidates:
+        try:
+            with open(candidate, "r", encoding="utf-8") as handle:
+                settings = json.load(handle)
+            if not isinstance(settings, dict):
+                continue
+            if candidate != settings_file:
+                save_settings(settings)
+            return settings
+        except (OSError, ValueError):
+            continue
     return {}
 
 

@@ -6,6 +6,7 @@ from common.consts import STANDARD_SHORTCUT_DEFINITIONS
 from common.settings_utils import get_option_group_label
 from controls.splitter_utils import normalize_shortcuts_sash
 from common.window_tools import (
+    update_settings,
     get_windows_special_folder,
     get_windows_display_name,
     get_special_folder_display_name,
@@ -669,10 +670,17 @@ def on_standard_shortcut_right_click(owner, event):
 def _toggle_standard_shortcut_visibility(owner, key):
     if owner is None:
         return
-    visibility = getattr(owner, "standard_shortcuts_visibility", {})
+    visibility = dict(getattr(owner, "standard_shortcuts_visibility", {}))
     current = bool(visibility.get(key, True))
     visibility[key] = not current
     owner.standard_shortcuts_visibility = visibility
+    update_settings({"standard_shortcuts_visibility": visibility})
+    # Other tabs must not write an older choice back during layout saves.
+    host = getattr(owner, "host", None)
+    for workspace in getattr(host, "workspaces", ()):
+        if workspace is not owner:
+            workspace.standard_shortcuts_visibility = dict(visibility)
+            refresh_standard_shortcuts_list(workspace)
     refresh_standard_shortcuts_list(owner)
 
 

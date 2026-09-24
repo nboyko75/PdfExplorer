@@ -10,18 +10,19 @@ import common.window_tools as window_tools
 
 
 class WindowToolsSettingsPathTests(unittest.TestCase):
-    def test_settings_file_is_stored_in_project_root(self):
+    def test_settings_file_is_stored_in_user_profile(self):
         settings_path = window_tools._get_settings_file_path()
-        self.assertEqual(os.path.dirname(settings_path), PROJECT_ROOT)
+        self.assertEqual(os.path.basename(os.path.dirname(settings_path)), "DocExplorer")
         self.assertTrue(settings_path.endswith(".pdf_explorer_settings.json"))
 
-    def test_settings_file_is_stored_next_to_executable_when_frozen(self):
+    def test_settings_file_is_shared_with_frozen_build(self):
+        source_settings_path = window_tools._get_settings_file_path()
         fake_executable = os.path.join(PROJECT_ROOT, "dist", "DocExplorer.exe")
         with mock.patch.object(sys, "frozen", True, create=True), \
              mock.patch.object(sys, "executable", fake_executable):
             settings_path = window_tools._get_settings_file_path()
 
-        self.assertEqual(os.path.dirname(settings_path), os.path.dirname(fake_executable))
+        self.assertEqual(settings_path, source_settings_path)
         self.assertTrue(settings_path.endswith(".pdf_explorer_settings.json"))
 
     def test_get_configurable_settings_excludes_window_geometry(self):
