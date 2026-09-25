@@ -302,3 +302,7 @@ TRANSLATIONS["merge_preview"] = '预览'
 TRANSLATIONS.update({'rename_files': '批量重命名文件', 'rename_find_regex': '查找（正则表达式）', 'rename_replace_regex': '替换为（替换表达式）', 'rename_found_names': '找到的文件名', 'rename_new_names': '新文件名', 'rename_invalid_name': '文件名无效。', 'rename_conflict': '目标名称已存在或重复。', 'rename_changed': '文件在搜索后已更改。请重新搜索。', 'rename_empty_pattern': '请输入搜索表达式。', 'rename_regex_error': '正则表达式或替换表达式无效。', 'rename_io_error': '无法完成操作。部分文件可能已重命名。请重新搜索。', 'rename_matches': '找到：{count}', 'rename_saved': '已重命名：{count}'})
 
 TRANSLATIONS.update({'rename_blocked_title': '无法重命名文件', 'rename_blocked_message': '无法重命名：\n{source}\n\n目标：\n{target}\n\n请解决问题后重试，跳过此文件或所有出错的文件，或取消剩余操作。已重命名的文件将保留新名称。', 'rename_blocked_retry': '重试', 'rename_blocked_skip': '跳过', 'rename_blocked_skip_all': '全部跳过', 'rename_blocked_cancel': '取消'})
+
+TRANSLATIONS.update({'export_unsupported_format': '不支持的导出文件格式。'})
+
+TRANSLATIONS.update({'export_resolution_auto': '自动确定', 'export_resolution_value': '{dpi} 像素/英寸'})

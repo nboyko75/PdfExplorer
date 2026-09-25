@@ -302,3 +302,7 @@ TRANSLATIONS["merge_preview"] = 'プレビュー'
 TRANSLATIONS.update({'rename_files': 'ファイル名を一括変更', 'rename_find_regex': '検索（正規表現）', 'rename_replace_regex': '置換（置換式）', 'rename_found_names': '見つかったファイル名', 'rename_new_names': '新しいファイル名', 'rename_invalid_name': '無効なファイル名です。', 'rename_conflict': '変更先の名前が既に存在するか、重複しています。', 'rename_changed': '検索後にファイルが変更されました。再検索してください。', 'rename_empty_pattern': '検索式を入力してください。', 'rename_regex_error': '正規表現または置換式が無効です。', 'rename_io_error': '操作を完了できませんでした。一部のファイルは既に名前が変更されている可能性があります。再検索してください。', 'rename_matches': '検索結果：{count}', 'rename_saved': '名前変更済み：{count}'})
 
 TRANSLATIONS.update({'rename_blocked_title': 'ファイル名を変更できません', 'rename_blocked_message': '変更できません：\n{source}\n\n変更先：\n{target}\n\n問題を解決して再試行するか、このファイルまたはエラーのあるすべてのファイルをスキップするか、残りの処理をキャンセルしてください。変更済みのファイル名は元に戻りません。', 'rename_blocked_retry': '再試行', 'rename_blocked_skip': 'スキップ', 'rename_blocked_skip_all': 'すべてスキップ', 'rename_blocked_cancel': 'キャンセル'})
+
+TRANSLATIONS.update({'export_unsupported_format': '対応していないエクスポート形式です。'})
+
+TRANSLATIONS.update({'export_resolution_auto': '自動設定', 'export_resolution_value': '{dpi} ピクセル/インチ'})

@@ -335,3 +335,7 @@ TRANSLATIONS["merge_preview"] = 'Перегляд'
 TRANSLATIONS.update({'rename_files': 'Перейменувати файли', 'rename_find_regex': 'Знайти (регулярний вираз)', 'rename_replace_regex': 'Замінити на (вираз заміни)', 'rename_found_names': 'Знайдені назви файлів', 'rename_new_names': 'Нові назви файлів', 'rename_invalid_name': 'Некоректна назва файлу.', 'rename_conflict': 'Така назва вже існує або повторюється.', 'rename_changed': 'Файл змінився після пошуку. Повторіть пошук.', 'rename_empty_pattern': 'Введіть вираз для пошуку.', 'rename_regex_error': 'Некоректний регулярний вираз або вираз заміни.', 'rename_io_error': 'Не вдалося завершити операцію. Деякі файли вже могли бути перейменовані. Повторіть пошук.', 'rename_matches': 'Знайдено: {count}', 'rename_saved': 'Перейменовано: {count}'})
 
 TRANSLATIONS.update({'rename_blocked_title': 'Не вдалося перейменувати файл', 'rename_blocked_message': 'Не вдалося перейменувати:\n{source}\n\nНа:\n{target}\n\nУсуньте проблему й повторіть спробу, пропустіть цей файл або всі файли з помилками чи скасуйте подальшу операцію. Уже перейменовані файли збережуть нові назви.', 'rename_blocked_retry': 'Повторити', 'rename_blocked_skip': 'Пропустити', 'rename_blocked_skip_all': 'Пропустити всі', 'rename_blocked_cancel': 'Скасувати'})
+
+TRANSLATIONS.update({'export_unsupported_format': 'Непідтримуваний формат файлу експорту.'})
+
+TRANSLATIONS.update({'export_resolution_auto': 'Визначати автоматично', 'export_resolution_value': '{dpi} пікселів/дюйм'})

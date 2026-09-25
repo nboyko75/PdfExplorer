@@ -479,6 +479,15 @@ def import_pdf_pages(path, source_path, insert_at_index):
         target_doc.close()
 
 
+def export_page_images(path, page_indices, output_path, dpi=150):
+    from file_operations.page_image_export import export_images
+    source_doc = _open_pdf_document(path)
+    try:
+        return export_images(source_doc, page_indices, output_path, dpi=dpi)
+    finally:
+        source_doc.close()
+
+
 def export_pdf_pages(path, page_indices, output_path):
     if fitz is None:
         raise RuntimeError("PyMuPDF is not installed. PDF preview unavailable.")

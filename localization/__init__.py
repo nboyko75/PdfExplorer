@@ -321,6 +321,10 @@ DEFAULT_TRANSLATIONS.update({'rename_files': 'Rename files', 'rename_find_regex'
 
 DEFAULT_TRANSLATIONS.update({'rename_blocked_title': 'Cannot rename file', 'rename_blocked_message': 'Cannot rename:\n{source}\n\nTo:\n{target}\n\nResolve the problem and retry, skip this file or all files with errors, or cancel the remaining operation. Files already renamed will keep their new names.', 'rename_blocked_retry': 'Retry', 'rename_blocked_skip': 'Skip', 'rename_blocked_skip_all': 'Skip all', 'rename_blocked_cancel': 'Cancel'})
 
+DEFAULT_TRANSLATIONS['export_unsupported_format'] = 'Unsupported export file format.'
+
+DEFAULT_TRANSLATIONS.update({'export_resolution_auto': 'Determine automatically', 'export_resolution_value': '{dpi} pixels/inch'})
+
 TRANSLATIONS: Dict[str, str] = DEFAULT_TRANSLATIONS.copy()
 
 

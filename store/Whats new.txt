@@ -10,3 +10,5 @@ Added:
 Main menu "Rename" item has been moved to follow "Paste".
 "Rename files" has been added to the main and context menus.
 A form for searching, previewing, and renaming using regular expressions has been implemented.
+
+Added export pdf to image format.

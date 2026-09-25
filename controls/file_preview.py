@@ -20,7 +20,7 @@ from common.drag_and_drop import PdfPageDropTarget
 import common.drag_and_drop as pdf_dragdrop
 from common.window_tools import load_settings, update_settings
 from file_operations.image_utils import IMAGE_EXTENSIONS
-from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
+from file_operations.pdf_utils import adjust_page_width, discard_pdf_changes, export_pdf_pages, export_page_images, get_pdf_page_count, get_pdf_page_previews, has_unsaved_pdf_changes, import_pdf_pages, is_pdf_file, move_pdf_page, optimize_pdf, remove_pdf_page, rotate_pdf, rotate_pdf_page, save_pdf, save_pdf_as
 import file_operations.image_utils as image_utils
 import file_operations.office_preview as office_preview
 import file_operations.office_html_preview as office_html_preview
@@ -2302,6 +2302,8 @@ def _show_import_pdf_dialog(owner, page_count):
 
 
 def _parse_page_numbers_input(text, page_count):
+    if str(text).strip() == "*" and page_count > 0:
+        return list(range(page_count))
     tokens = [token.strip() for token in str(text).split(",") if token.strip()]
     if not tokens:
         raise ValueError(tr("export_pdf_page_numbers_invalid"))
@@ -2348,9 +2350,7 @@ def _show_export_pages_dialog(owner, page_count):
             export_initial_dir = os.path.abspath(search_box_value)
 
     page_numbers_label = wx.StaticText(panel, label=tr("export_pdf_page_numbers_label"))
-    selected_index = get_selected_pdf_page_index(owner)
-    default_value = str(selected_index + 1) if selected_index is not None else ""
-    page_numbers_text = wx.TextCtrl(panel, value=default_value)
+    page_numbers_text = wx.TextCtrl(panel, value="*")
 
     current_path = owner.current_preview_path
     base_name, _ = os.path.splitext(os.path.basename(current_path))
@@ -2362,19 +2362,40 @@ def _show_export_pages_dialog(owner, page_count):
     browse_btn = wx.Button(panel, label=tr("import_pdf_browse_button"))
 
     def browse_for_output(_):
+        extensions = ['.pdf'] + sorted(IMAGE_EXTENSIONS)
+        current_output = output_file_text.GetValue().strip()
+        current_extension = os.path.splitext(current_output)[1].lower()
         file_dialog = wx.FileDialog(
             dialog,
             tr("export_pdf_save_dialog_title"),
-            defaultDir=export_initial_dir,
-            defaultFile=os.path.basename(output_file_text.GetValue().strip()) or f"{base_name}_pages.pdf",
-            wildcard="PDF files (*.pdf)|*.pdf",
-            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+            defaultDir=os.path.dirname(current_output) or export_initial_dir,
+            defaultFile=os.path.basename(current_output) or f"{base_name}_pages.pdf",
+            wildcard='|'.join(f'{ext[1:].upper()} (*{ext})|*{ext}' for ext in extensions),
+            style=wx.FD_SAVE,
         )
+        file_dialog.SetFilterIndex(extensions.index(current_extension) if current_extension in extensions else 0)
         if file_dialog.ShowModal() == wx.ID_OK:
-            output_file_text.SetValue(file_dialog.GetPath())
+            chosen = file_dialog.GetPath()
+            extension = extensions[file_dialog.GetFilterIndex()]
+            if os.path.splitext(chosen)[1].lower() != extension:
+                chosen = os.path.splitext(chosen)[0] + extension
+            output_file_text.SetValue(chosen)
         file_dialog.Destroy()
 
     browse_btn.Bind(wx.EVT_BUTTON, browse_for_output)
+
+    resolution_panel = wx.Panel(panel)
+    resolution_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    resolution_label = wx.StaticText(resolution_panel, label=tr('scan_dpi_label'))
+    resolutions = [None, 72, 96, 150, 300, 600, 1200, 2400]
+    resolution_combo = wx.ComboBox(
+        resolution_panel, choices=[tr('export_resolution_auto')] +
+        [tr('export_resolution_value', dpi=value) for value in resolutions[1:]],
+        style=wx.CB_READONLY)
+    resolution_combo.SetSelection(4)
+    resolution_sizer.Add(resolution_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+    resolution_sizer.Add(resolution_combo, 1)
+    resolution_panel.SetSizer(resolution_sizer)
 
     button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
 
@@ -2386,6 +2407,7 @@ def _show_export_pages_dialog(owner, page_count):
     output_file_sizer.Add(browse_btn, 0)
     root_sizer.Add(output_file_label, 0, wx.LEFT | wx.RIGHT | wx.TOP, 12)
     root_sizer.Add(output_file_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+    root_sizer.Add(resolution_panel, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
     root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.TOP, 12)
     panel.SetSizer(root_sizer)
 
@@ -2393,6 +2415,31 @@ def _show_export_pages_dialog(owner, page_count):
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
+    def update_resolution_visibility(event=None):
+        is_image = os.path.splitext(output_file_text.GetValue().strip())[1].lower() in IMAGE_EXTENSIONS
+        resolution_panel.Show(is_image)
+        panel.Layout()
+        dialog.Layout()
+        minimum = dialog.GetSizer().CalcMin()
+        dialog.SetMinSize(minimum)
+        current = dialog.GetSize()
+        if current.width < minimum.width or current.height < minimum.height:
+            dialog.SetSize((max(current.width, minimum.width), max(current.height, minimum.height)))
+        if event is not None:
+            event.Skip()
+
+    output_file_text.Bind(wx.EVT_TEXT, update_resolution_visibility)
+    update_resolution_visibility()
+
+    def select_default_pages(event):
+        if event.IsShown():
+            page_numbers_text.SetFocus()
+            page_numbers_text.SelectAll()
+        event.Skip()
+
+    dialog.Bind(wx.EVT_SHOW, select_default_pages)
+    page_numbers_text.SetFocus()
+    page_numbers_text.SelectAll()
     result = show_persistent_dialog(dialog, "export_pdf_pages_dialog_size")
     if result != wx.ID_OK:
         return None
@@ -2402,6 +2449,7 @@ def _show_export_pages_dialog(owner, page_count):
     return {
         "page_numbers_value": page_numbers_value,
         "output_path": output_path,
+        "dpi": resolutions[resolution_combo.GetSelection()],
     }
 
 
@@ -2573,24 +2621,36 @@ def on_preview_export_pages(event):
         return
 
     try:
+        extension = os.path.splitext(output_path)[1].lower()
+        if not extension:
+            output_path += '.pdf'
+            extension = '.pdf'
+        if extension in IMAGE_EXTENSIONS:
+            from file_operations.page_image_export import output_paths
+            targets = output_paths(output_path, page_indices)
+        elif extension == '.pdf':
+            targets = [output_path]
+        else:
+            raise ValueError(tr('export_unsupported_format'))
+        existing = [target for target in targets if os.path.exists(target)]
+        if existing:
+            message = tr('archive_extract_override') + '?\n\n' + '\n'.join(existing)
+            if wx.MessageBox(message, tr('app_title'), wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION) != wx.YES:
+                return
         with owner.busy_cursor():
-            export_pdf_pages(owner.current_preview_path, page_indices, output_path)
+            if extension in IMAGE_EXTENSIONS:
+                export_page_images(owner.current_preview_path, page_indices, output_path, dpi=dialog_result["dpi"])
+            else:
+                export_pdf_pages(owner.current_preview_path, page_indices, output_path)
         export_dir = os.path.dirname(os.path.abspath(output_path))
         current_folder = owner.path_box.GetValue() if hasattr(owner, "path_box") else ""
         current_folder_norm = os.path.normpath(current_folder) if current_folder else ""
         export_dir_norm = os.path.normpath(export_dir) if export_dir else ""
 
-        # Refresh only selected/current folder when export target is that same folder.
-        if current_folder_norm and export_dir_norm and current_folder_norm == export_dir_norm:
-            current_tree_item = owner.tree.GetSelection() if hasattr(owner, "tree") else None
-            if current_tree_item is not None and current_tree_item.IsOk():
-                current_tree_path = owner.tree.GetItemData(current_tree_item)
-                if isinstance(current_tree_path, str) and os.path.isdir(current_tree_path):
-                    if os.path.normpath(current_tree_path) == current_folder_norm:
-                        owner.populate_tree_node(current_tree_item, current_tree_path)
-
+        # Use the workspace refresh API to preserve selection and preview state.
+        if current_folder_norm and export_dir_norm and os.path.normcase(current_folder_norm) == os.path.normcase(export_dir_norm):
             if os.path.isdir(current_folder):
-                owner.load_folder(current_folder)
+                owner.refresh_current_folder_preserving_context()
     except Exception as exc:
         wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
