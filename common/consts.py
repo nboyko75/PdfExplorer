@@ -23,6 +23,9 @@ for source in (wx, getattr(wx, "adv", None)):
 
 # common/dict_tools.py
 PERSISTED_LAYOUT_KEYS = {
+    "rename_files_position",
+    "rename_files_size",
+    "rename_files_sash_position",
     "window_position",
     "window_size",
     "window_maximized",

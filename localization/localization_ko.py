@@ -293,3 +293,12 @@ TRANSLATIONS = {
 }
 
 TRANSLATIONS.update({'explorer_new_tab': '새 탭', 'explorer_close_tab': '탭 닫기', 'explorer_folder_unavailable': '폴더를 사용할 수 없습니다:\n{path}'})
+
+
+TRANSLATIONS.update({'merge_documents': '유사 문서 병합', 'merge_search': '검색', 'merge_compare': '비교', 'merge_save': '저장', 'merge_target': '원본 통합 문서', 'merge_empty': '빈 값', 'merge_keep': '원본 유지 / 거부', 'merge_choose': '값 선택…', 'merge_ready': '현재 폴더에서 유사한 Excel 파일을 검색합니다.', 'merge_working': '처리 중…', 'merge_failed': '작업에 실패했습니다.', 'merge_recompare': '선택이 변경되었습니다. 다시 비교하세요.', 'merge_cancelling': '현재 작업이 완료되기를 기다리는 중…', 'merge_unresolved': '저장하기 전에 모든 충돌을 해결하거나 거부하세요.', 'merge_readonly': '읽기 전용 통합 문서입니다.', 'merge_unmatched': '이름이 정확히 일치하지 않는 시트는 병합하지 않았습니다:', 'merge_instructions': '로컬 내용 검색; 시트 이름과 셀 주소로 비교합니다. 셀을 클릭해 값을 선택하고 원본을 유지하면 변경을 거부합니다. Microsoft Excel이 필요합니다.', 'merge_found': '검색됨: {count}. 읽기 실패: {skipped}.', 'merge_conflicts': '충돌 셀: {total}. 미해결: {count}.', 'merge_changed': '파일이 변경되었습니다. 다시 검색하세요: {path}', 'merge_too_large': '통합 문서가 {count}셀 검토 한도를 초과합니다: {path}', 'merge_protected': '보호된 셀, 병합된 셀 또는 배열 수식 셀은 변경할 수 없습니다: {sheet}', 'merge_external_formula': '외부 통합 문서 수식은 가져올 수 없습니다: {sheet}'})
+
+TRANSLATIONS["merge_preview"] = '미리 보기'
+
+TRANSLATIONS.update({'rename_files': '파일 이름 일괄 변경', 'rename_find_regex': '찾기 (정규식)', 'rename_replace_regex': '바꿀 내용 (치환식)', 'rename_found_names': '찾은 파일 이름', 'rename_new_names': '새 파일 이름', 'rename_invalid_name': '잘못된 파일 이름입니다.', 'rename_conflict': '대상 이름이 이미 존재하거나 중복됩니다.', 'rename_changed': '검색 후 파일이 변경되었습니다. 다시 검색하세요.', 'rename_empty_pattern': '검색식을 입력하세요.', 'rename_regex_error': '정규식 또는 치환식이 잘못되었습니다.', 'rename_io_error': '작업을 완료할 수 없습니다. 일부 파일은 이미 이름이 변경되었을 수 있습니다. 다시 검색하세요.', 'rename_matches': '검색 결과: {count}', 'rename_saved': '변경됨: {count}'})
+
+TRANSLATIONS.update({'rename_blocked_title': '파일 이름을 변경할 수 없습니다', 'rename_blocked_message': '변경할 수 없습니다:\n{source}\n\n새 이름:\n{target}\n\n문제를 해결하고 다시 시도하거나, 이 파일 또는 오류가 있는 모든 파일을 건너뛰거나, 나머지 작업을 취소하세요. 이미 변경된 파일 이름은 유지됩니다.', 'rename_blocked_retry': '다시 시도', 'rename_blocked_skip': '건너뛰기', 'rename_blocked_skip_all': '모두 건너뛰기', 'rename_blocked_cancel': '취소'})

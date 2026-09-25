@@ -293,3 +293,12 @@ TRANSLATIONS = {
 }
 
 TRANSLATIONS.update({'explorer_new_tab': '新しいタブ', 'explorer_close_tab': 'タブを閉じる', 'explorer_folder_unavailable': 'フォルダーを利用できません:\n{path}'})
+
+
+TRANSLATIONS.update({'merge_documents': '類似ドキュメントを結合', 'merge_search': '検索', 'merge_compare': '比較', 'merge_save': '保存', 'merge_target': '元のブック', 'merge_empty': '空白', 'merge_keep': '元の値を保持 / 拒否', 'merge_choose': '値を選択…', 'merge_ready': 'このフォルダー内の類似した Excel ブックを検索します。', 'merge_working': '処理中…', 'merge_failed': '操作に失敗しました。', 'merge_recompare': '選択が変更されました。再度比較してください。', 'merge_cancelling': '現在の操作が完了するまで待機しています…', 'merge_unresolved': '保存する前にすべての競合を解決または拒否してください。', 'merge_readonly': 'ブックは読み取り専用です。', 'merge_unmatched': '名前が完全に一致しないシートは結合されませんでした:', 'merge_instructions': 'ローカルで内容を検索し、シート名とセル番地で比較します。セルをクリックして値を選択し、拒否する場合は元の値を保持します。Microsoft Excel が必要です。', 'merge_found': '検出: {count}。読み取り失敗: {skipped}。', 'merge_conflicts': '競合セル: {total}。未解決: {count}。', 'merge_changed': 'ファイルが変更されました。再検索してください: {path}', 'merge_too_large': 'ブックが {count} セルの確認上限を超えています: {path}', 'merge_protected': '保護、結合、配列数式のセルは変更できません: {sheet}', 'merge_external_formula': '外部ブックを参照する数式はインポートできません: {sheet}'})
+
+TRANSLATIONS["merge_preview"] = 'プレビュー'
+
+TRANSLATIONS.update({'rename_files': 'ファイル名を一括変更', 'rename_find_regex': '検索（正規表現）', 'rename_replace_regex': '置換（置換式）', 'rename_found_names': '見つかったファイル名', 'rename_new_names': '新しいファイル名', 'rename_invalid_name': '無効なファイル名です。', 'rename_conflict': '変更先の名前が既に存在するか、重複しています。', 'rename_changed': '検索後にファイルが変更されました。再検索してください。', 'rename_empty_pattern': '検索式を入力してください。', 'rename_regex_error': '正規表現または置換式が無効です。', 'rename_io_error': '操作を完了できませんでした。一部のファイルは既に名前が変更されている可能性があります。再検索してください。', 'rename_matches': '検索結果：{count}', 'rename_saved': '名前変更済み：{count}'})
+
+TRANSLATIONS.update({'rename_blocked_title': 'ファイル名を変更できません', 'rename_blocked_message': '変更できません：\n{source}\n\n変更先：\n{target}\n\n問題を解決して再試行するか、このファイルまたはエラーのあるすべてのファイルをスキップするか、残りの処理をキャンセルしてください。変更済みのファイル名は元に戻りません。', 'rename_blocked_retry': '再試行', 'rename_blocked_skip': 'スキップ', 'rename_blocked_skip_all': 'すべてスキップ', 'rename_blocked_cancel': 'キャンセル'})

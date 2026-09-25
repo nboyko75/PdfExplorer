@@ -1,0 +1,12 @@
+10.0.3.0
+
+Added:
+- Toolbar button and main/context menu items.
+- Search for similar Excel files in the current folder.
+- Worksheet viewing and comparison, and selection of cell values with source names.
+- Automatic selection of a single alternative value.
+- Saving after resolving all conflicts, and a backup copy of the original.
+
+Main menu "Rename" item has been moved to follow "Paste".
+"Rename files" has been added to the main and context menus.
+A form for searching, previewing, and renaming using regular expressions has been implemented.

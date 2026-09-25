@@ -211,7 +211,29 @@ def _can_process_pdf_path(context):
     return bool(target and tree_control._is_folder_or_single_pdf(target))
 
 
+def merge_selected_path(context):
+    from file_operations.excel_merge import is_excel
+    paths = [context.target_path] if context.source == 'tree' and context.target_path else context.selected_paths
+    return paths[0] if len(paths) == 1 and is_excel(paths[0]) else None
+
+
+def _handle_merge(context, event):
+    from controls.merge_documents import show_merge_dialog
+    path = merge_selected_path(context)
+    if path:
+        show_merge_dialog(context.owner, path)
+
+
+def _handle_rename_files(context, event):
+    from controls.rename_files import show_rename_files
+    target = _tree_target(context) if context.source == 'tree' else (context.selected_paths[0] if len(context.selected_paths) == 1 else context.current_folder)
+    folder = target if target and os.path.isdir(target) else os.path.dirname(target or '')
+    show_rename_files(context.owner, folder or context.current_folder)
+
+
 FILE_COMMANDS = {
+    "rename_files": MenuCommand("rename_files", "rename_files", _handle_rename_files, art_id=wx.ART_EDIT),
+    "merge": MenuCommand("merge", "merge_documents", _handle_merge, art_id=wx.ART_REPORT_VIEW, can_execute=lambda c: bool(merge_selected_path(c))),
     "scan": MenuCommand("scan", "scan", _handle_scan, custom_icon="scan"),
     "open": MenuCommand("open", "context_open", _handle_open, custom_icon="file_view", can_execute=_can_select_one),
     "open_with": MenuCommand("open_with", "context_open_with", open_with.popup, can_execute=lambda c: bool(open_with.selected_file(c))),
@@ -284,14 +306,14 @@ append_menu_command = append_command
 def build_file_operations_menu(context):
     menu = wx.Menu()
     owner = context.owner
-    for key in ("scan", "open", "open_with", "folder_up", "new_folder", "refresh", "print"):
+    for key in ("scan", "open", "open_with", "folder_up", "new_folder", "refresh", "print", "merge"):
         append_command(menu, owner, FILE_COMMANDS[key], context)
     if context.source == "tree":
         menu.AppendSeparator()
         append_command(menu, owner, FILE_COMMANDS["favorite_add"], context)
         append_command(menu, owner, FILE_COMMANDS["favorite_remove"], context)
     menu.AppendSeparator()
-    for key in ("copy", "cut", "paste", "rename", "delete", "delete_permanent"):
+    for key in ("copy", "cut", "paste", "rename", "rename_files", "delete", "delete_permanent"):
         append_command(menu, owner, FILE_COMMANDS[key], context)
     menu.AppendSeparator()
     for key in ("archive", "extract_here", "extract_into"):

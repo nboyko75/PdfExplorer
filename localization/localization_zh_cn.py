@@ -293,3 +293,12 @@ TRANSLATIONS = {
 }
 
 TRANSLATIONS.update({'explorer_new_tab': '新建标签页', 'explorer_close_tab': '关闭标签页', 'explorer_folder_unavailable': '文件夹不可用：\n{path}'})
+
+
+TRANSLATIONS.update({'merge_documents': '合并相似文档', 'merge_search': '搜索', 'merge_compare': '比较', 'merge_save': '保存', 'merge_target': '目标工作簿', 'merge_empty': '空值', 'merge_keep': '保留原值 / 拒绝', 'merge_choose': '请选择一个值…', 'merge_ready': '在当前文件夹中搜索相似的 Excel 工作簿。', 'merge_working': '正在处理…', 'merge_failed': '操作失败。', 'merge_recompare': '选择已更改，请重新比较。', 'merge_cancelling': '正在等待当前操作完成…', 'merge_unresolved': '保存前请解决或拒绝所有冲突。', 'merge_readonly': '工作簿为只读。', 'merge_unmatched': '未合并名称不完全相同的工作表：', 'merge_instructions': '本地内容搜索；按工作表名称和单元格地址比较。点击单元格选择值，保留原值可拒绝更改。需要 Microsoft Excel。', 'merge_found': '找到：{count}。无法读取：{skipped}。', 'merge_conflicts': '冲突单元格：{total}。未解决：{count}。', 'merge_changed': '文件已更改，请重新搜索：{path}', 'merge_too_large': '工作簿超过 {count} 个单元格的审阅上限：{path}', 'merge_protected': '无法修改受保护、合并或数组公式单元格：{sheet}', 'merge_external_formula': '无法导入引用外部工作簿的公式：{sheet}'})
+
+TRANSLATIONS["merge_preview"] = '预览'
+
+TRANSLATIONS.update({'rename_files': '批量重命名文件', 'rename_find_regex': '查找（正则表达式）', 'rename_replace_regex': '替换为（替换表达式）', 'rename_found_names': '找到的文件名', 'rename_new_names': '新文件名', 'rename_invalid_name': '文件名无效。', 'rename_conflict': '目标名称已存在或重复。', 'rename_changed': '文件在搜索后已更改。请重新搜索。', 'rename_empty_pattern': '请输入搜索表达式。', 'rename_regex_error': '正则表达式或替换表达式无效。', 'rename_io_error': '无法完成操作。部分文件可能已重命名。请重新搜索。', 'rename_matches': '找到：{count}', 'rename_saved': '已重命名：{count}'})
+
+TRANSLATIONS.update({'rename_blocked_title': '无法重命名文件', 'rename_blocked_message': '无法重命名：\n{source}\n\n目标：\n{target}\n\n请解决问题后重试，跳过此文件或所有出错的文件，或取消剩余操作。已重命名的文件将保留新名称。', 'rename_blocked_retry': '重试', 'rename_blocked_skip': '跳过', 'rename_blocked_skip_all': '全部跳过', 'rename_blocked_cancel': '取消'})
