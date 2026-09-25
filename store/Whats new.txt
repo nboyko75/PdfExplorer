@@ -12,3 +12,8 @@ Main menu "Rename" item has been moved to follow "Paste".
 A form for searching, previewing, and renaming using regular expressions has been implemented.
 
 Added export pdf to image format.
+
+Moved SheetTable to common/sheet_table.py.
+Added a top-right info icon with an instructions popup.
+Comparison respects saved Excel AutoFilters.
+After Compare, sheet tabs show only differing values; other cells are blank.

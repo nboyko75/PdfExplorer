@@ -54,6 +54,7 @@ class Sheet:
     cells: dict = field(default_factory=dict)
     rows: int = 1
     cols: int = 1
+    hidden_rows: set = field(default_factory=set)
 
 
 @dataclass
@@ -81,9 +82,13 @@ def conflicts_for(base, others):
         for book in related:
             positions.update(book.sheets[name].cells)
         for row, col in sorted(positions):
+            if row in sheet.hidden_rows:
+                continue
             original = sheet.cells.get((row, col), EMPTY)
             values, sources = [original], [[os.path.basename(base.path)]]
             for book in related:
+                if row in book.sheets[name].hidden_rows:
+                    continue
                 value = book.sheets[name].cells.get((row, col), EMPTY)
                 index = next((i for i, item in enumerate(values) if item.key == value.key), None)
                 if index is None:
@@ -105,7 +110,10 @@ def similarity(base, other):
     def tokens(book):
         result = Counter()
         for name in common:
-            for cell in book.sheets[name].cells.values():
+            hidden = base.sheets[name].hidden_rows | other.sheets[name].hidden_rows
+            for (row, col), cell in book.sheets[name].cells.items():
+                if row in hidden:
+                    continue
                 result.update(re.findall(r'\w+', str(cell.value).casefold()))
         return result
     a, b = tokens(base), tokens(other)
@@ -115,6 +123,8 @@ def similarity(base, other):
     for name in common:
         left, right = base.sheets[name].cells, other.sheets[name].cells
         for pos in set(left) | set(right):
+            if pos[0] in base.sheets[name].hidden_rows | other.sheets[name].hidden_rows:
+                continue
             count += 1
             matches += pos in left and pos in right and left[pos].key == right[pos].key
     return .65*cosine + .35*(matches/count if count else 0)
@@ -168,6 +178,12 @@ def read_book(app, path):
             data = used.Formula
             if rows == cols == 1:
                 data = ((data,),)
+            # Excel has already applied the saved AutoFilter on opening.
+            # Track excluded rows separately: an invisible cell is not a blank.
+            hidden_rows = set()
+            if sheet.FilterMode:
+                hidden_rows = {row for row in range(start_row, start_row + rows)
+                               if sheet.Rows(row).Hidden}
             cells = {}
             for r, line in enumerate(data):
                 for c, value in enumerate(line):
@@ -176,7 +192,7 @@ def read_book(app, path):
                     row, col = start_row+r, start_col+c
                     formula = isinstance(value, str) and value.startswith('=') and bool(sheet.Cells(row, col).HasFormula)
                     cells[row, col] = Cell(value, formula)
-            sheets[str(sheet.Name)] = Sheet(cells, start_row+rows-1, start_col+cols-1)
+            sheets[str(sheet.Name)] = Sheet(cells, start_row+rows-1, start_col+cols-1, hidden_rows)
         if fingerprint(path) != digest:
             raise MergeError('merge_changed', path=path)
         return Book(path, digest, sheets)

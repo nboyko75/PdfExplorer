@@ -8,70 +8,11 @@ import wx
 import wx.grid as gridlib
 from localization import tr
 from file_operations import excel_merge as engine
+from common.sheet_table import SheetTable
 
 
 def error_text(exc):
     return tr(exc.key, **exc.params) if isinstance(exc, engine.MergeError) else str(exc)
-
-
-def column_name(index):
-    result = ''
-    while index:
-        index, rem = divmod(index - 1, 26)
-        result = chr(65 + rem) + result
-    return result
-
-
-def display(cell):
-    return tr('merge_empty') if cell.value is None else str(cell.value)
-
-
-class SheetTable(gridlib.GridTableBase):
-    def __init__(self, sheet, conflicts):
-        super().__init__()
-        self.sheet, self.conflicts = sheet, conflicts
-        self.labels = {}
-        self.rows = max([sheet.rows] + [r for r, c in conflicts])
-        self.cols = max([sheet.cols] + [c for r, c in conflicts])
-        for pos, conflict in conflicts.items():
-            labels = []
-            for index, (value, sources) in enumerate(zip(conflict.values, conflict.sources)):
-                prefix = tr('merge_keep') + ': ' if index == 0 else ''
-                labels.append(f'{index + 1}. {prefix}{display(value)} [{", ".join(sources)}]')
-            self.labels[pos] = labels
-
-    def GetNumberRows(self):
-        return self.rows
-
-    def GetNumberCols(self):
-        return self.cols
-
-    def GetColLabelValue(self, col):
-        return column_name(col + 1)
-
-    def GetValue(self, row, col):
-        pos = row + 1, col + 1
-        conflict = self.conflicts.get(pos)
-        if conflict:
-            return self.labels[pos][conflict.selected] if conflict.selected is not None else tr('merge_choose')
-        cell = self.sheet.cells.get(pos, engine.EMPTY)
-        return '' if cell.value is None else str(cell.value)
-
-    def SetValue(self, row, col, value):
-        pos = row + 1, col + 1
-        if pos in self.conflicts and value in self.labels[pos]:
-            self.conflicts[pos].selected = self.labels[pos].index(value)
-
-    def GetAttr(self, row, col, kind):
-        pos = row + 1, col + 1
-        attr = gridlib.GridCellAttr()
-        if pos in self.conflicts:
-            conflict = self.conflicts[pos]
-            attr.SetEditor(gridlib.GridCellChoiceEditor(self.labels[pos], allowOthers=False))
-            attr.SetBackgroundColour(wx.Colour(255, 233, 175) if conflict.selected is None else wx.Colour(221, 242, 220))
-        else:
-            attr.SetReadOnly(True)
-        return attr
 
 
 class MergeDialog(wx.Dialog):
@@ -92,10 +33,14 @@ class MergeDialog(wx.Dialog):
         outer = wx.BoxSizer(wx.VERTICAL)
         title = wx.StaticText(self, label=self.path.replace("&", "&&"))
         title.SetToolTip(self.path)
-        outer.Add(title, 0, wx.EXPAND | wx.ALL, 10)
-        self.instructions = wx.StaticText(self, label=tr('merge_instructions'))
-        self.instructions.Wrap(1050)
-        outer.Add(self.instructions, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        header = wx.BoxSizer(wx.HORIZONTAL)
+        header.Add(title, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        info = wx.BitmapButton(self, bitmap=wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_BUTTON, (20, 20)))
+        info.SetToolTip(tr('merge_instructions'))
+        info.SetName(tr('merge_preview'))
+        info.Bind(wx.EVT_BUTTON, self.show_instructions)
+        header.Add(info, 0, wx.ALIGN_CENTER_VERTICAL)
+        outer.Add(header, 0, wx.EXPAND | wx.ALL, 10)
         splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE)
         left = wx.Panel(splitter)
         left_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -138,6 +83,21 @@ class MergeDialog(wx.Dialog):
         self.update_buttons()
         self.CentreOnParent()
         self.run_job(self.load_initial, lambda book: self.loaded(book))
+
+    def show_instructions(self, event):
+        popup = wx.PopupTransientWindow(self, wx.BORDER_SIMPLE)
+        panel = wx.Panel(popup)
+        label = wx.StaticText(panel, label=tr('merge_instructions'))
+        label.Wrap(480)
+        content = wx.BoxSizer(wx.VERTICAL)
+        content.Add(label, 0, wx.ALL, 12)
+        panel.SetSizerAndFit(content)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(panel)
+        popup.SetSizerAndFit(outer)
+        button = event.GetEventObject()
+        popup.Position(button.ClientToScreen((0, 0)), button.GetSize())
+        popup.Popup()
 
     def load_initial(self):
         with engine.excel_app() as app:
@@ -237,10 +197,14 @@ class MergeDialog(wx.Dialog):
         for name, sheet in book.sheets.items():
             conflicts = {(c.row, c.col): c for c in self.conflicts if target and c.sheet == name}
             grid = gridlib.Grid(self.notebook)
-            table = SheetTable(sheet, conflicts)
+            differences = {(c.row, c.col) for c in self.conflicts if c.sheet == name} if self.compared else None
+            table = SheetTable(sheet, conflicts, difference_positions=differences)
             grid.SetTable(table, takeOwnership=True)
             grid.SetDefaultColSize(170)
             grid.SetDefaultRowSize(25)
+            for row in sheet.hidden_rows:
+                if 1 <= row <= table.GetNumberRows():
+                    grid.HideRow(row - 1)
             grid.Bind(gridlib.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
             grid.Bind(gridlib.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
             self.notebook.AddPage(grid, name)
@@ -249,7 +213,7 @@ class MergeDialog(wx.Dialog):
                 grid.SetGridCursor(row-1, col-1)
                 grid.MakeCellVisible(row-1, col-1)
         html = self.preview_paths.get(book.digest)
-        if html:
+        if html and not self.compared and not any(s.hidden_rows for s in book.sheets.values()):
             try:
                 backend = getattr(html2, 'WebViewBackendEdge', None)
                 if backend and html2.WebView.IsBackendAvailable(backend):
@@ -265,7 +229,7 @@ class MergeDialog(wx.Dialog):
     def select_preview(self, book, target=False):
         if book is None:
             return
-        if book.digest in self.preview_paths or (target and self.compared):
+        if book.digest in self.preview_paths or self.compared or any(s.hidden_rows for s in book.sheets.values()):
             self.show_book(book, target)
             return
         self.show_book(book, target)

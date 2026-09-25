@@ -18,6 +18,59 @@ def book(path, values, name='Sheet1'):
 
 
 class MergeTests(unittest.TestCase):
+    def test_filtered_rows_do_not_become_blank_alternatives(self):
+        base = book('base', {(1, 1): 'header', (2, 1): 'old', (3, 1): 'old'})
+        other = book('other', {(1, 1): 'header', (2, 1): 'new', (3, 1): 'new'})
+        other.sheets['Sheet1'].hidden_rows = {2}
+        changes = m.conflicts_for(base, [other])
+        self.assertEqual([(c.row, c.col) for c in changes], [(3, 1)])
+        base.sheets['Sheet1'].hidden_rows = {3}
+        self.assertEqual(m.conflicts_for(base, [other]), [])
+
+    def test_filter_excludes_only_the_hidden_source(self):
+        base = book('base', {(2, 1): 'old'})
+        hidden = book('hidden', {(2, 1): 'excluded'})
+        visible = book('visible', {(2, 1): 'new'})
+        hidden.sheets['Sheet1'].hidden_rows = {2}
+        changes = m.conflicts_for(base, [hidden, visible])
+        self.assertEqual([v.value for v in changes[0].values], ['old', 'new'])
+        self.assertEqual(changes[0].row, 2)
+
+    def test_similarity_ignores_filtered_out_content(self):
+        base = book('base', {(1, 1): 'same', (2, 1): 'alpha'})
+        other = book('other', {(1, 1): 'same', (2, 1): 'unrelated'})
+        other.sheets['Sheet1'].hidden_rows = {2}
+        self.assertAlmostEqual(m.similarity(base, other), 1.0)
+
+    def test_read_book_records_filtered_rows(self):
+        sheet = Mock(Name='Sheet1', FilterMode=True)
+        sheet.UsedRange.Rows.Count = 3
+        sheet.UsedRange.Columns.Count = 1
+        sheet.UsedRange.Row = 1
+        sheet.UsedRange.Column = 1
+        sheet.UsedRange.Formula = (('header',), ('hidden',), ('visible',))
+        sheet.Rows.side_effect = lambda row: Mock(Hidden=row == 2)
+        document = Mock(Worksheets=[sheet])
+        with patch.object(m, 'fingerprint', return_value='digest'), patch.object(m, 'open_book', return_value=document):
+            loaded = m.read_book(object(), 'test.xlsx')
+        self.assertEqual(loaded.sheets['Sheet1'].hidden_rows, {2})
+        self.assertEqual(loaded.sheets['Sheet1'].cells[2, 1].value, 'hidden')
+        document.Close.assert_called_once_with(False)
+
+    def test_sheet_table_blanks_unchanged_cells(self):
+        # Exercise the table model without requiring native wx on the test host.
+        from types import SimpleNamespace
+        tree = ast.parse((ROOT/'common/sheet_table.py').read_text())
+        definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        scope = {'gridlib': SimpleNamespace(GridTableBase=object), 'engine': m, 'tr': lambda key: key}
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), 'sheet_table', 'exec'), scope)
+        sheet = m.Sheet({(1, 1): m.Cell('same'), (2, 1): m.Cell('changed')}, 2, 1)
+        table = scope['SheetTable'](sheet, {}, difference_positions={(2, 1)})
+        self.assertEqual(table.GetValue(0, 0), '')
+        self.assertEqual(table.GetValue(1, 0), 'changed')
+        sheet.hidden_rows = {2}
+        self.assertEqual(table.GetValue(1, 0), '')
+
     def test_same_values_no_conflicts(self):
         self.assertEqual(m.conflicts_for(book('base', {(1,1):1}), [book('other', {(1,1):1.0})]), [])
 
@@ -139,7 +192,7 @@ class MergeTests(unittest.TestCase):
 
     def test_all_languages_have_merge_labels(self):
         required=set()
-        for module in ('controls/merge_documents.py','file_operations/excel_merge.py'):
+        for module in ('controls/merge_documents.py','file_operations/excel_merge.py','common/sheet_table.py'):
             tree=ast.parse((ROOT/module).read_text())
             for node in ast.walk(tree):
                 if isinstance(node,ast.Constant) and isinstance(node.value,str) and node.value.startswith('merge_'):
