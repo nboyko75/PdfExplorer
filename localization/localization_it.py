@@ -317,3 +317,5 @@ TRANSLATIONS.update({'rename_blocked_title': 'Impossibile rinominare il file', '
 TRANSLATIONS.update({'export_unsupported_format': 'Formato del file di esportazione non supportato.'})
 
 TRANSLATIONS.update({'export_resolution_auto': 'Determina automaticamente', 'export_resolution_value': '{dpi} pixel/pollice'})
+
+TRANSLATIONS.update({"merge_check_all": 'Seleziona tutto', "merge_uncheck_all": 'Deseleziona tutto'})

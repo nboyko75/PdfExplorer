@@ -213,6 +213,34 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIs(event.GetEventObject(), self.host)
         self.assertFalse(self.host._routing_menu)
 
+    def test_exit_can_delete_original_menu_during_dispatch(self):
+        original = object()
+        class DeletedMenuEvent(Event):
+            def SetEventObject(self, obj):
+                if obj is original:
+                    raise RuntimeError('wrapped C/C++ object of type Menu has been deleted')
+                super().SetEventObject(obj)
+        event = DeletedMenuEvent(original)
+        self.host._route_menu_event(event)
+        self.assertIsNone(event.GetEventObject())
+        self.assertFalse(self.host._routing_menu)
+
+    def test_deleted_event_cleanup_does_not_mask_handler_error(self):
+        class DeletedEvent(Event):
+            deleted = False
+            def SetEventObject(self, obj):
+                if self.deleted:
+                    raise RuntimeError('event has been deleted')
+                super().SetEventObject(obj)
+        event = DeletedEvent(self.host)
+        def handler(event):
+            event.deleted = True
+            raise ValueError('handler failure')
+        self.a.ProcessEvent = handler
+        with self.assertRaisesRegex(ValueError, 'handler failure'):
+            self.host._route_menu_event(event)
+        self.assertFalse(self.host._routing_menu)
+
     def test_unhandled_menu_propagation_cannot_recurse(self):
         self.a.ProcessEvent = self.host._route_menu_event
         event = Event(self.host)

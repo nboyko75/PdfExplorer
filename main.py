@@ -1384,8 +1384,16 @@ class FileExplorer(wx.Frame):
             with workspace_scope(workspace):
                 workspace.GetEventHandler().ProcessEvent(event)
         finally:
-            event.SetEventObject(original)
             self._routing_menu = False
+            try:
+                event.SetEventObject(original)
+            except RuntimeError:
+                # File > Exit can destroy the menu (or the event) during dispatch.
+                # Do not restore a deleted wx wrapper or mask the handler's error.
+                try:
+                    event.SetEventObject(None)
+                except RuntimeError:
+                    pass
 
     def _on_menu_open(self, event):
         if self.active_workspace is not None:

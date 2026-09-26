@@ -17,3 +17,10 @@ Moved SheetTable to common/sheet_table.py.
 Added a top-right info icon with an instructions popup.
 Comparison respects saved Excel AutoFilters.
 After Compare, sheet tabs show only differing values; other cells are blank.
+
+First column click sorts descending.
+Hidden columns are excluded from display and comparison.
+Unchanged cells remain blank on sheet tabs.
+Dropdown choices are available on comparison sheet tabs.
+Wait cursor appears during searching and comparing.
+Removed Target workbook button and file-path labels.

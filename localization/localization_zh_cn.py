@@ -306,3 +306,5 @@ TRANSLATIONS.update({'rename_blocked_title': '无法重命名文件', 'rename_bl
 TRANSLATIONS.update({'export_unsupported_format': '不支持的导出文件格式。'})
 
 TRANSLATIONS.update({'export_resolution_auto': '自动确定', 'export_resolution_value': '{dpi} 像素/英寸'})
+
+TRANSLATIONS.update({"merge_check_all": '全部勾选', "merge_uncheck_all": '取消全部勾选'})

@@ -339,3 +339,5 @@ TRANSLATIONS.update({'rename_blocked_title': 'Не вдалося перейме
 TRANSLATIONS.update({'export_unsupported_format': 'Непідтримуваний формат файлу експорту.'})
 
 TRANSLATIONS.update({'export_resolution_auto': 'Визначати автоматично', 'export_resolution_value': '{dpi} пікселів/дюйм'})
+
+TRANSLATIONS.update({"merge_check_all": 'Позначити всі', "merge_uncheck_all": 'Зняти всі позначки'})

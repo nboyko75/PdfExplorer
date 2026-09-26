@@ -317,3 +317,5 @@ TRANSLATIONS.update({'rename_blocked_title': 'Não é possível renomear o arqui
 TRANSLATIONS.update({'export_unsupported_format': 'Formato de arquivo de exportação não compatível.'})
 
 TRANSLATIONS.update({'export_resolution_auto': 'Determinar automaticamente', 'export_resolution_value': '{dpi} pixels/polegada'})
+
+TRANSLATIONS.update({"merge_check_all": 'Marcar todos', "merge_uncheck_all": 'Desmarcar todos'})

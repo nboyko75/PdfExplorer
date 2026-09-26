@@ -1372,14 +1372,14 @@ def on_list_column_click(owner, event):
 
     if owner.list_sort_column != column:
         owner.list_sort_column = column
-        owner.list_sort_direction = 1
-    elif owner.list_sort_direction == 1:
         owner.list_sort_direction = -1
     elif owner.list_sort_direction == -1:
+        owner.list_sort_direction = 1
+    elif owner.list_sort_direction == 1:
         owner.list_sort_column = None
         owner.list_sort_direction = 0
     else:
-        owner.list_sort_direction = 1
+        owner.list_sort_direction = -1
 
     update_list_sort_header_icons(owner)
     owner.load_folder(owner.path_box.GetValue())

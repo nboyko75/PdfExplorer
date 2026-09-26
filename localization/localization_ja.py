@@ -306,3 +306,5 @@ TRANSLATIONS.update({'rename_blocked_title': 'ファイル名を変更できま�
 TRANSLATIONS.update({'export_unsupported_format': '対応していないエクスポート形式です。'})
 
 TRANSLATIONS.update({'export_resolution_auto': '自動設定', 'export_resolution_value': '{dpi} ピクセル/インチ'})
+
+TRANSLATIONS.update({"merge_check_all": 'すべてチェック', "merge_uncheck_all": 'すべてのチェックを外す'})
