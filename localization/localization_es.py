@@ -319,3 +319,7 @@ TRANSLATIONS.update({'export_unsupported_format': 'Formato de archivo de exporta
 TRANSLATIONS.update({'export_resolution_auto': 'Determinar automáticamente', 'export_resolution_value': '{dpi} píxeles/pulgada'})
 
 TRANSLATIONS.update({"merge_check_all": 'Marcar todos', "merge_uncheck_all": 'Desmarcar todos'})
+
+TRANSLATIONS['merge_initializing'] = 'Inicializando…'
+
+TRANSLATIONS['merge_saved'] = 'Valores combinados guardados en el archivo original.'

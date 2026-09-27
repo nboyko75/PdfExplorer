@@ -308,3 +308,7 @@ TRANSLATIONS.update({'export_unsupported_format': '지원하지 않는 내보내
 TRANSLATIONS.update({'export_resolution_auto': '자동 결정', 'export_resolution_value': '{dpi} 픽셀/인치'})
 
 TRANSLATIONS.update({"merge_check_all": '모두 선택', "merge_uncheck_all": '모두 선택 해제'})
+
+TRANSLATIONS['merge_initializing'] = '초기화 중…'
+
+TRANSLATIONS['merge_saved'] = '병합된 값을 원본 파일에 저장했습니다.'

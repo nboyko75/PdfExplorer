@@ -341,3 +341,7 @@ TRANSLATIONS.update({'export_unsupported_format': 'Непідтримувани�
 TRANSLATIONS.update({'export_resolution_auto': 'Визначати автоматично', 'export_resolution_value': '{dpi} пікселів/дюйм'})
 
 TRANSLATIONS.update({"merge_check_all": 'Позначити всі', "merge_uncheck_all": 'Зняти всі позначки'})
+
+TRANSLATIONS['merge_initializing'] = 'Ініціалізація…'
+
+TRANSLATIONS['merge_saved'] = 'Об’єднані значення збережено в початковому файлі.'

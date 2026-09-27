@@ -308,3 +308,7 @@ TRANSLATIONS.update({'export_unsupported_format': '対応していないエク�
 TRANSLATIONS.update({'export_resolution_auto': '自動設定', 'export_resolution_value': '{dpi} ピクセル/インチ'})
 
 TRANSLATIONS.update({"merge_check_all": 'すべてチェック', "merge_uncheck_all": 'すべてのチェックを外す'})
+
+TRANSLATIONS['merge_initializing'] = '初期化中…'
+
+TRANSLATIONS['merge_saved'] = '統合した値を元のファイルに保存しました。'

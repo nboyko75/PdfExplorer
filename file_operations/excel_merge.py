@@ -9,6 +9,8 @@ import os
 import re
 import shutil
 import tempfile
+import zipfile
+import posixpath
 import xml.etree.ElementTree as ET
 
 EXTENSIONS = {'.xlsx', '.xlsm', '.xls', '.xlsb'}
@@ -82,20 +84,29 @@ class Conflict:
     selected: object = None
 
 
+def populated_rows(sheet):
+    """Rows with actual content in visible columns; zero, False and formulas count."""
+    return {row for (row, col), cell in sheet.cells.items()
+            if row not in sheet.hidden_rows and col not in sheet.hidden_cols
+            and cell.value is not None and cell.value != ''}
+
+
 def conflicts_for(base, others):
     conflicts = []
     for name, sheet in base.sheets.items():
         related = [book for book in others if name in book.sheets]
+        original_rows = populated_rows(sheet)
+        related_rows = {id(book): populated_rows(book.sheets[name]) for book in related}
         positions = set(sheet.cells)
         for book in related:
             positions.update(book.sheets[name].cells)
         for row, col in sorted(positions):
-            if row in sheet.hidden_rows or col in sheet.hidden_cols:
+            if row not in original_rows or col in sheet.hidden_cols:
                 continue
             original = sheet.cells.get((row, col), EMPTY)
             values, sources = [original], [[os.path.basename(base.path)]]
             for book in related:
-                if row in book.sheets[name].hidden_rows or col in book.sheets[name].hidden_cols:
+                if row not in related_rows[id(book)] or col in book.sheets[name].hidden_cols:
                     continue
                 value = book.sheets[name].cells.get((row, col), EMPTY)
                 index = next((i for i, item in enumerate(values) if item.key == value.key), None)
@@ -115,13 +126,15 @@ def similarity(base, other):
     common = set(base.sheets) & set(other.sheets)
     if not common:
         return 0.0
+    common_rows = {name: populated_rows(base.sheets[name]) & populated_rows(other.sheets[name])
+                   for name in common}
     def tokens(book):
         result = Counter()
         for name in common:
             hidden = base.sheets[name].hidden_rows | other.sheets[name].hidden_rows
             hidden_cols = base.sheets[name].hidden_cols | other.sheets[name].hidden_cols
             for (row, col), cell in book.sheets[name].cells.items():
-                if row in hidden or col in hidden_cols:
+                if row not in common_rows[name] or row in hidden or col in hidden_cols:
                     continue
                 result.update(re.findall(r'\w+', str(cell.value).casefold()))
         return result
@@ -131,9 +144,10 @@ def similarity(base, other):
     matches = count = 0
     for name in common:
         left, right = base.sheets[name].cells, other.sheets[name].cells
+        hidden_rows = base.sheets[name].hidden_rows | other.sheets[name].hidden_rows
+        hidden_cols = base.sheets[name].hidden_cols | other.sheets[name].hidden_cols
         for pos in set(left) | set(right):
-            if (pos[0] in base.sheets[name].hidden_rows | other.sheets[name].hidden_rows
-                    or pos[1] in base.sheets[name].hidden_cols | other.sheets[name].hidden_cols):
+            if pos[0] not in common_rows[name] or pos[0] in hidden_rows or pos[1] in hidden_cols:
                 continue
             count += 1
             matches += pos in left and pos in right and left[pos].key == right[pos].key
@@ -251,7 +265,7 @@ def parse_range_styles(xml, top, left, rows, cols, hidden_rows, hidden_cols):
             if font is not None:
                 for name, field in [('FontName', 'font_name'), ('Size', 'font_size')]:
                     value = font.get(ns + name)
-                    if value is not None:
+                    if value is not None and value != '':
                         result[field] = style_number(value, 11, float) if name == 'Size' else value
                 for name, field in [('Bold', 'bold'), ('Italic', 'italic'), ('StrikeThrough', 'strike')]:
                     value = font.get(ns + name)
@@ -323,6 +337,32 @@ def read_range_styles(sheet, top, left, rows, cols, hidden_rows, hidden_cols):
     return parse_range_styles(xml, top, left, rows, cols, hidden_rows, hidden_cols)
 
 
+def axis_values(sheet, axis, count, property_name):
+    """Read uniform row/column blocks once; split mixed or unsupported blocks."""
+    result = {}
+    def visit(first, last):
+        if first == last:
+            result[first] = getattr(getattr(sheet, axis)(first), property_name)
+            return
+        try:
+            if axis == 'Rows':
+                area = sheet.Range(sheet.Cells(first, 1), sheet.Cells(last, 1)).EntireRow
+            else:
+                area = sheet.Range(sheet.Cells(1, first), sheet.Cells(1, last)).EntireColumn
+            value = getattr(area, property_name)
+        except Exception:
+            value = None
+        if isinstance(value, (bool, int, float)):
+            result.update(dict.fromkeys(range(first, last + 1), value))
+        else:
+            middle = (first + last) // 2
+            visit(first, middle)
+            visit(middle + 1, last)
+    if count:
+        visit(1, count)
+    return result
+
+
 def read_sheet_layout(sheet, model):
     used = sheet.UsedRange
     top, left = int(used.Row), int(used.Column)
@@ -349,15 +389,47 @@ def load_sheet_layout(book, name):
     return result
 
 
-def read_book(app, path, load_first_style=True):
+def saved_hidden_axes(path):
+    """Read saved OOXML flags without mixed-range COM Hidden coercion."""
+    if os.path.splitext(path)[1].lower() not in ('.xlsx', '.xlsm'):
+        return {}
+    ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+    rel_ns = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+    try:
+        with zipfile.ZipFile(path) as archive:
+            workbook = ET.fromstring(archive.read('xl/workbook.xml'))
+            relations = ET.fromstring(archive.read('xl/_rels/workbook.xml.rels'))
+            targets = {item.get('Id'): item.get('Target') for item in relations}
+            result = {}
+            for sheet in workbook.findall(ns + 'sheets/' + ns + 'sheet'):
+                target = targets[sheet.get(rel_ns + 'id')]
+                target = target.lstrip('/') if target.startswith('/') else posixpath.normpath(posixpath.join('xl', target))
+                root = ET.fromstring(archive.read(target))
+                rows = {int(row.get('r')) for row in root.findall(ns + 'sheetData/' + ns + 'row')
+                        if row.get('hidden') in ('1', 'true')}
+                cols = set()
+                for col in root.findall(ns + 'cols/' + ns + 'col'):
+                    if col.get('hidden') in ('1', 'true'):
+                        cols.update(range(int(col.get('min')), int(col.get('max')) + 1))
+                result[sheet.get('name')] = rows, cols
+            return result
+    except (OSError, zipfile.BadZipFile, KeyError, ValueError, ET.ParseError):
+        return {}  # Encrypted/legacy files use individual COM axis checks.
+
+
+def read_book(app, path, load_first_style=True, progress=None, values_only=False):
     digest = fingerprint(path)
+    saved_axes = saved_hidden_axes(path)
     document = open_book(app, path)
     sheet = used = None
     try:
-        app.Calculate()
         sheets = {}
         total = 0
-        for sheet in document.Worksheets:
+        visible_sheets = [item for item in document.Worksheets
+                          if style_value(item, 'Visible', -1) == -1]
+        for sheet_index, sheet in enumerate(visible_sheets):
+            if progress:
+                progress(sheet_index, len(visible_sheets), str(sheet.Name))
             if style_value(sheet, 'Visible', -1) != -1:
                 continue
             used = sheet.UsedRange
@@ -373,30 +445,51 @@ def read_book(app, path, load_first_style=True):
                 results = ((results,),)
             # Excel has already applied the saved AutoFilter on opening.
             # Track excluded rows separately: an invisible cell is not a blank.
-            hidden_rows = {row for row in range(1, start_row + rows)
-                           if sheet.Rows(row).Hidden}
-            hidden_cols = {col for col in range(1, start_col + cols)
-                           if sheet.Columns(col).Hidden}
+            saved = saved_axes.get(str(sheet.Name))
+            if saved is not None:
+                hidden_rows, hidden_cols = map(set, saved)
+            else:
+                hidden_rows = {row for row in range(1, start_row + rows) if sheet.Rows(row).Hidden}
+                hidden_cols = {col for col in range(1, start_col + cols) if sheet.Columns(col).Hidden}
+            number_format = None if values_only else style_value(used, 'NumberFormat', None)
             cells = {}
             styles = {}
+            empty_rows = set(range(1, start_row))
             for r, line in enumerate(data):
+                if all(value is None or value == '' for value in line):
+                    empty_rows.add(start_row + r)
+                    continue
+                if progress and r % 128 == 0:
+                    progress(sheet_index + .85 * r / max(1, rows), len(visible_sheets), str(sheet.Name))
                 for c, value in enumerate(line):
                     row, col = start_row+r, start_col+c
                     if value is not None:
-                        excel_cell = sheet.Cells(row, col)
-                        formula = isinstance(value, str) and value.startswith('=') and bool(excel_cell.HasFormula)
                         result = results[r][c]
-                        text = str(excel_cell.Text or '')
+                        formula = False
+                        # Ordinary text in General/Text format needs no per-cell COM call.
+                        if values_only:
+                            formula = isinstance(value, str) and value.startswith('=') and bool(sheet.Cells(row, col).HasFormula)
+                            text = None
+                        elif isinstance(value, str) and not value.startswith('=') and number_format in ('General', '@'):
+                            text = value
+                        else:
+                            excel_cell = sheet.Cells(row, col)
+                            formula = isinstance(value, str) and value.startswith('=') and bool(excel_cell.HasFormula)
+                            text = str(excel_cell.Text or '')
                         if text and set(text) == {'#'}:
                             text = '' if result is None else str(result)
                         cells[row, col] = Cell(value, formula, text, result)
                     excel_cell = None
             model = Sheet(cells, start_row+rows-1, start_col+cols-1,
                           hidden_rows, hidden_cols, styles)
-            if load_first_style and not sheets:
+            # Empty rows are excluded from layout work as well as comparison.
+            model.hidden_rows.update(empty_rows)
+            if load_first_style and not values_only and not sheets:
                 model.styles, model.row_heights, model.col_widths = read_sheet_layout(sheet, model)
                 model.styles_loaded = True
             sheets[str(sheet.Name)] = model
+            if progress:
+                progress(sheet_index + 1, len(visible_sheets), str(sheet.Name))
         if fingerprint(path) != digest:
             raise MergeError('merge_changed', path=path)
         return Book(path, digest, sheets)
@@ -406,22 +499,33 @@ def read_book(app, path, load_first_style=True):
         document = None
 
 
-def search_books(path):
+def search_books(path, base=None, cache=None, progress=None):
     matches, skipped = [], []
     with excel_app() as app:
-        base = read_book(app, path, load_first_style=False)
+        if base is None or fingerprint(path) != base.digest:
+            base = read_book(app, path, load_first_style=False)
+        cache = {} if cache is None else cache
         with os.scandir(os.path.dirname(path)) as entries:
             candidates = sorted((e.path for e in entries if e.is_file() and is_excel(e.path)
                                  and os.path.normcase(os.path.abspath(e.path)) != os.path.normcase(os.path.abspath(path))),
                                 key=str.casefold)
-        for candidate in candidates:
+        for index, candidate in enumerate(candidates):
+            def report(current=0, total=1, sheet=''):
+                if progress:
+                    progress(index + current / max(1, total), len(candidates),
+                             os.path.basename(candidate) + (' — ' + sheet if sheet else ''))
+            report()
             try:
-                book = read_book(app, candidate, load_first_style=False)
+                book = cache.get(candidate)
+                if book is None or fingerprint(candidate) != book.digest:
+                    book = read_book(app, candidate, load_first_style=False, progress=report, values_only=True)
+                    cache[candidate] = book
                 score = similarity(base, book)
                 if score >= .45:
                     matches.append((book, score))
             except Exception as exc:
                 skipped.append((candidate, exc))
+            report(1, 1)
     return base, sorted(matches, key=lambda item: (-item[1], item[0].path.casefold())), skipped
 
 
@@ -434,7 +538,7 @@ def save_merge(base, conflicts):
     if not changes:
         return
     # Edit a sibling copy; replace the original only after a successful Excel save.
-    fd, temporary = tempfile.mkstemp(prefix='~$DocExplorer_merge_', suffix=os.path.splitext(base.path)[1],
+    fd, temporary = tempfile.mkstemp(prefix='DocExplorer_merge_', suffix=os.path.splitext(base.path)[1],
                                      dir=os.path.dirname(base.path))
     os.close(fd)
     try:
@@ -442,6 +546,7 @@ def save_merge(base, conflicts):
         with excel_app() as app:
             document = open_book(app, temporary, readonly=False)
             cell = sheet = None
+            persisted = {}
             try:
                 if document.ReadOnly:
                     raise MergeError('merge_readonly')
@@ -460,15 +565,44 @@ def save_merge(base, conflicts):
                         if re.search(r'\[[^\]]+\][^!]*!', str(value.value)):
                             raise MergeError('merge_external_formula', sheet=conflict.sheet)
                         cell.Formula = value.value
-                    elif isinstance(value.value, str) and value.value.startswith(('=', '+', '-', '@')):
-                        cell.Value2 = "'" + value.value
+                    elif isinstance(value.value, str):
+                        # Excel otherwise coerces numeric/date-like text and '=' text.
+                        old_format = cell.NumberFormat
+                        try:
+                            cell.NumberFormat = '@'
+                            cell.Value2 = value.value
+                        finally:
+                            cell.NumberFormat = old_format
                     else:
                         cell.Value2 = value.value
+                    persisted[conflict.sheet, conflict.row, conflict.col] = (cell.Formula if value.formula else value.value)
                 document.Save()
             finally:
                 cell = sheet = None
                 document.Close(False)
                 document = None
+            # Reopen the saved copy and verify persisted values before replacement.
+            verified = open_book(app, temporary)
+            try:
+                for conflict in changes:
+                    value = conflict.values[conflict.selected]
+                    check = verified.Worksheets(conflict.sheet).Cells(conflict.row, conflict.col)
+                    actual = check.Formula if value.formula else check.Value2
+                    check = None
+                    expected = persisted[conflict.sheet, conflict.row, conflict.col]
+                    if not value.formula and expected == '':
+                        expected = None
+                        actual = None if actual == '' else actual
+                    equal = actual == expected
+                    if type(actual) in (int, float) and type(expected) in (int, float):
+                        equal = math.isclose(actual, expected, rel_tol=1e-14, abs_tol=0.0)
+                    if not equal:
+                        raise RuntimeError(f'{conflict.sheet}!R{conflict.row}C{conflict.col}: '
+                                           f'saved value {actual!r} differs from {expected!r}.')
+                    check = None
+            finally:
+                verified.Close(False)
+                verified = None
         if fingerprint(base.path) != base.digest:
             raise MergeError('merge_changed', path=base.path)
         # Retain the exact source bytes as a recovery copy.
@@ -479,6 +613,15 @@ def save_merge(base, conflicts):
             n += 1
         shutil.copy2(base.path, backup)
         os.replace(temporary, base.path)
+        # Keep the in-memory original in step with the file for subsequent saves.
+        for conflict in changes:
+            model = base.sheets[conflict.sheet]
+            value = conflict.values[conflict.selected]
+            if value.value is None:
+                model.cells.pop((conflict.row, conflict.col), None)
+            else:
+                model.cells[conflict.row, conflict.col] = value
+        base.digest = fingerprint(base.path)
     finally:
         if os.path.exists(temporary):
             os.remove(temporary)

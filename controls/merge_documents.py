@@ -2,6 +2,8 @@
 import os
 import colorsys
 import tempfile
+import threading
+import time
 from pathlib import Path
 import wx.html2 as html2
 from concurrent.futures import ThreadPoolExecutor
@@ -82,8 +84,12 @@ class MergeDialog(wx.Dialog):
         self.base = None
         self.matches = []
         self.source_colors = {}
+        self.book_cache = {}
+        self.progress_lock = threading.Lock()
+        self.progress_state = None
         self.conflicts = []
         self.compared = False
+        self.saved_changes = False
         self.busy = False
         self.cancel_pending = False
         self.disposed = False
@@ -132,7 +138,14 @@ class MergeDialog(wx.Dialog):
         splitter.SetMinimumPaneSize(160)
         outer.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         self.status = wx.StaticText(self, label=tr('merge_ready'))
-        outer.Add(self.status, 0, wx.EXPAND | wx.ALL, 10)
+        info_bar = wx.BoxSizer(wx.HORIZONTAL)
+        info_bar.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        self.progress = wx.Gauge(self, range=1000, size=(180, 16))
+        self.progress.Hide()
+        info_bar.Add(self.progress, 0, wx.ALIGN_CENTER_VERTICAL)
+        outer.Add(info_bar, 0, wx.EXPAND | wx.ALL, 10)
+        self.progress_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.on_progress_timer, self.progress_timer)
         bar = wx.BoxSizer(wx.HORIZONTAL)
         bar.AddStretchSpacer()
         self.search_button = wx.Button(self, label=tr('merge_search'))
@@ -153,7 +166,7 @@ class MergeDialog(wx.Dialog):
         self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_sheet_changed)
         self.update_buttons()
         self.CentreOnParent()
-        self.run_job(self.load_initial, lambda book: self.loaded(book))
+        wx.CallAfter(self.run_job, self.load_initial, self.loaded, tr('merge_initializing'))
 
     def show_instructions(self, event):
         popup = wx.PopupTransientWindow(self, wx.BORDER_SIMPLE)
@@ -172,7 +185,7 @@ class MergeDialog(wx.Dialog):
 
     def load_initial(self):
         with engine.excel_app() as app:
-            book = engine.read_book(app, self.path)
+            book = engine.read_book(app, self.path, progress=self.report_progress)
         return book, None
 
     def loaded(self, result):
@@ -183,14 +196,43 @@ class MergeDialog(wx.Dialog):
         self.show_book(book, True)
         self.status.SetLabel(tr('merge_ready'))
 
-    def run_job(self, task, done):
+    def report_progress(self, current, total, detail):
+        # A single latest value prevents thousands of queued GUI callbacks.
+        with self.progress_lock:
+            self.progress_state = (current, total, detail)
+
+    def on_progress_timer(self, event):
+        if self.disposed or not self.busy:
+            return
+        with self.progress_lock:
+            state = self.progress_state
+        if state is None:
+            self.progress.Pulse()
+        else:
+            current, total, detail = state
+            self.progress.SetValue(min(1000, int(1000 * current / max(1, total))))
+            if not self.cancel_pending:
+                self.status.SetLabel(f'{self.job_label} {detail} ({int(current)}/{total})')
+
+    def run_job(self, task, done, label=None):
+        if self.disposed:
+            return
         self.busy = True
+        self.job_label = label or tr('merge_working')
+        with self.progress_lock:
+            self.progress_state = None
+        self.progress.SetValue(0)
+        self.progress.Show()
+        self.progress_timer.Start(100)
+        self.Layout()
         self.wait_cursor = wx.BusyCursor()
-        self.status.SetLabel(tr('merge_working'))
+        self.status.SetLabel(self.job_label)
         self.update_buttons()
         try:
             future = self.executor.submit(task)
         except Exception:
+            self.progress_timer.Stop()
+            self.progress.Hide()
             self.busy = False
             self.wait_cursor = None
             self.update_buttons()
@@ -203,6 +245,9 @@ class MergeDialog(wx.Dialog):
     def finish_job(self, future, done):
         if self.disposed:
             return
+        self.progress_timer.Stop()
+        self.progress.Hide()
+        self.Layout()
         self.busy = False
         self.wait_cursor = None
         if self.cancel_pending:
@@ -231,8 +276,6 @@ class MergeDialog(wx.Dialog):
         self.matches = []
         self.files.Clear()
         self.source_colors = {}
-        self.display_book = None
-        self.notebook.DeleteAllPages()
         def done(result):
             self.base, self.matches, skipped = result
             for book, score in self.matches:
@@ -249,7 +292,8 @@ class MergeDialog(wx.Dialog):
             if skipped:
                 wx.MessageBox('\n'.join(os.path.basename(p) + ': ' + error_text(e) for p, e in skipped),
                               tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)
-        self.run_job(lambda: engine.search_books(self.path), done)
+        self.run_job(lambda: engine.search_books(self.path, self.base, self.book_cache,
+                                                    self.report_progress), done, tr('merge_search'))
 
     def on_compare(self, event):
         books = [self.matches[i][0] for i in self.files.GetCheckedItems()]
@@ -273,8 +317,12 @@ class MergeDialog(wx.Dialog):
         self.run_job(task, done)
 
     def show_book(self, book, target=False):
+        book = self.base  # The review always edits the original workbook.
         if book is None:
             return
+        selection = self.notebook.GetSelection()
+        selected_name = (self.notebook.GetPage(selection).sheet_name
+                         if selection != wx.NOT_FOUND else None)
         self.building_pages = True
         try:
             self.display_book = book
@@ -283,7 +331,7 @@ class MergeDialog(wx.Dialog):
                 page = wx.Panel(self.notebook)
                 page.sheet_name = name
                 page.grid = None
-                self.notebook.AddPage(page, name)
+                self.notebook.AddPage(page, name, select=name == selected_name)
         finally:
             self.building_pages = False
         self.Layout()
@@ -326,13 +374,13 @@ class MergeDialog(wx.Dialog):
         grid = gridlib.Grid(page)
         table = SheetTable(sheet, conflicts, source_colors=self.source_colors)
         grid.SetTable(table, takeOwnership=True)
-        grid.BeginBatch()
         font = wx.Font(11, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL,
                        wx.FONTWEIGHT_NORMAL, faceName="Calibri")
         grid.SetDefaultCellFont(font)
         grid.SetLabelFont(font)
         grid.SetDefaultCellBackgroundColour(wx.Colour(255, 255, 255))
         grid.SetDefaultCellTextColour(wx.Colour(32, 32, 32))
+        grid.SetDefaultCellOverflow(True)
         grid.SetDefaultCellAlignment(wx.ALIGN_LEFT, wx.ALIGN_CENTER_VERTICAL)
         grid.SetLabelBackgroundColour(wx.Colour(242, 242, 242))
         grid.SetLabelTextColour(wx.Colour(80, 80, 80))
@@ -345,32 +393,81 @@ class MergeDialog(wx.Dialog):
         grid.SetColLabelSize(24)
         grid.SetDefaultColSize(100)
         grid.SetDefaultRowSize(23)
-        for row, col in set(sheet.styles) | set(sheet.cells) | set(conflicts):
-            if row not in sheet.hidden_rows and col not in sheet.hidden_cols:
-                grid.SetAttr(row - 1, col - 1, table.build_attr(row - 1, col - 1))
-        dpi = grid.GetDPI()
-        for row, points in sheet.row_heights.items():
-            grid.SetRowSize(row - 1, max(1, round(points * dpi.height / 72)))
-        for col, points in sheet.col_widths.items():
-            grid.SetColSize(col - 1, max(1, round(points * dpi.width / 72)))
-        for row in sheet.hidden_rows:
-            if 1 <= row <= table.GetNumberRows():
-                grid.HideRow(row - 1)
-        for col in sheet.hidden_cols:
-            if 1 <= col <= table.GetNumberCols():
-                grid.HideCol(col - 1)
         grid.Bind(gridlib.EVT_GRID_CELL_CHANGED, self.on_cell_changed)
         grid.Bind(gridlib.EVT_GRID_CELL_LEFT_CLICK, self.on_cell_click)
-        grid.EndBatch()
         page.grid = grid
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(grid, 1, wx.EXPAND)
         page.SetSizer(sizer)
         page.Layout()
-        if conflicts:
-            row, col = next(iter(conflicts))
-            grid.SetGridCursor(row-1, col-1)
-            grid.MakeCellVisible(row-1, col-1)
+        dpi = grid.GetDPI()
+        def populate():
+            for row, col in set(sheet.styles) | set(sheet.cells) | set(conflicts):
+                position = table.grid_position(row, col)
+                if position is not None:
+                    grid.SetAttr(*position, table.build_attr(*position))
+                yield
+            for row, points in sheet.row_heights.items():
+                if row in table.row_indices:
+                    grid.SetRowSize(table.row_indices[row], max(1, round(points * dpi.height / 72)))
+                yield
+            for col, points in sheet.col_widths.items():
+                if col in table.col_indices:
+                    grid.SetColSize(table.col_indices[col], max(1, round(points * dpi.width / 72)))
+                yield
+        # Keep native event processing alive while installing large grids.
+        remaining = populate()
+        previous_status = tr('merge_ready')
+        self.busy = True
+        self.job_label = tr('merge_initializing')
+        with self.progress_lock:
+            self.progress_state = None
+        self.status.SetLabel(self.job_label + ' ' + name)
+        self.progress.Show()
+        self.progress_timer.Start(100)
+        self.update_buttons()
+        self.Layout()
+        def batch():
+            if self.disposed:
+                return
+            complete = self.cancel_pending
+            failure = None
+            grid.BeginBatch()
+            try:
+                deadline = time.monotonic() + .012
+                while not complete and time.monotonic() < deadline:
+                    try:
+                        next(remaining)
+                    except StopIteration:
+                        complete = True
+            except Exception as exc:
+                failure = exc
+                complete = True
+            finally:
+                grid.EndBatch()
+            if not complete:
+                wx.CallLater(1, batch)
+                return
+            self.progress_timer.Stop()
+            self.progress.Hide()
+            self.busy = False
+            if self.cancel_pending:
+                self.EndModal(wx.ID_CANCEL)
+                return
+            self.status.SetLabel(tr('merge_failed') if failure else previous_status)
+            if failure:
+                wx.MessageBox(error_text(failure), tr('merge_documents'), wx.OK | wx.ICON_ERROR, self)
+            elif self.compared:
+                self.update_conflicts()
+            self.update_buttons()
+            self.Layout()
+            if conflicts:
+                row, col = next(iter(conflicts))
+                position = table.grid_position(row, col)
+                if position is not None:
+                    grid.SetGridCursor(*position)
+                    grid.MakeCellVisible(*position)
+        wx.CallLater(1, batch)
 
     def select_preview(self, book, target=False):
         if book is not None:
@@ -379,7 +476,7 @@ class MergeDialog(wx.Dialog):
     def on_cell_click(self, event):
         grid = event.GetEventObject()
         row, col = event.GetRow(), event.GetCol()
-        if (row+1, col+1) in grid.GetTable().conflicts:
+        if grid.GetTable().cell_position(row, col) in grid.GetTable().conflicts:
             # Consume this event so wx does not activate a second editor itself.
             self.edit_cell(grid, row, col)
         else:
@@ -408,16 +505,11 @@ class MergeDialog(wx.Dialog):
         self.update_buttons()
 
     def show_selected_book(self):
-        index = self.files.GetSelection()
-        if 0 <= index < len(self.matches):
-            self.show_book(self.matches[index][0])
-        else:
-            self.display_book = None
-            self.notebook.DeleteAllPages()
+        self.show_book(self.base, True)
 
     def on_select(self, event):
-        if not self.busy:
-            self.show_selected_book()
+        # Source selection only highlights a list entry; checkboxes select inputs.
+        event.Skip()
 
     def set_all_checks(self, checked):
         for index in range(self.files.GetItemCount()):
@@ -429,7 +521,27 @@ class MergeDialog(wx.Dialog):
     def on_checks(self, event):
         self.compared = False
         self.conflicts = []
-        self.show_selected_book()
+        # Keep the existing pages, scroll positions and loaded formatting.
+        for index in range(self.notebook.GetPageCount()):
+            grid = getattr(self.notebook.GetPage(index), 'grid', None)
+            if grid is None:
+                continue
+            if grid.IsCellEditControlEnabled():
+                grid.DisableCellEditControl()
+            table = grid.GetTable()
+            old_positions = list(table.conflicts)
+            table.conflicts = {}
+            table.labels.clear()
+            table.colors.clear()
+            grid.BeginBatch()
+            try:
+                for position in old_positions:
+                    mapped = table.grid_position(*position)
+                    if mapped is not None:
+                        grid.SetAttr(*mapped, table.build_attr(*mapped))
+            finally:
+                grid.EndBatch()
+            grid.ForceRefresh()
         self.status.SetLabel(tr('merge_recompare'))
         self.update_buttons()
 
@@ -446,7 +558,12 @@ class MergeDialog(wx.Dialog):
         self.saving = True
         def done(result):
             self.saving = False
-            self.EndModal(wx.ID_OK)
+            self.saved_changes = True
+            self.cancel_button.Enable()
+            self.conflicts = []
+            self.compared = False
+            self.show_selected_book()
+            self.status.SetLabel(tr('merge_saved'))
         def save():
             try:
                 engine.save_merge(self.base, self.conflicts)
@@ -476,6 +593,7 @@ class MergeDialog(wx.Dialog):
 
     def dispose(self):
         self.disposed = True
+        self.progress_timer.Stop()
         self.wait_cursor = None
         self.executor.shutdown(wait=False)
         self.Destroy()
@@ -490,7 +608,8 @@ def show_merge_dialog(owner, path):
         return
     dialog = MergeDialog(owner, path)
     try:
-        if dialog.ShowModal() == wx.ID_OK:
+        dialog.ShowModal()
+        if dialog.saved_changes:
             from controls.filelist import _refresh_after_fs_change
             _refresh_after_fs_change(owner, affected_dirs=[os.path.dirname(path)], preferred_preview_path=path)
     finally:

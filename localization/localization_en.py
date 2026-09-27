@@ -247,3 +247,7 @@ TRANSLATIONS.update({'export_unsupported_format': 'Unsupported export file forma
 TRANSLATIONS.update({'export_resolution_auto': 'Determine automatically', 'export_resolution_value': '{dpi} pixels/inch'})
 
 TRANSLATIONS.update({"merge_check_all": 'Check all', "merge_uncheck_all": 'Uncheck all'})
+
+TRANSLATIONS['merge_initializing'] = 'Initializing…'
+
+TRANSLATIONS['merge_saved'] = 'Merged values saved to the original file.'

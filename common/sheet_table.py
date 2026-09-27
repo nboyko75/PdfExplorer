@@ -33,8 +33,12 @@ class SheetTable(gridlib.GridTableBase):
         self.colors = {}
         self.source_colors = source_colors or {}
         self.font_cache = {}
-        self.rows = max([sheet.rows] + [r for r, c in conflicts])
-        self.cols = max([sheet.cols] + [c for r, c in conflicts])
+        self.row_numbers = sorted(engine.populated_rows(sheet))
+        max_col = max([sheet.cols] + [c for r, c in conflicts])
+        self.col_numbers = [c for c in range(1, max_col + 1) if c not in sheet.hidden_cols]
+        self.row_indices = {number: index for index, number in enumerate(self.row_numbers)}
+        self.col_indices = {number: index for index, number in enumerate(self.col_numbers)}
+        self.rows, self.cols = len(self.row_numbers), len(self.col_numbers)
         for pos, conflict in conflicts.items():
             labels = []
             for index, (value, sources) in enumerate(zip(conflict.values, conflict.sources)):
@@ -49,11 +53,22 @@ class SheetTable(gridlib.GridTableBase):
     def GetNumberCols(self):
         return self.cols
 
+    def cell_position(self, row, col):
+        return self.row_numbers[row], self.col_numbers[col]
+
+    def grid_position(self, row, col):
+        if row in self.row_indices and col in self.col_indices:
+            return self.row_indices[row], self.col_indices[col]
+        return None
+
+    def GetRowLabelValue(self, row):
+        return str(self.row_numbers[row])
+
     def GetColLabelValue(self, col):
-        return column_name(col + 1)
+        return column_name(self.col_numbers[col])
 
     def GetValue(self, row, col):
-        pos = row + 1, col + 1
+        pos = self.cell_position(row, col)
         if pos[0] in self.sheet.hidden_rows or pos[1] in self.sheet.hidden_cols:
             return ""
         if self.difference_positions is not None and pos not in self.difference_positions:
@@ -68,13 +83,13 @@ class SheetTable(gridlib.GridTableBase):
         return not bool(self.GetValue(row, col))
 
     def SetValue(self, row, col, value):
-        pos = row + 1, col + 1
+        pos = self.cell_position(row, col)
         if pos in self.conflicts and value in self.labels[pos]:
             self.conflicts[pos].selected = self.labels[pos].index(value)
 
     def build_attr(self, row, col):
         """Transfer each attribute/editor to Grid.SetAttr once, never during painting."""
-        pos = row + 1, col + 1
+        pos = self.cell_position(row, col)
         attr = gridlib.GridCellAttr()
         cell = self.sheet.cells.get(pos, engine.EMPTY)
         value = cell.result if cell.formula else cell.value
@@ -99,6 +114,7 @@ class SheetTable(gridlib.GridTableBase):
             vertical = {-4160: wx.ALIGN_TOP, -4108: wx.ALIGN_CENTER_VERTICAL,
                         -4107: wx.ALIGN_BOTTOM}.get(style['vertical'], vertical)
         attr.SetAlignment(horizontal, vertical)
+        attr.SetOverflow(True)
         if pos in self.conflicts:
             attr.SetReadOnly(False)
             attr.SetRenderer(ChoiceRenderer())
@@ -115,23 +131,21 @@ class ChoiceRenderer(gridlib.GridCellStringRenderer):
 
     def Draw(self, grid, attr, dc, rect, row, col, isSelected):
         table = grid.GetTable()
-        pos = row + 1, col + 1
+        pos = table.cell_position(row, col)
         selected = table.conflicts[pos].selected
         color = table.colors[pos][selected] if selected is not None else (0, 0, 0)
-        dc.SetClippingRegion(rect)
+        # The native string renderer handles overflow across empty cells.
+        # Do not clip it to rect: that also clips text in adjacent empty cells.
+        text_attr = attr.Clone()
+        text_attr.SetTextColour(wx.Colour(*color))
+        text_attr.SetOverflow(True)
         try:
-            dc.SetPen(wx.TRANSPARENT_PEN)
-            dc.SetBrush(wx.Brush(grid.GetSelectionBackground() if isSelected else grid.GetCellBackgroundColour(row, col)))
-            dc.DrawRectangle(rect)
-            dc.SetFont(grid.GetCellFont(row, col))
-            dc.SetTextForeground(wx.Colour(*color))
-            width = min(20, rect.width)
-            text_rect = wx.Rect(rect.x + 3, rect.y, max(0, rect.width - width - 6), rect.height)
-            dc.DrawLabel(table.GetValue(row, col), text_rect, wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL)
-            button = wx.Rect(rect.x + rect.width - width, rect.y, width, rect.height)
-            wx.RendererNative.Get().DrawComboBoxDropButton(grid, dc, button, 0)
+            super().Draw(grid, text_attr, dc, rect, row, col, isSelected)
         finally:
-            dc.DestroyClippingRegion()
+            text_attr.DecRef()
+        width = min(20, rect.width)
+        button = wx.Rect(rect.x + rect.width - width, rect.y, width, rect.height)
+        wx.RendererNative.Get().DrawComboBoxDropButton(grid, dc, button, 0)
 
 
 class ColoredComboBox(adv.OwnerDrawnComboBox):
@@ -185,7 +199,7 @@ class ColoredChoiceEditor(gridlib.GridCellEditor):
 
     def BeginEdit(self, row, col, grid):
         self.grid, self.row, self.col = grid, row, col
-        selected = grid.GetTable().conflicts[row + 1, col + 1].selected
+        selected = grid.GetTable().conflicts[grid.GetTable().cell_position(row, col)].selected
         self.initial = wx.NOT_FOUND if selected is None else selected
         self.combo.SetSelection(self.initial)
         self.combo.SetFocus()
@@ -208,7 +222,7 @@ class ColoredChoiceEditor(gridlib.GridCellEditor):
         return None
 
     def ApplyEdit(self, row, col, grid):
-        grid.GetTable().conflicts[row + 1, col + 1].selected = self.pending
+        grid.GetTable().conflicts[grid.GetTable().cell_position(row, col)].selected = self.pending
         grid.ForceRefresh()
 
     def Reset(self):

@@ -116,7 +116,7 @@ class MergeTests(unittest.TestCase):
         exec(compile(ast.Module(body=definitions, type_ignores=[]), 'sheet_table', 'exec'), scope)
         conflict = m.Conflict('Sheet1', 1, 1, [m.Cell('=1+1', True, '2', 2), m.Cell('=2', True, '2', 2)],
                               [['original.xlsx'], ['source.xlsx']], 0)
-        table = scope['SheetTable'](m.Sheet(), {(1, 1): conflict}, source_colors={'source.xlsx': (1, 2, 3)})
+        table = scope['SheetTable'](m.Sheet({(1, 1): conflict.values[0]}), {(1, 1): conflict}, source_colors={'source.xlsx': (1, 2, 3)})
         self.assertEqual(table.labels[1, 1], ['2', '2'])
         self.assertEqual(table.colors[1, 1], [(0, 0, 0), (1, 2, 3)])
         editor = scope['ColoredChoiceEditor'](table.labels[1, 1], table.colors[1, 1])
@@ -269,11 +269,13 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(len(result[0].values), 3)
 
     def test_blank_is_an_explicit_choice(self):
-        result = m.conflicts_for(book('a', {(1,1):'A'}), [book('b', {})])
+        result = m.conflicts_for(book('a', {(1,1):'A', (1,2):'keep'}),
+                                 [book('b', {(1,2):'keep'})])
         self.assertEqual(result[0].values[1], m.EMPTY)
 
     def test_new_cells_are_included(self):
-        result = m.conflicts_for(book('a', {}), [book('b', {(4,3):'new'})])
+        result = m.conflicts_for(book('a', {(4,1):'keep'}),
+                                 [book('b', {(4,1):'keep', (4,3):'new'})])
         self.assertEqual((result[0].row, result[0].col), (4,3))
         self.assertEqual(result[0].values[0], m.EMPTY)
 
@@ -329,7 +331,7 @@ class MergeTests(unittest.TestCase):
         for fail in (False, True):
             with self.subTest(fail=fail), tempfile.TemporaryDirectory() as d:
                 path=Path(d)/'a.xlsm';path.write_bytes(b'original')
-                base=m.Book(str(path),m.fingerprint(path),{})
+                base=m.Book(str(path),m.fingerprint(path),{'s': m.Sheet({(1,1):m.Cell('old')})})
                 cell=Mock(HasArray=False,MergeCells=False)
                 sheet=Mock(ProtectContents=False)
                 sheet.Cells.return_value=cell
@@ -355,8 +357,11 @@ class MergeTests(unittest.TestCase):
                 if not fail:
                     self.assertEqual(Path(str(path)+'.merge-backup').read_bytes(),b'original')
                     self.assertEqual(cell.Value2,'new')
-                self.assertFalse(list(Path(d).glob('~$*')))
-                document.Close.assert_called_once_with(False)
+                self.assertFalse(list(Path(d).glob('DocExplorer_merge_*')))
+                if not fail:
+                    self.assertEqual(base.digest, m.fingerprint(str(path)))
+                    self.assertEqual(base.sheets['s'].cells[1,1].value, 'new')
+                self.assertEqual(document.Close.call_count, 1 if fail else 2)
 
     def test_search_is_non_recursive_and_excludes_target_and_locks(self):
         with tempfile.TemporaryDirectory() as d:
@@ -370,6 +375,222 @@ class MergeTests(unittest.TestCase):
             with patch.object(m,'excel_app',excel),patch.object(m,'read_book',side_effect=read):
                 base, matches, skipped=m.search_books(str(folder/'base.xlsx'))
             self.assertEqual([Path(b.path).name for b,s in matches],['copy.xlsm'])
+
+    def test_uniform_hidden_rows_use_one_range_read(self):
+        sheet = Mock()
+        sheet.Range.return_value.EntireRow.Hidden = False
+        self.assertEqual(m.axis_values(sheet, 'Rows', 10000, 'Hidden'),
+                         dict.fromkeys(range(1, 10001), False))
+        sheet.Range.assert_called_once()
+        sheet.Rows.assert_not_called()
+
+    def test_mixed_hidden_blocks_split_without_losing_rows(self):
+        from types import SimpleNamespace
+        hidden = {3, 4, 7}
+        class Worksheet:
+            def Cells(self, row, col):
+                return row, col
+            def Rows(self, row):
+                return SimpleNamespace(Hidden=row in hidden)
+            def Range(self, first, last):
+                values = {row in hidden for row in range(first[0], last[0] + 1)}
+                value = values.pop() if len(values) == 1 else None
+                return SimpleNamespace(EntireRow=SimpleNamespace(Hidden=value))
+        result = m.axis_values(Worksheet(), 'Rows', 8, 'Hidden')
+        self.assertEqual({row for row, value in result.items() if value}, hidden)
+
+    def test_search_cache_invalidates_content_and_reports_failed_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base_path = Path(directory) / 'base.xlsx'
+            other_path = Path(directory) / 'other.xlsx'
+            base_path.write_bytes(b'base')
+            other_path.write_bytes(b'other')
+            def read(app, path, **kwargs):
+                result = book(path, {(1, 1): 'same'})
+                result.digest = m.fingerprint(path)
+                return result
+            base = read(None, str(base_path))
+            cache, updates = {}, []
+            @contextmanager
+            def excel():
+                yield object()
+            with patch.object(m, 'excel_app', excel), patch.object(m, 'read_book', side_effect=read) as reader:
+                for _ in range(2):
+                    result = m.search_books(str(base_path), base, cache,
+                                            lambda *args: updates.append(args))
+                self.assertEqual(reader.call_count, 1)
+                self.assertIs(result[0], base)
+                self.assertEqual(updates[-1][:2], (1.0, 1))
+                other_path.write_bytes(b'changed')
+                m.search_books(str(base_path), base, cache)
+                self.assertEqual(reader.call_count, 2)
+                other_path.write_bytes(b'broken')
+                reader.side_effect = RuntimeError('cannot open')
+                result = m.search_books(str(base_path), base, cache,
+                                        lambda *args: updates.append(args))
+                self.assertEqual(len(result[2]), 1)
+                self.assertEqual(updates[-1][:2], (1.0, 1))
+
+    def test_general_text_cells_avoid_individual_excel_calls(self):
+        sheet = Mock(Name='Visible', Visible=-1)
+        used = sheet.UsedRange
+        used.Rows.Count, used.Columns.Count = 1000, 1
+        used.Row = used.Column = 1
+        used.NumberFormat = 'General'
+        used.Formula = used.Value2 = tuple(('text',) for _ in range(1000))
+        sheet.Range.return_value.EntireRow.Hidden = False
+        sheet.Columns.return_value.Hidden = False
+        document = Mock(Worksheets=[sheet])
+        updates = []
+        with patch.object(m, 'fingerprint', return_value='digest'), patch.object(m, 'open_book', return_value=document):
+            result = m.read_book(Mock(), 'test.xlsx', False, lambda *args: updates.append(args))
+        self.assertEqual(len(result.sheets['Visible'].cells), 1000)
+        # Only two endpoint Cells calls to inspect the entire row block.
+        self.assertEqual(sheet.Cells.call_count, 0)
+        self.assertEqual(updates[-1], (1, 1, 'Visible'))
+        document.Close.assert_called_once_with(False)
+
+    def test_empty_rows_do_not_produce_conflicts(self):
+        base = book('base', {(1, 1): 'keep', (3, 1): 'base'})
+        source = book('source', {(1, 1): 'keep', (2, 1): 'source'})
+        self.assertEqual(m.conflicts_for(base, [source]), [])
+        sheet = m.Sheet({(1, 1): m.Cell(None), (2, 1): m.Cell(''),
+                         (3, 1): m.Cell(0), (4, 1): m.Cell(False),
+                         (5, 1): m.Cell('=""', True, '', ''),
+                         (6, 2): m.Cell('hidden column')}, hidden_cols={2})
+        self.assertEqual(m.populated_rows(sheet), {3, 4, 5})
+
+    def test_compact_grid_preserves_excel_addresses_and_edit_targets(self):
+        from types import SimpleNamespace
+        tree = ast.parse((ROOT/'common/sheet_table.py').read_text())
+        definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        scope = {'gridlib': SimpleNamespace(GridTableBase=object, GridCellStringRenderer=object, GridCellEditor=object),
+                 'engine': m, 'tr': lambda key: key, 'adv': SimpleNamespace(OwnerDrawnComboBox=object),
+                 'wx': SimpleNamespace(NOT_FOUND=-1)}
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), 'sheet_table', 'exec'), scope)
+        sheet = m.Sheet({(2, 1): m.Cell('hidden row'), (4, 1): m.Cell('old'),
+                         (4, 3): m.Cell('old C'), (7, 1): m.Cell(0)}, 9, 4,
+                        hidden_rows={2}, hidden_cols={2, 4})
+        conflict = m.Conflict('Sheet1', 4, 3, [m.Cell('old C'), m.Cell('new C')], [['a'], ['b']], 0)
+        table = scope['SheetTable'](sheet, {(4, 3): conflict})
+        self.assertEqual((table.GetNumberRows(), table.GetNumberCols()), (2, 2))
+        self.assertEqual([table.GetRowLabelValue(i) for i in range(2)], ['4', '7'])
+        self.assertEqual([table.GetColLabelValue(i) for i in range(2)], ['A', 'C'])
+        self.assertEqual(table.cell_position(0, 1), (4, 3))
+        self.assertEqual(table.grid_position(4, 3), (0, 1))
+        self.assertIsNone(table.grid_position(2, 1))
+        table.SetValue(0, 1, 'new C')
+        self.assertEqual(conflict.selected, 1)
+        editor = scope['ColoredChoiceEditor'](table.labels[4, 3], table.colors[4, 3])
+        editor.pending = 0
+        grid = Mock()
+        grid.GetTable.return_value = table
+        editor.ApplyEdit(0, 1, grid)
+        self.assertEqual(conflict.selected, 0)
+
+    def test_source_selection_keeps_original_preview(self):
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeDialog')
+        methods = [n for n in cls.body if isinstance(n, ast.FunctionDef)
+                   and n.name in ('show_selected_book', 'on_select')]
+        scope = {}
+        exec(compile(ast.Module(body=methods, type_ignores=[]), 'merge_dialog', 'exec'), scope)
+        dialog, event = Mock(), Mock()
+        scope['show_selected_book'](dialog)
+        dialog.show_book.assert_called_once_with(dialog.base, True)
+        dialog.show_book.reset_mock()
+        scope['on_select'](dialog, event)
+        dialog.show_book.assert_not_called()
+        event.Skip.assert_called_once()
+
+    def test_saved_hidden_axes_reads_grouped_columns(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'sample.xlsx'
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.writestr('xl/workbook.xml', '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Test" r:id="rId1"/></sheets></workbook>')
+                archive.writestr('xl/_rels/workbook.xml.rels', '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>')
+                archive.writestr('xl/worksheets/sheet1.xml', '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="4" max="5" hidden="1"/><col min="9" max="9" hidden="1"/></cols><sheetData><row r="3" hidden="1"/><row r="6" hidden="1"/><row r="10" hidden="1"/></sheetData></worksheet>')
+            self.assertEqual(m.saved_hidden_axes(str(path)), {'Test': ({3,6,10}, {4,5,9})})
+
+    def test_save_completion_keeps_dialog_open(self):
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeDialog')
+        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'on_save')
+        done = next(n for n in method.body if isinstance(n, ast.FunctionDef) and n.name == 'done')
+        dialog = Mock()
+        scope = {'self': dialog, 'tr': lambda key: key}
+        exec(compile(ast.Module(body=[done], type_ignores=[]), 'save_done', 'exec'), scope)
+        scope['done'](None)
+        dialog.EndModal.assert_not_called()
+        self.assertFalse(dialog.saving)
+        self.assertFalse(dialog.compared)
+        self.assertTrue(dialog.saved_changes)
+        dialog.cancel_button.Enable.assert_called_once()
+
+    def test_values_only_does_not_fetch_text_or_styles(self):
+        sheet = Mock(Name='Sheet1', Visible=-1)
+        used = sheet.UsedRange
+        used.Rows.Count, used.Columns.Count = 1, 3
+        used.Row = used.Column = 1
+        used.Formula = used.Value2 = (('00123', 42, 'plain'),)
+        sheet.Rows.return_value.Hidden = False
+        sheet.Columns.return_value.Hidden = False
+        document = Mock(Worksheets=[sheet])
+        with patch.object(m, 'fingerprint', return_value='digest'), patch.object(m, 'open_book', return_value=document), patch.object(m, 'read_sheet_layout') as layout:
+            result = m.read_book(Mock(), 'test.xlsx', values_only=True)
+        layout.assert_not_called()
+        sheet.Cells.assert_not_called()
+        self.assertEqual(result.sheets['Sheet1'].cells[1,1].value, '00123')
+        self.assertIsNone(result.sheets['Sheet1'].cells[1,1].display_text)
+
+    def test_checkbox_change_does_not_rebuild_tabs(self):
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeDialog')
+        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'on_checks')
+        scope = {'tr': lambda key: key}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), 'on_checks', 'exec'), scope)
+        dialog = Mock()
+        dialog.notebook.GetPageCount.return_value = 0
+        scope['on_checks'](dialog, None)
+        dialog.show_selected_book.assert_not_called()
+        dialog.notebook.DeleteAllPages.assert_not_called()
+        self.assertEqual(dialog.conflicts, [])
+        self.assertFalse(dialog.compared)
+
+    def test_save_keeps_numeric_text_as_text(self):
+        class Cell:
+            HasArray = MergeCells = False
+            NumberFormat = 'General'
+            value = None
+            @property
+            def Value2(self):
+                return self.value
+            @Value2.setter
+            def Value2(self, value):
+                self.value = (int(value) if self.NumberFormat != '@' and
+                              isinstance(value, str) and value.isdigit() else value)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'base.xlsx'
+            path.write_bytes(b'original')
+            base = m.Book(str(path), m.fingerprint(path), {'Sheet1': m.Sheet({(1,1): m.Cell('old')})})
+            cell = Cell()
+            sheet = Mock(ProtectContents=False)
+            sheet.Cells.return_value = cell
+            document = Mock(ReadOnly=False)
+            document.Worksheets.return_value = sheet
+            def opened(app, filename, **kwargs):
+                document.Save.side_effect = lambda: Path(filename).write_bytes(b'saved')
+                return document
+            @contextmanager
+            def excel():
+                yield object()
+            conflict = m.Conflict('Sheet1', 1, 1, [m.Cell('old'), m.Cell('00123')], [['a'], ['b']], 1)
+            with patch.object(m, 'excel_app', excel), patch.object(m, 'open_book', opened):
+                m.save_merge(base, [conflict])
+            self.assertEqual(cell.Value2, '00123')
+            self.assertEqual(cell.NumberFormat, 'General')
+            self.assertEqual(path.read_bytes(), b'saved')
 
     def test_all_languages_have_merge_labels(self):
         required=set()
