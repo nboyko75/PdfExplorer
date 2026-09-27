@@ -4,6 +4,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 import gc
 import hashlib
+import locale
 import math
 import os
 import re
@@ -34,6 +35,64 @@ def fingerprint(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def get_system_decimal_separator():
+    try:
+        import ctypes
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        buffer = ctypes.create_unicode_buffer(16)
+        result = kernel32.GetLocaleInfoEx(None, 0x0000000E, buffer, len(buffer))
+        if result != 0:
+            value = buffer.value.strip()
+            if value:
+                return value
+    except Exception:
+        pass
+    try:
+        value = locale.localeconv().get('decimal_point')
+        if value:
+            return str(value)
+    except Exception:
+        pass
+    return '.'
+
+
+def format_system_number(value):
+    if value is None or isinstance(value, bool):
+        return str(value)
+    separator = get_system_decimal_separator()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return value
+        if '.' in text and re.fullmatch(r'[+-]?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?', text):
+            return text.replace('.', separator)
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                return str(value)
+            text = str(value)
+            if '.' in text:
+                return text.replace('.', separator)
+            return text
+        return str(value)
+    return str(value)
+
+
+def coerce_numeric_string(value):
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text or text.startswith('='):
+        return value
+    if re.fullmatch(r'[+-]?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?', text):
+        if re.fullmatch(r'[+-]?0+\d+', text):
+            return value
+        number = float(text)
+        return int(number) if number.is_integer() else number
+    return value
 
 
 @dataclass(frozen=True)
@@ -167,6 +226,7 @@ def excel_app():
         app.EnableEvents = False
         app.AskToUpdateLinks = False
         app.AutomationSecurity = 3  # Never execute workbook macros.
+        app.UseSystemSeparators = True
         yield app
     finally:
         if app is not None:
@@ -476,8 +536,14 @@ def read_book(app, path, load_first_style=True, progress=None, values_only=False
                             excel_cell = sheet.Cells(row, col)
                             formula = isinstance(value, str) and value.startswith('=') and bool(excel_cell.HasFormula)
                             text = str(excel_cell.Text or '')
-                        if text and set(text) == {'#'}:
-                            text = '' if result is None else str(result)
+                        if text and set(text) == {'#'} and isinstance(result, (int, float)):
+                            # Text can be #### when the Excel column is too
+                            # narrow. TEXT preserves its format without resizing
+                            # or changing the source workbook.
+                            try:
+                                text = str(app.WorksheetFunction.Text(result, excel_cell.NumberFormat))
+                            except Exception:
+                                text = '' if result is None else format_system_number(result)
                         cells[row, col] = Cell(value, formula, text, result)
                     excel_cell = None
             model = Sheet(cells, start_row+rows-1, start_col+cols-1,
@@ -529,7 +595,7 @@ def search_books(path, base=None, cache=None, progress=None):
     return base, sorted(matches, key=lambda item: (-item[1], item[0].path.casefold())), skipped
 
 
-def save_merge(base, conflicts):
+def save_merge(base, conflicts, backup_original=True):
     if any(c.selected is None for c in conflicts):
         raise MergeError('merge_unresolved')
     if fingerprint(base.path) != base.digest:
@@ -567,15 +633,22 @@ def save_merge(base, conflicts):
                         cell.Formula = value.value
                     elif isinstance(value.value, str):
                         # Excel otherwise coerces numeric/date-like text and '=' text.
+                        numeric = coerce_numeric_string(value.value)
+                        saved = numeric if numeric is not value.value else value.value
                         old_format = cell.NumberFormat
                         try:
-                            cell.NumberFormat = '@'
-                            cell.Value2 = value.value
+                            if numeric is not value.value:
+                                cell.NumberFormat = 'General'
+                                cell.Value2 = numeric
+                            else:
+                                cell.NumberFormat = '@'
+                                cell.Value2 = value.value
                         finally:
                             cell.NumberFormat = old_format
                     else:
+                        saved = value.value
                         cell.Value2 = value.value
-                    persisted[conflict.sheet, conflict.row, conflict.col] = (cell.Formula if value.formula else value.value)
+                    persisted[conflict.sheet, conflict.row, conflict.col] = (cell.Formula if value.formula else saved)
                 document.Save()
             finally:
                 cell = sheet = None
@@ -605,13 +678,14 @@ def save_merge(base, conflicts):
                 verified = None
         if fingerprint(base.path) != base.digest:
             raise MergeError('merge_changed', path=base.path)
-        # Retain the exact source bytes as a recovery copy.
-        backup = base.path + '.merge-backup'
-        n = 1
-        while os.path.exists(backup):
-            backup = base.path + '.merge-backup.' + str(n)
-            n += 1
-        shutil.copy2(base.path, backup)
+        if backup_original:
+            # Retain the exact source bytes as a recovery copy.
+            backup = base.path + '.merge-backup'
+            n = 1
+            while os.path.exists(backup):
+                backup = base.path + '.merge-backup.' + str(n)
+                n += 1
+            shutil.copy2(base.path, backup)
         os.replace(temporary, base.path)
         # Keep the in-memory original in step with the file for subsequent saves.
         for conflict in changes:

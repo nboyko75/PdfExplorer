@@ -129,6 +129,61 @@ class MergeTests(unittest.TestCase):
         editor.ApplyEdit(0, 0, grid)
         self.assertEqual(conflict.selected, 1)
 
+        # An original value can also be supplied by a colored source file.
+        conflict.sources[0].append('source.xlsx')
+        conflict.values[0] = m.EMPTY
+        table = scope['SheetTable'](m.Sheet({(1, 1): m.Cell('base')}),
+                                    {(1, 1): conflict}, source_colors={'source.xlsx': (1, 2, 3)})
+        self.assertEqual(table.colors[1, 1][0], (1, 2, 3))
+        editor = scope['ColoredChoiceEditor'](table.labels[1, 1], table.colors[1, 1])
+        editor.initial = 1
+        editor.combo = Mock()
+        editor.combo.GetSelection.return_value = 0
+        grid.GetTable.return_value = table
+        self.assertEqual(editor.EndEdit(0, 0, grid, '2'), 'merge_empty')
+        editor.ApplyEdit(0, 0, grid)
+        self.assertEqual(conflict.selected, 0)
+        self.assertEqual(scope['display'](m.Cell('')), 'merge_empty')
+
+    def test_compare_reads_formats_only_from_checked_books(self):
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeDialog')
+        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'on_compare')
+        scope = {'engine': m}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), 'compare', 'exec'), scope)
+        dialog = Mock()
+        dialog.base = book('base.xlsx', {(1, 1): 1})
+        checked = book('checked.xlsx', {(1, 1): 2.5})
+        unchecked = book('unchecked.xlsx', {(1, 1): 99})
+        formatted = book('checked.xlsx', {})
+        formatted.sheets['Sheet1'].cells[1, 1] = m.Cell(2.5, display_text='2,50 €')
+        dialog.matches = [(checked, 1), (unchecked, 1)]
+        dialog.files.GetCheckedItems.return_value = [0]
+        app = Mock()
+        @contextmanager
+        def excel():
+            yield app
+        with patch.object(m, 'excel_app', excel), patch.object(m, 'fingerprint', return_value=''), \
+             patch.object(m, 'read_book', return_value=formatted) as read:
+            scope['on_compare'](dialog, None)
+            conflicts = dialog.run_job.call_args.args[0]()
+        read.assert_called_once_with(app, 'checked.xlsx', load_first_style=False)
+        self.assertEqual(conflicts[0].sources, [['base.xlsx'], ['checked.xlsx']])
+        self.assertEqual(conflicts[0].values[1].display_text, '2,50 €')
+
+    def test_numeric_display_uses_system_decimal_separator(self):
+        from types import SimpleNamespace
+        tree = ast.parse((ROOT/'common/sheet_table.py').read_text())
+        definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        scope = {'gridlib': SimpleNamespace(GridTableBase=object, GridCellStringRenderer=object, GridCellEditor=object),
+                 'engine': m, 'tr': lambda key: key, 'adv': SimpleNamespace(OwnerDrawnComboBox=object),
+                 'wx': SimpleNamespace(NOT_FOUND=-1)}
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), 'sheet_table', 'exec'), scope)
+        with patch.object(m, 'get_system_decimal_separator', return_value=','):
+            self.assertEqual(scope['display'](m.Cell(1250.5)), '1250,5')
+            self.assertEqual(scope['display'](m.Cell('1250.5')), '1250,5')
+            self.assertEqual(scope['display'](m.Cell('text')), 'text')
+
     def test_list_arrows_select_without_checking_and_activation_toggles(self):
         from types import SimpleNamespace
         tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
@@ -592,6 +647,40 @@ class MergeTests(unittest.TestCase):
             self.assertEqual(cell.NumberFormat, 'General')
             self.assertEqual(path.read_bytes(), b'saved')
 
+    def test_save_numeric_string_uses_system_decimal_separator(self):
+        class Cell:
+            HasArray = MergeCells = False
+            NumberFormat = 'General'
+            value = None
+            @property
+            def Value2(self):
+                return self.value
+            @Value2.setter
+            def Value2(self, value):
+                self.value = value
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'base.xlsx'
+            path.write_bytes(b'original')
+            base = m.Book(str(path), m.fingerprint(path), {'Sheet1': m.Sheet({(1,1): m.Cell('old')})})
+            cell = Cell()
+            sheet = Mock(ProtectContents=False)
+            sheet.Cells.return_value = cell
+            document = Mock(ReadOnly=False)
+            document.Worksheets.return_value = sheet
+            def opened(app, filename, **kwargs):
+                document.Save.side_effect = lambda: Path(filename).write_bytes(b'saved')
+                return document
+            @contextmanager
+            def excel():
+                yield object()
+            conflict = m.Conflict('Sheet1', 1, 1, [m.Cell('old'), m.Cell('1250.5')], [['a'], ['b']], 1)
+            with patch.object(m, 'excel_app', excel), patch.object(m, 'open_book', opened), \
+                 patch.object(m, 'get_system_decimal_separator', return_value=','):
+                m.save_merge(base, [conflict])
+            self.assertEqual(cell.Value2, 1250.5)
+            self.assertEqual(cell.NumberFormat, 'General')
+            self.assertEqual(path.read_bytes(), b'saved')
+
     def test_all_languages_have_merge_labels(self):
         required=set()
         for module in ('controls/merge_documents.py','file_operations/excel_merge.py','common/sheet_table.py'):
@@ -600,7 +689,7 @@ class MergeTests(unittest.TestCase):
                 if isinstance(node,ast.Constant) and isinstance(node.value,str) and node.value.startswith('merge_'):
                     required.add(node.value)
         for path in (ROOT/'localization').glob('localization_*.py'):
-            env={};exec(compile(path.read_text(),str(path),'exec'),env)
+            env={};exec(compile(path.read_text(encoding='utf-8'),str(path),'exec'),env)
             self.assertFalse(required-set(env['TRANSLATIONS']), (path.name,required-set(env['TRANSLATIONS'])))
 
 

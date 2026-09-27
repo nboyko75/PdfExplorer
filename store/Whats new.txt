@@ -24,3 +24,5 @@ Unchanged cells remain blank on sheet tabs.
 Dropdown choices are available on comparison sheet tabs.
 Wait cursor appears during searching and comparing.
 Removed Target workbook button and file-path labels.
+
+The fixes now use matching source colors, reload only checked files with Excel formatting, and give empty choices a visible label so index 0 can be selected.

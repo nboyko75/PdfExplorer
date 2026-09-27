@@ -11,7 +11,8 @@ import wx
 import wx.grid as gridlib
 from localization import tr
 from file_operations import excel_merge as engine
-from common.sheet_table import SheetTable
+from common.sheet_table import SheetTable, OverflowRenderer
+from common.window_tools import load_settings, update_settings
 
 
 def error_text(exc):
@@ -33,6 +34,12 @@ class MergeFileList(wx.ListCtrl):
         self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key)
         self.Bind(wx.EVT_SIZE, self.on_size)
+        self.Bind(wx.EVT_LIST_ITEM_CHECKED, self.on_check)
+        self.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self.on_check)
+
+    def on_check(self, event):
+        self.changed(event)
+        event.Skip()
 
     def on_size(self, event):
         self.SetColumnWidth(0, max(80, self.GetClientSize().width - 8))
@@ -147,6 +154,10 @@ class MergeDialog(wx.Dialog):
         self.progress_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_progress_timer, self.progress_timer)
         bar = wx.BoxSizer(wx.HORIZONTAL)
+        self.backup_checkbox = wx.CheckBox(self, label=tr('merge_backup_original_file'))
+        self.backup_checkbox.SetValue(bool(load_settings().get('merge_backup_original_file', True)))
+        self.backup_checkbox.Bind(wx.EVT_CHECKBOX, self.on_backup_checkbox)
+        bar.Add(self.backup_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
         bar.AddStretchSpacer()
         self.search_button = wx.Button(self, label=tr('merge_search'))
         self.compare_button = wx.Button(self, label=tr('merge_compare'))
@@ -167,6 +178,9 @@ class MergeDialog(wx.Dialog):
         self.update_buttons()
         self.CentreOnParent()
         wx.CallAfter(self.run_job, self.load_initial, self.loaded, tr('merge_initializing'))
+
+    def on_backup_checkbox(self, event):
+        update_settings({'merge_backup_original_file': bool(self.backup_checkbox.GetValue())})
 
     def show_instructions(self, event):
         popup = wx.PopupTransientWindow(self, wx.BORDER_SIMPLE)
@@ -301,7 +315,12 @@ class MergeDialog(wx.Dialog):
             for book in [self.base] + books:
                 if engine.fingerprint(book.path) != book.digest:
                     raise engine.MergeError('merge_changed', path=book.path)
-            return engine.conflicts_for(self.base, books)
+            # Search caches contain raw values only. Read checked inputs with
+            # Excel display text before offering their values in the review.
+            with engine.excel_app() as app:
+                formatted_books = [engine.read_book(app, book.path, load_first_style=False)
+                                   for book in books]
+            return engine.conflicts_for(self.base, formatted_books)
         def done(conflicts):
             self.conflicts = conflicts
             self.compared = True
@@ -381,6 +400,7 @@ class MergeDialog(wx.Dialog):
         grid.SetDefaultCellBackgroundColour(wx.Colour(255, 255, 255))
         grid.SetDefaultCellTextColour(wx.Colour(32, 32, 32))
         grid.SetDefaultCellOverflow(True)
+        grid.SetDefaultRenderer(OverflowRenderer())
         grid.SetDefaultCellAlignment(wx.ALIGN_LEFT, wx.ALIGN_CENTER_VERTICAL)
         grid.SetLabelBackgroundColour(wx.Colour(242, 242, 242))
         grid.SetLabelTextColour(wx.Colour(80, 80, 80))
@@ -566,7 +586,7 @@ class MergeDialog(wx.Dialog):
             self.status.SetLabel(tr('merge_saved'))
         def save():
             try:
-                engine.save_merge(self.base, self.conflicts)
+                engine.save_merge(self.base, self.conflicts, backup_original=self.backup_checkbox.GetValue())
             except Exception:
                 wx.CallAfter(self.save_failed)
                 raise

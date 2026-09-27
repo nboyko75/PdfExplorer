@@ -15,13 +15,13 @@ def column_name(index):
 
 
 def display(cell):
-    if cell.value is None:
+    if cell.value is None or cell.value == '':
         return tr('merge_empty')
     if cell.display_text is not None:
         return cell.display_text
     if cell.formula:
-        return '' if cell.result is None else str(cell.result)
-    return str(cell.value)
+        return '' if cell.result is None else engine.format_system_number(cell.result)
+    return engine.format_system_number(cell.value)
 
 
 class SheetTable(gridlib.GridTableBase):
@@ -44,8 +44,9 @@ class SheetTable(gridlib.GridTableBase):
             for index, (value, sources) in enumerate(zip(conflict.values, conflict.sources)):
                 labels.append(display(value))
             self.labels[pos] = labels
-            self.colors[pos] = [(0, 0, 0) if i == 0 else self.source_colors.get(sources[0], (0, 0, 0))
-                                for i, sources in enumerate(conflict.sources)]
+            self.colors[pos] = [next((self.source_colors[source] for source in sources
+                                      if source in self.source_colors), (0, 0, 0))
+                                for sources in conflict.sources]
 
     def GetNumberRows(self):
         return self.rows
@@ -77,7 +78,7 @@ class SheetTable(gridlib.GridTableBase):
         if conflict:
             return self.labels[pos][conflict.selected] if conflict.selected is not None else tr('merge_choose')
         cell = self.sheet.cells.get(pos, engine.EMPTY)
-        return '' if cell.value is None else display(cell)
+        return '' if cell.value is None or cell.value == '' else display(cell)
 
     def IsEmptyCell(self, row, col):
         return not bool(self.GetValue(row, col))
@@ -121,7 +122,53 @@ class SheetTable(gridlib.GridTableBase):
             attr.SetEditor(ColoredChoiceEditor(self.labels[pos], self.colors[pos]))
         else:
             attr.SetReadOnly(True)
+            attr.SetRenderer(OverflowRenderer())
         return attr
+
+
+class OverflowRenderer(gridlib.GridCellStringRenderer):
+    """Paint spill text in each empty cell so its background cannot erase it."""
+    def Clone(self):
+        return OverflowRenderer()
+
+    def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+        super().Draw(grid, attr, dc, rect, row, col, isSelected)
+        table = grid.GetTable()
+        if not table.IsEmptyCell(row, col):
+            return
+        origin = col - 1
+        while origin >= 0 and table.IsEmptyCell(row, origin):
+            origin -= 1
+        if origin < 0:
+            return
+        source_attr = grid.GetOrCreateCellAttr(row, origin)
+        try:
+            horizontal, vertical = source_attr.GetAlignment()
+            if not source_attr.GetOverflow() or horizontal != wx.ALIGN_LEFT:
+                return
+            source_rect = wx.Rect(rect)
+            offset = sum(grid.GetColSize(c) for c in range(origin, col))
+            source_rect.x -= offset
+            source_rect.width = grid.GetColSize(origin)
+            dc.SetFont(source_attr.GetFont())
+            color = source_attr.GetTextColour()
+            pos = table.cell_position(row, origin)
+            conflict = table.conflicts.get(pos)
+            if conflict and conflict.selected is not None:
+                color = wx.Colour(*table.colors[pos][conflict.selected])
+            dc.SetTextForeground(color)
+            text = table.GetValue(row, origin)
+            _, height = dc.GetTextExtent(text)
+            y = source_rect.y + max(0, (source_rect.height - height) // 2)
+            if vertical == wx.ALIGN_TOP:
+                y = source_rect.y + 1
+            elif vertical == wx.ALIGN_BOTTOM:
+                y = source_rect.bottom - height
+            clip = wx.DCClipper(dc, rect)
+            dc.DrawText(text, source_rect.x + 1, y)
+            del clip
+        finally:
+            source_attr.DecRef()
 
 
 class ChoiceRenderer(gridlib.GridCellStringRenderer):
