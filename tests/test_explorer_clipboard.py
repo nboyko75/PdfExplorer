@@ -96,6 +96,40 @@ class ExplorerClipboardTests(unittest.TestCase):
                 if mode == 'cut':
                     self.assertIn(str(source), refresh.call_args.kwargs['affected_dirs'])
 
+    def test_copy_paste_in_same_folder_creates_numbered_copies(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            source = root / 'report.xlsx'
+            source.write_bytes(b'original workbook')
+            existing = root / 'report - Copy.xlsx'
+            existing.write_bytes(b'existing copy')
+            confirm, refresh = mock.Mock(), mock.Mock()
+            with mock.patch.object(self.module, '_read_native_clipboard', return_value=([str(source)], 'copy')):
+                for _ in range(2):
+                    self.module.paste_into_path(self.owner, str(root), refresh_callback=refresh,
+                                                update_toolbar_callback=mock.Mock(),
+                                                confirm_overwrite_callback=confirm)
+            self.assertEqual(source.read_bytes(), b'original workbook')
+            self.assertEqual(existing.read_bytes(), b'existing copy')
+            for number in (2, 3):
+                self.assertEqual((root / f'report - Copy ({number}).xlsx').read_bytes(), b'original workbook')
+            confirm.assert_not_called()
+            self.assertEqual(refresh.call_count, 2)
+
+    def test_cut_paste_in_same_folder_leaves_file_in_place(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            source = root / 'report.txt'
+            source.write_text('original')
+            confirm = mock.Mock()
+            with mock.patch.object(self.module, '_read_native_clipboard', return_value=([str(source)], 'cut')):
+                self.module.paste_into_path(self.owner, str(root), refresh_callback=mock.Mock(),
+                                            update_toolbar_callback=mock.Mock(),
+                                            confirm_overwrite_callback=confirm)
+            self.assertEqual(list(root.iterdir()), [source])
+            self.assertEqual(source.read_text(), 'original')
+            confirm.assert_not_called()
+
     def test_external_copy_same_paths_replaces_cut_from_other_tab(self):
         host = types.SimpleNamespace()
         first = types.SimpleNamespace(host=host)

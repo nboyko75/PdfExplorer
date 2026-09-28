@@ -13,6 +13,8 @@ A form for searching, previewing, and renaming using regular expressions has bee
 
 Added export pdf to image format.
 
+Added new operation "Merge similar files" that supports excel files merge for a while
+
 Moved SheetTable to common/sheet_table.py.
 Added a top-right info icon with an instructions popup.
 Comparison respects saved Excel AutoFilters.
@@ -25,4 +27,10 @@ Dropdown choices are available on comparison sheet tabs.
 Wait cursor appears during searching and comparing.
 Removed Target workbook button and file-path labels.
 
-The fixes now use matching source colors, reload only checked files with Excel formatting, and give empty choices a visible label so index 0 can be selected.
+Implemented fixes for all six issues:
+- Corrected source colors, including selected cells.
+- Updated overflow rendering across empty neighboring cells.
+- Fixed checkbox timing and stale comparison choices.
+- Applied Excel’s original number formats.
+- Made the first blank merge option selectable.
+- Removed “Empty” labels.

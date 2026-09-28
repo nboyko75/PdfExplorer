@@ -1210,6 +1210,7 @@ class ExplorerWorkspace(wx.Panel):
         self.updating_tree = True
         self.Freeze()
         try:
+            tree_control.refresh_expanded_tree_nodes(self)
             filelist.refresh_current_list_folder(self)
             rows = {path: row for row, path in self._list_item_paths.items()}
             for path in selected:

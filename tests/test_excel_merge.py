@@ -18,6 +18,102 @@ def book(path, values, name='Sheet1'):
 
 
 class MergeTests(unittest.TestCase):
+    def test_source_identity_distinguishes_workbooks_with_the_same_filename(self):
+        from types import SimpleNamespace
+        tree = ast.parse((ROOT/'common/sheet_table.py').read_text())
+        definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        scope = {'gridlib': SimpleNamespace(GridTableBase=object, GridCellStringRenderer=object, GridCellEditor=object),
+                 'engine': m, 'tr': lambda key: key, 'adv': SimpleNamespace(OwnerDrawnComboBox=object)}
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), 'sheet_table', 'exec'), scope)
+        base = book('original/same.xlsx', {(1, 1): 'base'})
+        left = book('left/same.xlsx', {(1, 1): 'left'})
+        right = book('right/same.xlsx', {(1, 1): 'right'})
+        conflict = m.conflicts_for(base, [left, right])[0]
+        table = scope['SheetTable'](base.sheets['Sheet1'], {(1, 1): conflict}, min_columns=4,
+                                    source_colors={left.path: (1, 2, 3), right.path: (4, 5, 6)})
+        self.assertEqual(table.colors[1, 1], [(0, 0, 0), (1, 2, 3), (4, 5, 6)])
+        self.assertEqual(table.GetNumberCols(), 4)
+        self.assertTrue(table.IsEmptyCell(0, 3))
+
+    def test_click_toggles_displayed_row_once_and_not_previous_selection(self):
+        from types import SimpleNamespace
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeFileList')
+        methods = [n for n in cls.body if isinstance(n, ast.FunctionDef)
+                   and n.name in ('row_at', 'on_mouse', 'on_mouse_up')]
+        scope = {'wx': SimpleNamespace(NOT_FOUND=-1)}
+        exec(compile(ast.Module(body=methods, type_ignores=[]), 'file_list', 'exec'), scope)
+        control = Mock()
+        control.GetTopItem.return_value = 10
+        control.GetCountPerPage.return_value = 3
+        control.GetItemCount.return_value = 20
+        control.GetItemRect.side_effect = lambda index: SimpleNamespace(y=(index - 10) * 20, height=20)
+        control.row_at.side_effect = lambda point: scope['row_at'](control, point)
+        control.IsItemChecked.return_value = True
+        event = Mock()
+        event.GetPosition.return_value = SimpleNamespace(x=90, y=30)
+        scope['on_mouse'](control, event)
+        control.Select.assert_called_once_with(11)
+        control.CheckItem.assert_not_called()
+        scope['on_mouse_up'](control, event)
+        control.CheckItem.assert_called_once_with(11, False)
+        control.changed.assert_called_once_with(None)
+        self.assertEqual(control.pressed_row, -1)
+
+    def test_numeric_display_uses_excel_format_even_when_column_rounds(self):
+        sheet = Mock(Name='Sheet1', Visible=-1)
+        used = sheet.UsedRange
+        used.Rows.Count = used.Columns.Count = used.Row = used.Column = 1
+        used.Formula = used.Value2 = 1234.567
+        sheet.Rows.return_value.Hidden = sheet.Columns.return_value.Hidden = False
+        sheet.Cells.return_value.Text = '1235'
+        sheet.Cells.return_value.NumberFormat = '#,##0.00'
+        document = Mock(Worksheets=[sheet])
+        app = Mock()
+        app.WorksheetFunction.Text.return_value = '1,234.57'
+        with patch.object(m, 'fingerprint', return_value='digest'), \
+             patch.object(m, 'open_book', return_value=document):
+            result = m.read_book(app, 'test.xlsx', load_first_style=False)
+        cell = result.sheets['Sheet1'].cells[1, 1]
+        self.assertEqual(cell.value, 1234.567)
+        self.assertEqual(cell.display_text, '1,234.57')
+        app.WorksheetFunction.Text.assert_called_once_with(1234.567, '#,##0.00')
+
+    def test_checkbox_notification_is_deferred_until_native_state_changes(self):
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeFileList')
+        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'on_check')
+        wx = Mock()
+        scope = {'wx': wx}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), 'check', 'exec'), scope)
+        control, event = Mock(), Mock()
+        scope['on_check'](control, event)
+        control.changed.assert_not_called()
+        wx.CallAfter.assert_called_once_with(control.changed, None)
+        event.Skip.assert_called_once()
+
+    def test_unchecking_clears_choices_and_editors_from_existing_tabs(self):
+        tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeDialog')
+        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'on_checks')
+        scope = {'tr': lambda key: key}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), 'checks', 'exec'), scope)
+        dialog, grid, table = Mock(), Mock(), Mock()
+        dialog.notebook.GetPageCount.return_value = 1
+        dialog.notebook.GetPage.return_value.grid = grid
+        grid.GetTable.return_value = table
+        table.conflicts = {(1, 2): object()}
+        table.labels = {(1, 2): ['old', 'unchecked']}
+        table.colors = {(1, 2): [(0, 0, 0), (1, 2, 3)]}
+        table.grid_position.return_value = (0, 1)
+        scope['on_checks'](dialog, None)
+        self.assertEqual(table.conflicts, {})
+        self.assertEqual(table.labels, {})
+        self.assertEqual(table.colors, {})
+        grid.DisableCellEditControl.assert_called_once()
+        grid.SetAttr.assert_called_once_with(0, 1, table.build_attr.return_value)
+        grid.ForceRefresh.assert_called_once()
+
     def test_hidden_columns_excluded_from_comparison_and_similarity(self):
         base = book('base', {(1, 1): 'same', (1, 2): 'old'})
         other = book('other', {(1, 1): 'same', (1, 2): 'new'})
@@ -125,25 +221,62 @@ class MergeTests(unittest.TestCase):
         editor.combo.GetSelection.return_value = 1
         grid = Mock()
         grid.GetTable.return_value = table
-        self.assertEqual(editor.EndEdit(0, 0, grid, '2'), '2')
+        self.assertEqual(editor.EndEdit(0, 0, grid, '2'), '1')
         editor.ApplyEdit(0, 0, grid)
         self.assertEqual(conflict.selected, 1)
 
-        # An original value can also be supplied by a colored source file.
+        # A duplicate source must not recolor the original workbook's value.
         conflict.sources[0].append('source.xlsx')
         conflict.values[0] = m.EMPTY
         table = scope['SheetTable'](m.Sheet({(1, 1): m.Cell('base')}),
                                     {(1, 1): conflict}, source_colors={'source.xlsx': (1, 2, 3)})
-        self.assertEqual(table.colors[1, 1][0], (1, 2, 3))
+        self.assertEqual(table.colors[1, 1][0], (0, 0, 0))
         editor = scope['ColoredChoiceEditor'](table.labels[1, 1], table.colors[1, 1])
         editor.initial = 1
         editor.combo = Mock()
         editor.combo.GetSelection.return_value = 0
         grid.GetTable.return_value = table
-        self.assertEqual(editor.EndEdit(0, 0, grid, '2'), 'merge_empty')
+        self.assertEqual(editor.EndEdit(0, 0, grid, '2'), '0')
         editor.ApplyEdit(0, 0, grid)
         self.assertEqual(conflict.selected, 0)
-        self.assertEqual(scope['display'](m.Cell('')), 'merge_empty')
+        self.assertEqual(scope['display'](m.Cell('')), '')
+
+    def test_shared_value_has_a_named_colored_choice_per_checked_source(self):
+        from types import SimpleNamespace
+        tree = ast.parse((ROOT/'common/sheet_table.py').read_text())
+        definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        scope = {'gridlib': SimpleNamespace(GridTableBase=object, GridCellStringRenderer=object, GridCellEditor=object),
+                 'engine': m, 'tr': lambda key: key, 'os': os,
+                 'adv': SimpleNamespace(OwnerDrawnComboBox=object, ODCB_PAINTING_CONTROL=1),
+                 'wx': SimpleNamespace(NOT_FOUND=-1)}
+        exec(compile(ast.Module(body=definitions, type_ignores=[]), 'sheet_table', 'exec'), scope)
+        base = book('base.xlsx', {(1, 1): 'base'})
+        sources = [book(f'source{i}.xlsx', {(1, 1): 11}) for i in range(6)]
+        checked = [sources[i] for i in (2, 3, 4)]
+        conflict = m.conflicts_for(base, checked)[0]
+        colors = {m.source_key(b.path): (i * 20, 100, 200) for i, b in enumerate(checked)}
+        table = scope['SheetTable'](base.sheets['Sheet1'], {(1, 1): conflict}, source_colors=colors)
+        self.assertEqual(table.labels[1, 1], ['base', '11', '11', '11'])
+        self.assertEqual(table.choice_sources[1, 1], [m.source_key(b.path) for b in [base] + checked])
+        self.assertEqual(table.colors[1, 1], [(0, 0, 0)] + list(colors.values()))
+        self.assertEqual(table.selected_color((1, 1)), (0, 0, 0))
+        editor = scope['ColoredChoiceEditor'](table.labels[1, 1], table.colors[1, 1], table.choice_sources[1, 1])
+        editor.initial = 1
+        editor.combo = Mock()
+        editor.combo.GetSelection.return_value = 3
+        grid = Mock()
+        grid.GetTable.return_value = table
+        self.assertEqual(editor.EndEdit(0, 0, grid, '11'), '3')
+        editor.ApplyEdit(0, 0, grid)
+        self.assertEqual(conflict.selected, 1)  # Same merge value, a different source.
+        self.assertEqual(conflict.selected_source, m.source_key(checked[2].path))
+        rebuilt = scope['SheetTable'](table.sheet, table.conflicts, source_colors=colors)
+        self.assertEqual(rebuilt.selected_color((1, 1)), colors[conflict.selected_source])
+        combo = Mock()
+        combo.GetString.return_value = '11'
+        combo.item_sources = table.choice_sources[1, 1]
+        self.assertEqual(scope['ColoredComboBox'].item_text(combo, 3), '11  [source4.xlsx]')
+        self.assertEqual(scope['ColoredComboBox'].item_text(combo, 3, 1), '11')
 
     def test_compare_reads_formats_only_from_checked_books(self):
         tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
@@ -159,6 +292,8 @@ class MergeTests(unittest.TestCase):
         formatted.sheets['Sheet1'].cells[1, 1] = m.Cell(2.5, display_text='2,50 €')
         dialog.matches = [(checked, 1), (unchecked, 1)]
         dialog.files.GetCheckedItems.return_value = [0]
+        color = dialog.files.GetItemTextColour.return_value
+        color.Red.return_value, color.Green.return_value, color.Blue.return_value = 12, 34, 56
         app = Mock()
         @contextmanager
         def excel():
@@ -168,8 +303,14 @@ class MergeTests(unittest.TestCase):
             scope['on_compare'](dialog, None)
             conflicts = dialog.run_job.call_args.args[0]()
         read.assert_called_once_with(app, 'checked.xlsx', load_first_style=False)
-        self.assertEqual(conflicts[0].sources, [['base.xlsx'], ['checked.xlsx']])
+        self.assertEqual(conflicts[0].sources, [[m.source_key('base.xlsx')], [m.source_key('checked.xlsx')]])
         self.assertEqual(conflicts[0].values[1].display_text, '2,50 €')
+        self.assertEqual(dialog.source_colors, {m.source_key('base.xlsx'): (0, 0, 0),
+                                                m.source_key('checked.xlsx'): (12, 34, 56)})
+        dialog.files.GetCheckedItems.return_value = []
+        dialog.run_job.call_args.args[1](conflicts)
+        dialog.show_selected_book.assert_not_called()
+        self.assertEqual(dialog.on_checks.call_count, 2)
 
     def test_numeric_display_uses_system_decimal_separator(self):
         from types import SimpleNamespace
@@ -315,7 +456,8 @@ class MergeTests(unittest.TestCase):
                                  [book('b.xlsx', {(1,1):'new'}), book('c.xlsx', {(1,1):'new'})])
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].selected, 1)
-        self.assertEqual(result[0].sources, [['base.xlsx'], ['b.xlsx','c.xlsx']])
+        self.assertEqual(result[0].sources, [[m.source_key('base.xlsx')],
+                                            [m.source_key('b.xlsx'), m.source_key('c.xlsx')]])
 
     def test_multiple_alternatives_require_choice(self):
         result = m.conflicts_for(book('a', {(1,1):'A'}),

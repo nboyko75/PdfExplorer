@@ -1,4 +1,5 @@
 """Excel cell table used by workbook review grids."""
+import os
 import wx
 import wx.adv as adv
 import wx.grid as gridlib
@@ -16,7 +17,7 @@ def column_name(index):
 
 def display(cell):
     if cell.value is None or cell.value == '':
-        return tr('merge_empty')
+        return ''
     if cell.display_text is not None:
         return cell.display_text
     if cell.formula:
@@ -25,28 +26,55 @@ def display(cell):
 
 
 class SheetTable(gridlib.GridTableBase):
-    def __init__(self, sheet, conflicts, difference_positions=None, source_colors=None):
+    def __init__(self, sheet, conflicts, difference_positions=None, source_colors=None, min_columns=0):
         super().__init__()
         self.sheet, self.conflicts = sheet, conflicts
         self.difference_positions = difference_positions
         self.labels = {}
         self.colors = {}
-        self.source_colors = source_colors or {}
+        self.value_indices = {}
+        self.choice_sources = {}
+        self.source_colors = {engine.source_key(source): color
+                              for source, color in (source_colors or {}).items()}
         self.font_cache = {}
         self.row_numbers = sorted(engine.populated_rows(sheet))
-        max_col = max([sheet.cols] + [c for r, c in conflicts])
+        max_col = max([sheet.cols, min_columns] + [c for r, c in conflicts])
         self.col_numbers = [c for c in range(1, max_col + 1) if c not in sheet.hidden_cols]
         self.row_indices = {number: index for index, number in enumerate(self.row_numbers)}
         self.col_indices = {number: index for index, number in enumerate(self.col_numbers)}
         self.rows, self.cols = len(self.row_numbers), len(self.col_numbers)
         for pos, conflict in conflicts.items():
-            labels = []
-            for index, (value, sources) in enumerate(zip(conflict.values, conflict.sources)):
-                labels.append(display(value))
-            self.labels[pos] = labels
-            self.colors[pos] = [next((self.source_colors[source] for source in sources
-                                      if source in self.source_colors), (0, 0, 0))
-                                for sources in conflict.sources]
+            # Comparison groups equal values, but the editor must retain every
+            # contributing workbook's identity and color, even for duplicates.
+            choices = [(index, engine.source_key(source))
+                       for index, sources in enumerate(conflict.sources)
+                       for source in sources]
+            self.value_indices[pos] = [index for index, source in choices]
+            self.choice_sources[pos] = [source for index, source in choices]
+            self.labels[pos] = [display(conflict.values[index]) for index, source in choices]
+            self.colors[pos] = [self.source_colors.get(source, (0, 0, 0)) for index, source in choices]
+
+    def selected_choice(self, pos):
+        conflict = self.conflicts[pos]
+        matches = [i for i, value_index in enumerate(self.value_indices[pos])
+                   if value_index == conflict.selected]
+        return next((i for i in matches if self.choice_sources[pos][i] == conflict.selected_source),
+                    matches[0] if matches else None)
+
+    def select_choice(self, pos, index):
+        conflict = self.conflicts[pos]
+        conflict.selected = self.value_indices[pos][index]
+        conflict.selected_source = self.choice_sources[pos][index]
+
+    def selected_color(self, pos):
+        conflict = self.conflicts[pos]
+        selected = self.selected_choice(pos)
+        if selected is None:
+            return (0, 0, 0)
+        if conflict.selected_source is None and self.value_indices[pos].count(conflict.selected) > 1:
+            # An automatic choice shared by several files has no single source.
+            return (0, 0, 0)
+        return self.colors[pos][selected]
 
     def GetNumberRows(self):
         return self.rows
@@ -76,7 +104,7 @@ class SheetTable(gridlib.GridTableBase):
             return ""
         conflict = self.conflicts.get(pos)
         if conflict:
-            return self.labels[pos][conflict.selected] if conflict.selected is not None else tr('merge_choose')
+            return display(conflict.values[conflict.selected]) if conflict.selected is not None else tr('merge_choose')
         cell = self.sheet.cells.get(pos, engine.EMPTY)
         return '' if cell.value is None or cell.value == '' else display(cell)
 
@@ -86,7 +114,7 @@ class SheetTable(gridlib.GridTableBase):
     def SetValue(self, row, col, value):
         pos = self.cell_position(row, col)
         if pos in self.conflicts and value in self.labels[pos]:
-            self.conflicts[pos].selected = self.labels[pos].index(value)
+            self.select_choice(pos, self.labels[pos].index(value))
 
     def build_attr(self, row, col):
         """Transfer each attribute/editor to Grid.SetAttr once, never during painting."""
@@ -112,14 +140,14 @@ class SheetTable(gridlib.GridTableBase):
             attr.SetBackgroundColour(wx.Colour(*style['background']))
             horizontal = {-4131: wx.ALIGN_LEFT, -4152: wx.ALIGN_RIGHT,
                           -4108: wx.ALIGN_CENTER, 7: wx.ALIGN_CENTER}.get(style['horizontal'], horizontal)
-            vertical = {-4160: wx.ALIGN_TOP, -4108: wx.ALIGN_CENTER_VERTICAL,
+            vertical = {-4160: wx.ALIGN_TOP, -4108: wx.ALIGN_CENTER,
                         -4107: wx.ALIGN_BOTTOM}.get(style['vertical'], vertical)
         attr.SetAlignment(horizontal, vertical)
         attr.SetOverflow(True)
         if pos in self.conflicts:
             attr.SetReadOnly(False)
             attr.SetRenderer(ChoiceRenderer())
-            attr.SetEditor(ColoredChoiceEditor(self.labels[pos], self.colors[pos]))
+            attr.SetEditor(ColoredChoiceEditor(self.labels[pos], self.colors[pos], self.choice_sources[pos]))
         else:
             attr.SetReadOnly(True)
             attr.SetRenderer(OverflowRenderer())
@@ -132,46 +160,74 @@ class OverflowRenderer(gridlib.GridCellStringRenderer):
         return OverflowRenderer()
 
     def Draw(self, grid, attr, dc, rect, row, col, isSelected):
-        super().Draw(grid, attr, dc, rect, row, col, isSelected)
+        # Native overflow repaints neighboring backgrounds, erasing spill text
+        # already drawn there. Each renderer paints only its own cell instead.
+        local_attr = attr.Clone()
+        local_attr.SetOverflow(False)
+        try:
+            super().Draw(grid, local_attr, dc, rect, row, col, isSelected)
+        finally:
+            local_attr.DecRef()
         table = grid.GetTable()
         if not table.IsEmptyCell(row, col):
             return
-        origin = col - 1
-        while origin >= 0 and table.IsEmptyCell(row, origin):
-            origin -= 1
-        if origin < 0:
-            return
+        for step in (-1, 1):
+            origin = col + step
+            while 0 <= origin < table.GetNumberCols() and table.IsEmptyCell(row, origin):
+                origin += step
+            if 0 <= origin < table.GetNumberCols():
+                self.draw_spill(grid, dc, rect, row, col, origin)
+
+    def draw_spill(self, grid, dc, rect, row, col, origin):
+        table = grid.GetTable()
         source_attr = grid.GetOrCreateCellAttr(row, origin)
         try:
             horizontal, vertical = source_attr.GetAlignment()
-            if not source_attr.GetOverflow() or horizontal != wx.ALIGN_LEFT:
+            if not source_attr.GetOverflow():
                 return
             source_rect = wx.Rect(rect)
-            offset = sum(grid.GetColSize(c) for c in range(origin, col))
+            offset = (sum(grid.GetColSize(c) for c in range(origin, col)) if origin < col
+                      else -sum(grid.GetColSize(c) for c in range(col, origin)))
             source_rect.x -= offset
             source_rect.width = grid.GetColSize(origin)
-            dc.SetFont(source_attr.GetFont())
-            color = source_attr.GetTextColour()
+            # Match GridCellStringRenderer's inset before laying out text.
+            # Its text margins are applied inside this one-pixel inset.
+            source_rect.Deflate(1)
+            dc.SetFont(grid.GetCellFont(row, origin))
+            color = grid.GetCellTextColour(row, origin)
             pos = table.cell_position(row, origin)
             conflict = table.conflicts.get(pos)
+            cell = (conflict.values[conflict.selected] if conflict and conflict.selected is not None
+                    else table.sheet.cells.get(pos, engine.EMPTY))
+            value = cell.result if cell.formula else cell.value
+            if not isinstance(value, str):
+                return  # Excel does not spill numbers into neighboring cells.
             if conflict and conflict.selected is not None:
-                color = wx.Colour(*table.colors[pos][conflict.selected])
+                color = wx.Colour(*table.selected_color(pos))
             dc.SetTextForeground(color)
             text = table.GetValue(row, origin)
-            _, height = dc.GetTextExtent(text)
-            y = source_rect.y + max(0, (source_rect.height - height) // 2)
-            if vertical == wx.ALIGN_TOP:
-                y = source_rect.y + 1
+            width, height = dc.GetTextExtent(text)
+            x = source_rect.x + 1
+            if horizontal == wx.ALIGN_RIGHT:
+                x = source_rect.x + source_rect.width - width - 1
+            elif horizontal == wx.ALIGN_CENTER:
+                x = source_rect.x + (source_rect.width - width) // 2
+            if x >= rect.x + rect.width or x + width <= rect.x:
+                return
+            y = source_rect.y + 1
+            if vertical == wx.ALIGN_CENTER:
+                y = source_rect.y + (source_rect.height - height) // 2
             elif vertical == wx.ALIGN_BOTTOM:
                 y = source_rect.bottom - height
             clip = wx.DCClipper(dc, rect)
-            dc.DrawText(text, source_rect.x + 1, y)
+            dc.SetBackgroundMode(wx.TRANSPARENT)
+            dc.DrawText(text, x, y)
             del clip
         finally:
             source_attr.DecRef()
 
 
-class ChoiceRenderer(gridlib.GridCellStringRenderer):
+class ChoiceRenderer(OverflowRenderer):
     """Keep a drop-down affordance visible when the cell is not being edited."""
     def Clone(self):
         return ChoiceRenderer()
@@ -179,15 +235,16 @@ class ChoiceRenderer(gridlib.GridCellStringRenderer):
     def Draw(self, grid, attr, dc, rect, row, col, isSelected):
         table = grid.GetTable()
         pos = table.cell_position(row, col)
-        selected = table.conflicts[pos].selected
-        color = table.colors[pos][selected] if selected is not None else (0, 0, 0)
-        # The native string renderer handles overflow across empty cells.
-        # Do not clip it to rect: that also clips text in adjacent empty cells.
+        color = table.selected_color(pos)
         text_attr = attr.Clone()
         text_attr.SetTextColour(wx.Colour(*color))
         text_attr.SetOverflow(True)
+        if isSelected:
+            text_attr.SetBackgroundColour(grid.GetSelectionBackground())
         try:
-            super().Draw(grid, text_attr, dc, rect, row, col, isSelected)
+            # Keep provenance colors when selected; the native renderer would
+            # otherwise replace them with the grid's selection foreground.
+            super().Draw(grid, text_attr, dc, rect, row, col, False)
         finally:
             text_attr.DecRef()
         width = min(20, rect.width)
@@ -196,9 +253,17 @@ class ChoiceRenderer(gridlib.GridCellStringRenderer):
 
 
 class ColoredComboBox(adv.OwnerDrawnComboBox):
-    def __init__(self, parent, id, labels, colors):
+    def __init__(self, parent, id, labels, colors, sources=None):
         self.item_colors = colors
+        self.item_sources = list(sources or [])
         super().__init__(parent, id, choices=labels, style=wx.CB_READONLY)
+        self.SetPopupMinWidth(max([100] + [self.OnMeasureItemWidth(i) for i in range(self.GetCount())]))
+
+    def item_text(self, item, flags=0):
+        label = self.GetString(item)
+        if self.item_sources and not flags & adv.ODCB_PAINTING_CONTROL:
+            return f'{label}  [{os.path.basename(self.item_sources[item])}]'
+        return label
 
     def OnDrawBackground(self, dc, rect, item, flags):
         dc.SetPen(wx.TRANSPARENT_PEN)
@@ -212,7 +277,7 @@ class ColoredComboBox(adv.OwnerDrawnComboBox):
             return
         dc.SetFont(self.GetFont())
         dc.SetTextForeground(wx.Colour(*self.item_colors[item]))
-        dc.DrawLabel(self.GetString(item), wx.Rect(rect.x + 3, rect.y, max(0, rect.width - 6), rect.height),
+        dc.DrawLabel(self.item_text(item, flags), wx.Rect(rect.x + 3, rect.y, max(0, rect.width - 6), rect.height),
                      wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL)
 
     def OnMeasureItem(self, item):
@@ -221,37 +286,58 @@ class ColoredComboBox(adv.OwnerDrawnComboBox):
     def OnMeasureItemWidth(self, item):
         if not 0 <= item < self.GetCount():
             return 100
-        return self.GetTextExtent(self.GetString(item)).width + 12
+        return self.GetTextExtent(self.item_text(item)).width + 12
 
 
 class ColoredChoiceEditor(gridlib.GridCellEditor):
     """Index-based selection keeps equal display texts from selecting the wrong formula."""
-    def __init__(self, labels, colors):
+    def __init__(self, labels, colors, sources=None):
         super().__init__()
         self.labels, self.colors = list(labels), list(colors)
+        self.sources = list(sources or [])
         self.initial = self.pending = wx.NOT_FOUND
 
     def Clone(self):
-        return ColoredChoiceEditor(self.labels, self.colors)
+        return ColoredChoiceEditor(self.labels, self.colors, self.sources)
 
     def Create(self, parent, id, evtHandler):
-        self.combo = ColoredComboBox(parent, id, self.labels, self.colors)
+        self.combo = ColoredComboBox(parent, id, self.labels, self.colors, self.sources)
         self.SetControl(self.combo)
         self.combo.Bind(wx.EVT_COMBOBOX, self.on_choice)
+        self.combo.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.on_dropdown)
+        self.combo.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.on_closeup)
+        self.popup_open = False
         if evtHandler:
+            evtHandler.Bind(wx.EVT_KILL_FOCUS, self.on_kill_focus)
             self.combo.PushEventHandler(evtHandler)
+
+    def on_kill_focus(self, event):
+        # OwnerDrawnComboBox moves focus into its separate popup window. The
+        # grid's generic handler would finish editing and dismiss that popup.
+        if not self.popup_open and not self.combo.IsPopupShown():
+            event.Skip()
+
+    def on_dropdown(self, event):
+        self.popup_open = True
+        event.Skip()
+
+    def on_closeup(self, event):
+        self.popup_open = False
+        event.Skip()
 
     def SetSize(self, rect):
         self.combo.SetSize(rect)
 
     def BeginEdit(self, row, col, grid):
         self.grid, self.row, self.col = grid, row, col
-        selected = grid.GetTable().conflicts[grid.GetTable().cell_position(row, col)].selected
+        self.choice_made = False
+        selected = grid.GetTable().selected_choice(grid.GetTable().cell_position(row, col))
         self.initial = wx.NOT_FOUND if selected is None else selected
         self.combo.SetSelection(self.initial)
         self.combo.SetFocus()
 
     def on_choice(self, event):
+        self.choice_made = True
         event.Skip()
         wx.CallAfter(self.commit_choice)
 
@@ -264,12 +350,14 @@ class ColoredChoiceEditor(gridlib.GridCellEditor):
 
     def EndEdit(self, row, col, grid, oldval):
         self.pending = self.combo.GetSelection()
-        if self.pending != wx.NOT_FOUND and self.pending != self.initial:
-            return self.labels[self.pending]
+        if self.pending != wx.NOT_FOUND and (self.pending != self.initial or getattr(self, 'choice_made', False)):
+            # wx must receive a nonempty change token even for a blank label.
+            # ApplyEdit commits the index, never this notification string.
+            return str(self.pending)
         return None
 
     def ApplyEdit(self, row, col, grid):
-        grid.GetTable().conflicts[grid.GetTable().cell_position(row, col)].selected = self.pending
+        grid.GetTable().select_choice(grid.GetTable().cell_position(row, col), self.pending)
         grid.ForceRefresh()
 
     def Reset(self):

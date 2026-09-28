@@ -32,13 +32,17 @@ class MergeFileList(wx.ListCtrl):
         self.InsertColumn(0, '')
         self.EnableCheckBoxes(True)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.on_mouse)
+        self.Bind(wx.EVT_LEFT_UP, self.on_mouse_up)
+        self.pressed_row = wx.NOT_FOUND
         self.Bind(wx.EVT_KEY_DOWN, self.on_key)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.Bind(wx.EVT_LIST_ITEM_CHECKED, self.on_check)
         self.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self.on_check)
 
     def on_check(self, event):
-        self.changed(event)
+        # Native check notifications can arrive before IsItemChecked changes.
+        wx.CallAfter(self.changed, None)
         event.Skip()
 
     def on_size(self, event):
@@ -61,14 +65,33 @@ class MergeFileList(wx.ListCtrl):
         return self.GetFirstSelected()
 
     def on_mouse(self, event):
-        index, flags = self.HitTest(event.GetPosition())
+        index = self.row_at(event.GetPosition())
+        self.pressed_row = index
         if index != wx.NOT_FOUND:
             self.SetFocus()
             self.Select(index)
             self.Focus(index)
-            self.CheckItem(index, not self.IsItemChecked(index))
-            self.changed(None)
-            return  # Consume the native checkbox click to avoid a second toggle.
+            return
+        event.Skip()
+
+    def row_at(self, point):
+        # Resolve the clicked row from its visible bounds, including scrolling,
+        # independently of the selected row or header offsets.
+        first = max(0, self.GetTopItem())
+        last = min(self.GetItemCount(), first + self.GetCountPerPage() + 2)
+        for index in range(first, last):
+            rect = self.GetItemRect(index)
+            if rect.y <= point.y < rect.y + rect.height:
+                return index
+        return wx.NOT_FOUND
+
+    def on_mouse_up(self, event):
+        index, self.pressed_row = self.pressed_row, wx.NOT_FOUND
+        if index != wx.NOT_FOUND:
+            if index == self.row_at(event.GetPosition()):
+                self.CheckItem(index, not self.IsItemChecked(index))
+                self.changed(None)
+            return  # Consume both halves of the click; native code must not toggle again.
         event.Skip()
 
     def on_key(self, event):
@@ -296,7 +319,7 @@ class MergeDialog(wx.Dialog):
                 index = self.files.Append(os.path.basename(book.path))
                 self.files.Check(index, True)
                 color = file_color(index)
-                self.source_colors[os.path.basename(book.path)] = color
+                self.source_colors[engine.source_key(book.path)] = color
                 self.files.SetItemTextColour(index, wx.Colour(*color))
             if self.matches:
                 self.files.Select(0)
@@ -310,7 +333,15 @@ class MergeDialog(wx.Dialog):
                                                     self.report_progress), done, tr('merge_search'))
 
     def on_compare(self, event):
+        self.on_checks(None)
         books = [self.matches[i][0] for i in self.files.GetCheckedItems()]
+        # Read the displayed colors, so choice provenance matches the actual
+        # rows even after a new search or a change in their ordering.
+        self.source_colors = {engine.source_key(self.base.path): (0, 0, 0)}
+        for index in self.files.GetCheckedItems():
+            color = self.files.GetItemTextColour(index)
+            self.source_colors[engine.source_key(self.matches[index][0].path)] = (
+                color.Red(), color.Green(), color.Blue())
         def task():
             for book in [self.base] + books:
                 if engine.fingerprint(book.path) != book.digest:
@@ -322,6 +353,9 @@ class MergeDialog(wx.Dialog):
                                    for book in books]
             return engine.conflicts_for(self.base, formatted_books)
         def done(conflicts):
+            if books != [self.matches[i][0] for i in self.files.GetCheckedItems()]:
+                self.on_checks(None)
+                return
             self.conflicts = conflicts
             self.compared = True
             self.show_selected_book()
@@ -391,7 +425,11 @@ class MergeDialog(wx.Dialog):
     def build_sheet_page(self, page, name, sheet):
         conflicts = {(c.row, c.col): c for c in self.conflicts if c.sheet == name and c.row not in sheet.hidden_rows and c.col not in sheet.hidden_cols}
         grid = gridlib.Grid(page)
-        table = SheetTable(sheet, conflicts, source_colors=self.source_colors)
+        # Excel UsedRange ends at the last used column. Keep real blank grid
+        # cells to its right, otherwise even a renderer cannot spill into them.
+        min_columns = max(1, (page.GetClientSize().width - 48) // 100 + 2)
+        table = SheetTable(sheet, conflicts, source_colors=self.source_colors,
+                           min_columns=min_columns)
         grid.SetTable(table, takeOwnership=True)
         font = wx.Font(11, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL,
                        wx.FONTWEIGHT_NORMAL, faceName="Calibri")
@@ -401,7 +439,7 @@ class MergeDialog(wx.Dialog):
         grid.SetDefaultCellTextColour(wx.Colour(32, 32, 32))
         grid.SetDefaultCellOverflow(True)
         grid.SetDefaultRenderer(OverflowRenderer())
-        grid.SetDefaultCellAlignment(wx.ALIGN_LEFT, wx.ALIGN_CENTER_VERTICAL)
+        grid.SetDefaultCellAlignment(wx.ALIGN_LEFT, wx.ALIGN_CENTER)
         grid.SetLabelBackgroundColour(wx.Colour(242, 242, 242))
         grid.SetLabelTextColour(wx.Colour(80, 80, 80))
         grid.SetGridLineColour(wx.Colour(217, 217, 217))
@@ -553,6 +591,8 @@ class MergeDialog(wx.Dialog):
             table.conflicts = {}
             table.labels.clear()
             table.colors.clear()
+            table.value_indices.clear()
+            table.choice_sources.clear()
             grid.BeginBatch()
             try:
                 for position in old_positions:

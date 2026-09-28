@@ -435,8 +435,10 @@ def paste_into_path(
             destination_path = os.path.join(target_dir, source_name)
             overwrite_target = False
 
-            if os.path.normcase(os.path.normpath(destination_path)) == os.path.normcase(normalized_source):
-                continue
+            if os.path.normcase(os.path.realpath(destination_path)) == os.path.normcase(os.path.realpath(normalized_source)):
+                if clipboard_mode == CLIPBOARD_MODE_CUT:
+                    continue
+                destination_path = build_non_conflicting_path_callback(destination_path)
 
             if os.path.exists(destination_path):
                 overwrite_choice = confirm_overwrite_callback(owner, destination_path)

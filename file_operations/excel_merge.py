@@ -113,6 +113,11 @@ class Cell:
 EMPTY = Cell()
 
 
+def source_key(path):
+    """One identity for a workbook in the file list and its merge choices."""
+    return os.path.normcase(os.path.abspath(path))
+
+
 @dataclass
 class Sheet:
     cells: dict = field(default_factory=dict)
@@ -141,6 +146,7 @@ class Conflict:
     values: list
     sources: list
     selected: object = None
+    selected_source: object = None
 
 
 def populated_rows(sheet):
@@ -163,7 +169,7 @@ def conflicts_for(base, others):
             if row not in original_rows or col in sheet.hidden_cols:
                 continue
             original = sheet.cells.get((row, col), EMPTY)
-            values, sources = [original], [[os.path.basename(base.path)]]
+            values, sources = [original], [[source_key(base.path)]]
             for book in related:
                 if row not in related_rows[id(book)] or col in book.sheets[name].hidden_cols:
                     continue
@@ -171,9 +177,9 @@ def conflicts_for(base, others):
                 index = next((i for i, item in enumerate(values) if item.key == value.key), None)
                 if index is None:
                     values.append(value)
-                    sources.append([os.path.basename(book.path)])
+                    sources.append([source_key(book.path)])
                 else:
-                    sources[index].append(os.path.basename(book.path))
+                    sources[index].append(source_key(book.path))
             if len(values) > 1:
                 conflicts.append(Conflict(name, row, col, values, sources,
                                           1 if len(values) == 2 else None))
@@ -536,14 +542,16 @@ def read_book(app, path, load_first_style=True, progress=None, values_only=False
                             excel_cell = sheet.Cells(row, col)
                             formula = isinstance(value, str) and value.startswith('=') and bool(excel_cell.HasFormula)
                             text = str(excel_cell.Text or '')
-                        if text and set(text) == {'#'} and isinstance(result, (int, float)):
-                            # Text can be #### when the Excel column is too
-                            # narrow. TEXT preserves its format without resizing
-                            # or changing the source workbook.
+                        if (not values_only and isinstance(result, (int, float))
+                                and not isinstance(result, bool)):
+                            # Range.Text depends on column width (rounding,
+                            # scientific notation or ####). Use Excel's own
+                            # formatter with the saved format for the grid.
                             try:
                                 text = str(app.WorksheetFunction.Text(result, excel_cell.NumberFormat))
                             except Exception:
-                                text = '' if result is None else format_system_number(result)
+                                if text and set(text) == {'#'}:
+                                    text = format_system_number(result)
                         cells[row, col] = Cell(value, formula, text, result)
                     excel_cell = None
             model = Sheet(cells, start_row+rows-1, start_col+cols-1,
