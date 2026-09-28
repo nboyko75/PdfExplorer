@@ -113,6 +113,13 @@ class Cell:
 EMPTY = Cell()
 
 
+def is_empty_display(cell):
+    if cell.value is None or cell.value == '' or cell.display_text == '':
+        return True
+    return (cell.formula and cell.display_text is None
+            and (cell.result is None or cell.result == ''))
+
+
 def source_key(path):
     """One identity for a workbook in the file list and its merge choices."""
     return os.path.normcase(os.path.abspath(path))
@@ -174,6 +181,8 @@ def conflicts_for(base, others):
                 if row not in related_rows[id(book)] or col in book.sheets[name].hidden_cols:
                     continue
                 value = book.sheets[name].cells.get((row, col), EMPTY)
+                if is_empty_display(value):
+                    continue  # Only the original (first choice) may be empty.
                 index = next((i for i, item in enumerate(values) if item.key == value.key), None)
                 if index is None:
                     values.append(value)

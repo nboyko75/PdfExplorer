@@ -465,10 +465,22 @@ class MergeTests(unittest.TestCase):
         self.assertIsNone(result[0].selected)
         self.assertEqual(len(result[0].values), 3)
 
-    def test_blank_is_an_explicit_choice(self):
+    def test_blank_source_does_not_offer_to_erase_original(self):
         result = m.conflicts_for(book('a', {(1,1):'A', (1,2):'keep'}),
                                  [book('b', {(1,2):'keep'})])
-        self.assertEqual(result[0].values[1], m.EMPTY)
+        self.assertEqual(result, [])
+
+    def test_only_original_empty_choice_is_kept(self):
+        base = book('base', {(1, 2): 'keep'})
+        blank = book('blank', {(1, 2): 'keep'})
+        empty_formula = book('formula', {(1, 2): 'keep'})
+        empty_formula.sheets['Sheet1'].cells[1, 1] = m.Cell('=""', True, '', '')
+        zero = book('zero', {(1, 1): 0, (1, 2): 'keep'})
+        false = book('false', {(1, 1): False, (1, 2): 'keep'})
+        result = m.conflicts_for(base, [blank, empty_formula, zero, false])
+        self.assertEqual(len(result), 1)
+        self.assertEqual([cell.key for cell in result[0].values], [m.EMPTY.key, m.Cell(0).key, m.Cell(False).key])
+        self.assertEqual(result[0].sources, [[m.source_key(p)] for p in ('base', 'zero', 'false')])
 
     def test_new_cells_are_included(self):
         result = m.conflicts_for(book('a', {(4,1):'keep'}),

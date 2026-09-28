@@ -34,3 +34,5 @@ Implemented fixes for all six issues:
 - Applied Excel’s original number formats.
 - Made the first blank merge option selectable.
 - Removed “Empty” labels.
+
+Empty source values are excluded from merge dropdowns; only the first (original) option may be empty. Zero and False remain available.

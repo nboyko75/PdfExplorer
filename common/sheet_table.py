@@ -16,7 +16,7 @@ def column_name(index):
 
 
 def display(cell):
-    if cell.value is None or cell.value == '':
+    if engine.is_empty_display(cell):
         return ''
     if cell.display_text is not None:
         return cell.display_text
@@ -48,11 +48,15 @@ class SheetTable(gridlib.GridTableBase):
             # contributing workbook's identity and color, even for duplicates.
             choices = [(index, engine.source_key(source))
                        for index, sources in enumerate(conflict.sources)
-                       for source in sources]
+                       for source_index, source in enumerate(sources)
+                       if (index == 0 and source_index == 0) or not engine.is_empty_display(conflict.values[index])]
             self.value_indices[pos] = [index for index, source in choices]
             self.choice_sources[pos] = [source for index, source in choices]
             self.labels[pos] = [display(conflict.values[index]) for index, source in choices]
             self.colors[pos] = [self.source_colors.get(source, (0, 0, 0)) for index, source in choices]
+            if conflict.selected is not None and conflict.selected not in self.value_indices[pos]:
+                conflict.selected = 0
+                conflict.selected_source = None
 
     def selected_choice(self, pos):
         conflict = self.conflicts[pos]
