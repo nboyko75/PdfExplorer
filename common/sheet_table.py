@@ -265,7 +265,7 @@ class ColoredComboBox(adv.OwnerDrawnComboBox):
 
     def item_text(self, item, flags=0):
         label = self.GetString(item)
-        if self.item_sources and not flags & adv.ODCB_PAINTING_CONTROL:
+        if item > 0 and self.item_sources and not flags & adv.ODCB_PAINTING_CONTROL:
             return f'{label}  [{os.path.basename(self.item_sources[item])}]'
         return label
 
