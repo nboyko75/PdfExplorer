@@ -2,12 +2,14 @@ import os
 import json
 import sys
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 from contextlib import contextmanager, nullcontext
 import wx
 from wx.lib.statbmp import GenStaticBitmap
 
 from common.consts import FIXED_PAGE_VIEW_MODES, HTML_EXTENSIONS, PAGE_VIEW_MODE_1_TALL, PAGE_VIEW_MODE_1_WIDE, PAGE_VIEW_MODE_2_WIDE, PAGE_VIEW_MODE_MANUAL, TEXT_FILE_EXTENSIONS, VALID_PAGE_VIEW_MODES
 from common.system import move_to_recycle_bin
+from common.webview import create_webview
 
 try:
     import wx.html2 as wx_html2
@@ -38,6 +40,8 @@ def set_preview_mode(owner, mode):
     mode_name = mode if isinstance(mode, str) else "empty"
     if mode_name not in {"text", "pages", "single", "html", "office", "video", "empty"}:
         mode_name = "empty"
+    if mode_name not in {"html", "office"}:
+        owner._html_preview_request = None
 
     video_panel = getattr(owner, "video_preview_panel", None)
     if video_panel is not None:
@@ -120,6 +124,7 @@ def _clear_preview_content_state(owner):
 
 def close_office_preview(owner, save_changes=False):
     """Clear transient state used by the read-only HTML Office preview."""
+    owner._html_preview_request = None
     if getattr(owner, "current_preview_mode", None) != "office":
         return
     html_preview = getattr(owner, "html_preview", None)
@@ -1411,24 +1416,30 @@ def _ensure_html_preview_widget(owner):
             return None
         try:
             if edge_backend:
-                html_preview = wx_html2.WebView.New(
+                html_preview = create_webview(
+                    wx_html2,
                     owner.pdf_preview_container,
                     backend=edge_backend,
                 )
             else:
-                html_preview = wx_html2.WebView.New(owner.pdf_preview_container)
+                html_preview = create_webview(wx_html2, owner.pdf_preview_container)
         except Exception as exc:
             if sys.platform == "win32":
                 owner._html_preview_error = (
                     "Microsoft Edge WebView2 could not be created: " + str(exc)
                 )
                 return None
-            html_preview = wx_html2.WebView.New(owner.pdf_preview_container)
+            html_preview = create_webview(wx_html2, owner.pdf_preview_container)
         html_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
         if hasattr(wx_html2, "EVT_WEBVIEW_LOADED"):
             html_preview.Bind(
                 wx_html2.EVT_WEBVIEW_LOADED,
                 lambda event: _on_html_preview_loaded(owner, event),
+            )
+        if hasattr(wx_html2, "EVT_WEBVIEW_ERROR"):
+            html_preview.Bind(
+                wx_html2.EVT_WEBVIEW_ERROR,
+                lambda event: _on_html_preview_error(owner, event),
             )
 
         if hasattr(owner.pdf_preview_container, "GetSizer"):
@@ -1453,10 +1464,68 @@ def _ensure_html_preview_widget(owner):
 
 def _on_html_preview_loaded(owner, event):
     html_preview = event.GetEventObject() if event is not None else None
-    if html_preview is not None:
+    if html_preview is not None and html_preview is getattr(owner, "html_preview", None):
+        request = getattr(owner, "_html_preview_request", None)
+        if request and unquote(event.GetURL()) == unquote(request["url"]):
+            # A successful load may arrive after an aborted earlier navigation.
+            request["recovering"] = False
         wx.CallAfter(_apply_html_zoom, owner, html_preview)
     if event is not None:
         event.Skip()
+
+
+def _on_html_preview_error(owner, event):
+    # Navigation errors are asynchronous and cannot be caught around LoadURL.
+    event.Skip()
+    if (event.GetEventObject() is not getattr(owner, "html_preview", None)
+            or getattr(owner, "current_preview_mode", None) not in {"html", "office"}):
+        return
+    request = getattr(owner, "_html_preview_request", None)
+    if request is None:
+        return
+    failed_url = event.GetURL()
+    # A queued error from about:blank or a replaced document must not hide the
+    # new preview. Include Excel's sheet/tab frames in the active export folder.
+    failed = urlsplit(failed_url)
+    expected = urlsplit(request["url"])
+    failed_path = unquote(failed.path)
+    expected_path = unquote(expected.path)
+    resources = os.path.splitext(expected_path)[0] + ".files/"
+    if ((failed.scheme, failed.netloc) != (expected.scheme, expected.netloc)
+            or (failed_path != expected_path and not failed_path.startswith(resources))):
+        return
+    if request.get("recovering"):
+        return
+    error = event.GetString()
+    source = request["source"]
+    if (error == "COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED"
+            and source and os.path.splitext(source)[1].lower() in office_html_preview.EXCEL_EXTENSIONS):
+        # Some Excel HTML exports cannot be loaded by Chromium. Recover through
+        # Office's PDF exporter, outside the native WebView event callback.
+        request["recovering"] = True
+        wx.CallAfter(_recover_excel_preview, owner, request, error)
+        return
+    owner.preview_text.SetValue(tr("unable_preview_file", exc=error))
+    set_preview_mode(owner, "text")
+
+
+def _recover_excel_preview(owner, request, browser_error):
+    if (getattr(owner, "_html_preview_request", None) is not request
+            or not request.get("recovering")):
+        return
+    try:
+        cursor_context = owner.busy_cursor() if hasattr(owner, "busy_cursor") else nullcontext()
+        with cursor_context:
+            preview_pdf = office_preview.convert_office_to_preview_pdf(request["source"])
+            # COM can pump Windows messages while exporting; the user may have
+            # selected another document or closed the preview in the meantime.
+            if getattr(owner, "_html_preview_request", None) is not request:
+                return
+            show_pdf_feed(owner, preview_pdf)
+    except Exception as exc:
+        if getattr(owner, "_html_preview_request", None) is request:
+            owner.preview_text.SetValue(tr("unable_preview_file", exc=f"{browser_error}: {exc}"))
+            set_preview_mode(owner, "text")
 
 
 def _apply_html_zoom(owner, html_preview):
@@ -1516,7 +1585,12 @@ def show_html_preview(owner, path):
         except Exception:
             pass
 
-        html_preview.LoadURL(Path(path).resolve().as_uri())
+        url = Path(path).resolve().as_uri()
+        owner._html_preview_request = {
+            "url": url,
+            "source": getattr(owner, "current_preview_path", None),
+        }
+        html_preview.LoadURL(url)
     except Exception:
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
             html_preview.SetPage(handle.read(), "")
@@ -2667,7 +2741,9 @@ def on_preview_zoom_in(event):
             show_pdf_feed(owner, owner.current_preview_path)
         return
 
-    if _is_powerpoint_path(owner.current_preview_path):
+    if (_is_powerpoint_path(owner.current_preview_path)
+            or (getattr(owner, "current_preview_mode", None) == "pages"
+                and _is_html_office_path(owner.current_preview_path))):
         preview_pdf_path = getattr(owner, "current_pdf_path", None)
         if preview_pdf_path and os.path.isfile(preview_pdf_path):
             with owner.busy_cursor():
@@ -2715,7 +2791,9 @@ def on_preview_zoom_out(event):
             show_pdf_feed(owner, owner.current_preview_path)
         return
 
-    if _is_powerpoint_path(owner.current_preview_path):
+    if (_is_powerpoint_path(owner.current_preview_path)
+            or (getattr(owner, "current_preview_mode", None) == "pages"
+                and _is_html_office_path(owner.current_preview_path))):
         preview_pdf_path = getattr(owner, "current_pdf_path", None)
         if preview_pdf_path and os.path.isfile(preview_pdf_path):
             with owner.busy_cursor():

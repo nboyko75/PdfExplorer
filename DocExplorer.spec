@@ -4,6 +4,7 @@
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
 import importlib.util
+import importlib.machinery
 import sys
 
 pywin32_hiddenimports = [
@@ -20,6 +21,14 @@ pywin32_hiddenimports += collect_submodules("win32com")
 
 project_dir = Path(SPECPATH).resolve()
 venv_site_packages = project_dir / '.venv' / 'Lib' / 'site-packages'
+
+# wxWidgets loads this DLL by name, so dependency scanning does not discover it.
+# Match Analysis' preference for the project's virtual environment.
+wx_spec = (importlib.machinery.PathFinder.find_spec('wx', [str(venv_site_packages)])
+           or importlib.util.find_spec('wx'))
+webview_loader = Path(wx_spec.origin).parent / 'WebView2Loader.dll' if wx_spec else None
+if webview_loader is None or not webview_loader.is_file():
+    raise RuntimeError('wxPython WebView2Loader.dll is missing. Reinstall wxPython before building.')
 
 pymupdf_files = [
     str(venv_site_packages / 'pymupdf' / 'mupdfcpp64.dll'),
@@ -65,7 +74,7 @@ store_hiddenimports = collect_submodules("winrt")
 a = Analysis(
     [str(project_dir / 'main.py')],
     pathex=[str(project_dir), str(venv_site_packages)],
-    binaries=[],
+    binaries=[(str(webview_loader), '.')],
     datas=[
         (str(project_dir / "images"), "images"),
         (str(project_dir / "localization"), "localization"),

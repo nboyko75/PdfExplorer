@@ -16,6 +16,7 @@ except ImportError:
     wx_html2 = None
 
 from common.consts import VIDEO_EXTENSIONS
+from common.webview import create_webview
 
 
 def is_video_file(path):
@@ -192,7 +193,7 @@ class VideoPreviewPanel(wx.Panel):
         try:
             if wx_html2 is None or not getattr(wx_html2, "WebViewBackendEdge", None):
                 raise RuntimeError(tr("video_backend_unavailable"))
-            self.browser = wx_html2.WebView.New(self, backend=wx_html2.WebViewBackendEdge)
+            self.browser = create_webview(wx_html2, self, backend=wx_html2.WebViewBackendEdge)
             self.browser.SetMinSize((0, 0))
             self.sizer.Add(self.browser, 1, wx.EXPAND)
             self.browser.Bind(wx_html2.EVT_WEBVIEW_LOADED, self._on_loaded)

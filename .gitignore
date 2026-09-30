@@ -2,7 +2,6 @@ __pycache__/
 .vscode/
 .venv/
 .idea/
-store/Assets/
 store/PackageLayout/
 store/Screenshots/
 store/requirements-msix.txt
@@ -19,4 +18,6 @@ verification_shift_preview.py
 *.msix
 store/PackageLayout/DocExplorer.exe
 store/DocExplorer.msix
-
+store/DocExplorer.Dev.cer
+store/DevPackageLayout-*/
+store/add cer to trusted people.ps1

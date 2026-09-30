@@ -6,6 +6,7 @@ from pathlib import Path
 import wx
 
 from common.consts import HELP_RELATIVE_PATH, MANUAL_RELATIVE_PATH
+from common.webview import create_webview
 
 try:
     import wx.html2 as html2
@@ -80,7 +81,7 @@ def show_app_manual_form(owner):
     toolbar.Add(close_btn, 0)
 
     if html2 is not None:
-        viewer = html2.WebView.New(panel)
+        viewer = create_webview(html2, panel)
         viewer.LoadURL(Path(help_path).resolve().as_uri())
     else:
         viewer = wx.Panel(panel)

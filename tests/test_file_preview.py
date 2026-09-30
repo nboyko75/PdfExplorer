@@ -4,6 +4,7 @@ import sys
 import tempfile
 import types
 import unittest
+from contextlib import nullcontext
 import wx
 from unittest import mock
 
@@ -17,6 +18,138 @@ def _import_file_preview_with_mocked_wx():
     with mock.patch.dict(sys.modules, {"wx": fake_wx}):
         sys.modules.pop("controls.file_preview", None)
         return importlib.import_module("controls.file_preview")
+
+
+class HtmlPreviewErrorTests(unittest.TestCase):
+    def test_async_browser_error_replaces_blank_office_preview_with_message(self):
+        file_preview = importlib.import_module("controls.file_preview")
+        browser = object()
+        owner = types.SimpleNamespace(html_preview=browser, current_preview_mode="office",
+                                      preview_text=mock.Mock(),
+                                      _html_preview_request={"url": "file:///cache/document.html", "source": "report.docx"})
+        event = mock.Mock()
+        event.GetEventObject.return_value = browser
+        event.GetString.return_value = "Navigation failed"
+        event.GetURL.return_value = "file:///cache/document.html"
+        with mock.patch.object(file_preview, "set_preview_mode") as set_mode:
+            file_preview._on_html_preview_error(owner, event)
+        self.assertIn("Navigation failed", owner.preview_text.SetValue.call_args.args[0])
+        set_mode.assert_called_once_with(owner, "text")
+        event.Skip.assert_called_once()
+
+    def test_late_browser_error_does_not_replace_another_preview(self):
+        file_preview = importlib.import_module("controls.file_preview")
+        browser = object()
+        owner = types.SimpleNamespace(html_preview=browser, current_preview_mode="pages",
+                                      preview_text=mock.Mock())
+        event = mock.Mock()
+        event.GetEventObject.return_value = browser
+        with mock.patch.object(file_preview, "set_preview_mode") as set_mode:
+            file_preview._on_html_preview_error(owner, event)
+        set_mode.assert_not_called()
+        owner.preview_text.SetValue.assert_not_called()
+
+    def _excel_error(self):
+        module = importlib.import_module("controls.file_preview")
+        request = {"url": "file:///cache/current/document.html", "source": "report.xlsx"}
+        owner = types.SimpleNamespace(html_preview=object(), current_preview_mode="office",
+                                      current_preview_path="report.xlsx", preview_text=mock.Mock(),
+                                      _html_preview_request=request, busy_cursor=nullcontext)
+        event = mock.Mock()
+        event.GetEventObject.return_value = owner.html_preview
+        event.GetString.return_value = "COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED"
+        event.GetURL.return_value = request["url"]
+        return module, owner, event
+
+    def test_aborted_excel_load_recovers_as_pdf_once_outside_browser_callback(self):
+        module, owner, event = self._excel_error()
+        with mock.patch.object(module.wx, "CallAfter") as later, \
+             mock.patch.object(module.office_preview, "convert_office_to_preview_pdf", return_value="preview.pdf") as convert, \
+             mock.patch.object(module, "show_pdf_feed") as show:
+            module._on_html_preview_error(owner, event)
+            module._on_html_preview_error(owner, event)
+            convert.assert_not_called()
+            later.assert_called_once()
+            callback, *args = later.call_args.args
+            callback(*args)
+            convert.assert_called_once_with("report.xlsx")
+            show.assert_called_once_with(owner, "preview.pdf")
+        owner.preview_text.SetValue.assert_not_called()
+
+    def test_old_document_and_blank_errors_do_not_trigger_recovery(self):
+        for url in ("about:blank", "file:///cache/previous/document.html"):
+            module, owner, event = self._excel_error()
+            event.GetURL.return_value = url
+            with mock.patch.object(module.wx, "CallAfter") as later:
+                module._on_html_preview_error(owner, event)
+            later.assert_not_called()
+            owner.preview_text.SetValue.assert_not_called()
+
+    def test_sheet_frame_abort_also_recovers(self):
+        module, owner, event = self._excel_error()
+        event.GetURL.return_value = "file:///cache/current/document.files/sheet001.html"
+        with mock.patch.object(module.wx, "CallAfter") as later:
+            module._on_html_preview_error(owner, event)
+        later.assert_called_once()
+
+    def test_pending_recovery_does_not_replace_new_selection(self):
+        module, owner, event = self._excel_error()
+        with mock.patch.object(module.wx, "CallAfter") as later, \
+             mock.patch.object(module.office_preview, "convert_office_to_preview_pdf") as convert:
+            module._on_html_preview_error(owner, event)
+            callback, *args = later.call_args.args
+            owner._html_preview_request = None
+            callback(*args)
+        convert.assert_not_called()
+
+    def test_selection_changed_during_com_export_is_not_overwritten(self):
+        module, owner, event = self._excel_error()
+        def export(_path):
+            owner._html_preview_request = None
+            return "preview.pdf"
+        with mock.patch.object(module.wx, "CallAfter") as later, \
+             mock.patch.object(module.office_preview, "convert_office_to_preview_pdf", side_effect=export), \
+             mock.patch.object(module, "show_pdf_feed") as show:
+            module._on_html_preview_error(owner, event)
+            callback, *args = later.call_args.args
+            callback(*args)
+        show.assert_not_called()
+
+    def test_successful_html_load_cancels_queued_pdf_recovery(self):
+        module, owner, event = self._excel_error()
+        with mock.patch.object(module.wx, "CallAfter") as later, \
+             mock.patch.object(module.office_preview, "convert_office_to_preview_pdf") as convert:
+            module._on_html_preview_error(owner, event)
+            callback, *args = later.call_args.args
+            module._on_html_preview_loaded(owner, event)
+            callback(*args)
+        convert.assert_not_called()
+
+    def test_failed_pdf_recovery_displays_error(self):
+        module, owner, event = self._excel_error()
+        with mock.patch.object(module.wx, "CallAfter") as later, \
+             mock.patch.object(module.office_preview, "convert_office_to_preview_pdf", side_effect=RuntimeError("Export failed")), \
+             mock.patch.object(module, "set_preview_mode") as mode:
+            module._on_html_preview_error(owner, event)
+            callback, *args = later.call_args.args
+            callback(*args)
+        self.assertIn("Export failed", owner.preview_text.SetValue.call_args.args[0])
+        mode.assert_called_once_with(owner, "text")
+
+    def test_recovered_excel_zoom_uses_pdf_preview(self):
+        for handler, expected in (("on_preview_zoom_in", 1.25), ("on_preview_zoom_out", 0.8)):
+            module, owner, _ = self._excel_error()
+            owner.current_preview_mode = "pages"
+            owner.current_pdf_path = "preview.pdf"
+            owner.pdf_preview_zoom = 1.0
+            with mock.patch.object(module, "_get_preview_owner_from_event", return_value=owner), \
+                 mock.patch.object(module.os.path, "isfile", return_value=True), \
+                 mock.patch.object(module, "show_pdf_feed") as show, \
+                 mock.patch.object(module, "_apply_html_zoom") as html_zoom:
+                getattr(module, handler)(mock.Mock())
+            show.assert_called_once_with(owner, "preview.pdf")
+            self.assertEqual(owner.pdf_preview_zoom, expected)
+            html_zoom.assert_not_called()
 
 
 class PreviewToolbarLayoutTests(unittest.TestCase):

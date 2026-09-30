@@ -12,7 +12,8 @@ def show_about_form(owner):
 
     version = wx.StaticText(panel, label="Version 1.0")
     description = wx.StaticText(panel, label="Document Explorer")
-    copyright = wx.StaticText(panel, label="(c) AW Software")
+    copyright = wx.StaticText(panel, label="(c) Nick Boiko")
+    email = wx.StaticText(panel, label="nboyko75@gmail.com")
 
     close_btn = wx.Button(panel, wx.ID_OK, tr("exit_button"))
 
@@ -20,7 +21,8 @@ def show_about_form(owner):
     sizer.Add(title, 0, wx.ALIGN_CENTRE | wx.TOP | wx.BOTTOM, 12)
     sizer.Add(version, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
     sizer.Add(description, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
-    sizer.Add(copyright, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 16)
+    sizer.Add(copyright, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
+    sizer.Add(email, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 16)
     sizer.Add(close_btn, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 12)
     panel.SetSizer(sizer)
     dialog.CenterOnParent()

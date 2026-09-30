@@ -35,6 +35,18 @@ if (-not $appDir) {
 }
 
 $storeDir = Join-Path $root 'store'
+$assetsDir = Join-Path $storeDir 'Assets'
+$requiredIconAssets = @(
+    'Logo44.targetsize-16_altform-unplated.png',
+    'Logo44.targetsize-32_altform-unplated.png',
+    'Logo44.targetsize-48_altform-unplated.png',
+    'Logo44.targetsize-256_altform-unplated.png'
+)
+foreach ($assetName in $requiredIconAssets) {
+    if (-not (Test-Path -LiteralPath (Join-Path $assetsDir $assetName) -PathType Leaf)) {
+        throw "Required MSIX icon is missing: $assetName. Add it to '$assetsDir' before building."
+    }
+}
 $packageLayout = Join-Path $storeDir 'PackageLayout'
 $manifestPath = Join-Path $storeDir 'AppxManifest.xml'
 $outputPath = Join-Path $storeDir "$PackageName.msix"
@@ -64,23 +76,43 @@ if (-not (Test-Path $signTool)) {
     throw "signtool.exe not found. Install the Windows 10/11 SDK first."
 }
 
+$makePri = Join-Path (Split-Path -Parent $makeAppx) 'makepri.exe'
+$priConfig = Join-Path $PSScriptRoot 'priconfig.xml'
+if (-not (Test-Path -LiteralPath $makePri -PathType Leaf)) {
+    throw 'makepri.exe not found. Install the Windows SDK resource indexing tools.'
+}
+if (-not (Test-Path -LiteralPath $priConfig -PathType Leaf)) {
+    throw "The resource index configuration is missing: $priConfig"
+}
+
 if (Test-Path $packageLayout) {
-    Remove-Item $packageLayout -Recurse -Force
+    $resolvedLayout = [IO.Path]::GetFullPath($packageLayout)
+    if ([IO.Path]::GetDirectoryName($resolvedLayout) -ne [IO.Path]::GetFullPath($storeDir) -or
+        [IO.Path]::GetFileName($resolvedLayout) -ne 'PackageLayout') {
+        throw "Refusing to remove unexpected staging directory: $resolvedLayout"
+    }
+    Remove-Item -LiteralPath $resolvedLayout -Recurse -Force
 }
 New-Item -ItemType Directory -Path $packageLayout -Force | Out-Null
 
 Copy-Item (Join-Path $appDir '*') $packageLayout -Recurse -Force
 
-$assetsDir = Join-Path $storeDir 'Assets'
 $packageAssetsDir = Join-Path $packageLayout 'Assets'
 if (Test-Path $assetsDir) {
     if (-not (Test-Path $packageAssetsDir)) {
         New-Item -ItemType Directory -Path $packageAssetsDir -Force | Out-Null
     }
+    # Include the required target-size unplated icons alongside the base logos.
     Copy-Item (Join-Path $assetsDir '*') $packageAssetsDir -Recurse -Force
 }
 
 Copy-Item $manifestPath (Join-Path $packageLayout 'AppxManifest.xml') -Force
+
+# Copying qualified PNGs alone does not register their size/alternate-form variants.
+& $makePri new /pr $packageLayout /cf $priConfig /mn (Join-Path $packageLayout 'AppxManifest.xml') /of (Join-Path $packageLayout 'resources.pri') /o
+if ($LASTEXITCODE -ne 0) {
+    throw 'makepri failed while indexing the MSIX icon assets.'
+}
 
 $files = Get-ChildItem -Path $storeDir -Filter '*.png' -File -Recurse
 if ($files.Count -eq 0) {
