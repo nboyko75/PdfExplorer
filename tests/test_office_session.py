@@ -14,7 +14,7 @@ class OfficeSessionTests(unittest.TestCase):
                     with preview_document(client, com, kind, "source"):
                         raise RuntimeError("export failed")
                 document.Close.assert_called_once_with(*(() if kind == "PowerPoint" else (False,)))
-                app.Quit.assert_called_once()
+                app.Quit.assert_called_once_with(*((0,) if kind == "Word" else ()))
                 com.CoInitialize.assert_called_once()
                 com.CoUninitialize.assert_called_once()
                 if kind == "PowerPoint":
@@ -27,7 +27,7 @@ class OfficeSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "open failed"):
             with preview_document(client, com, "Word", "source"):
                 self.fail("Should not enter")
-        app.Quit.assert_called_once()
+        app.Quit.assert_called_once_with(0)
         com.CoUninitialize.assert_called_once()
 
     def test_close_failure_does_not_mask_export_failure(self):

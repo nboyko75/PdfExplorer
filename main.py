@@ -940,7 +940,10 @@ class ExplorerWorkspace(wx.Panel):
                 filelist.on_list_delete_permanent(self, None)
                 return
             if key_code == wx.WXK_F5:
-                self.on_refresh_menu(event)
+                if wx.Window.FindFocus() is self.tree:
+                    tree_control.refresh_tree_selection_and_filelist(self)
+                else:
+                    self.on_refresh_menu(event)
                 return
             if filelist.handle_file_ops_shortcut(self, event):
                 return

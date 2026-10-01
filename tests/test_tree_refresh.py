@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 class Node:
@@ -52,6 +53,33 @@ class Tree:
 
 
 class TreeRefreshTests(unittest.TestCase):
+    def test_f5_refreshes_the_focused_pane(self):
+        source = ast.parse((Path(__file__).resolve().parents[1] / 'main.py').read_text(encoding='utf-8'))
+        function = next(n for n in ast.walk(source) if isinstance(n, ast.FunctionDef)
+                        and n.name == 'on_key')
+        tree_control = SimpleNamespace(refresh_tree_selection_and_filelist=mock.Mock())
+        wx = SimpleNamespace(WXK_F1=1, WXK_F5=5, WXK_DELETE=127,
+                             Window=SimpleNamespace(FindFocus=mock.Mock()))
+        scope = {'wx': wx, 'tree_control': tree_control}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), 'main.py', 'exec'), scope)
+        owner = SimpleNamespace(tree=object(), on_refresh_menu=mock.Mock())
+        event = SimpleNamespace(GetKeyCode=lambda: wx.WXK_F5,
+                                ControlDown=lambda: False, ShiftDown=lambda: False,
+                                Skip=mock.Mock())
+        for focus in (owner.tree, object()):
+            with self.subTest(tree_focused=focus is owner.tree):
+                wx.Window.FindFocus.return_value = focus
+                tree_control.refresh_tree_selection_and_filelist.reset_mock()
+                owner.on_refresh_menu.reset_mock()
+                scope['on_key'](owner, event)
+                if focus is owner.tree:
+                    tree_control.refresh_tree_selection_and_filelist.assert_called_once_with(owner)
+                    owner.on_refresh_menu.assert_not_called()
+                else:
+                    tree_control.refresh_tree_selection_and_filelist.assert_not_called()
+                    owner.on_refresh_menu.assert_called_once_with(event)
+                event.Skip.assert_not_called()
+
     def test_refreshes_sibling_and_nested_branches_preserving_nodes(self):
         source = ast.parse((Path(__file__).resolve().parents[1] / 'controls/tree_control.py').read_text())
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)

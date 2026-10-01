@@ -70,7 +70,8 @@ def preview_document(client, com, kind, source_path, *, hide_excel_window=False)
     finally:
         close_args = () if kind == "PowerPoint" else (False,)
         _close_quietly(document, "Close", *close_args)
-        _close_quietly(app, "Quit")
+        quit_args = (0,) if kind == "Word" else ()  # wdDoNotSaveChanges
+        _close_quietly(app, "Quit", *quit_args)
         document = app = None
         gc.collect()
         if initialized:

@@ -13,6 +13,8 @@ A form for searching, previewing, and renaming using regular expressions has bee
 
 Added export pdf to image format.
 
+10.0.4.0
+
 Added new operation "Merge similar files" that supports excel files merge for a while
 
 Moved SheetTable to common/sheet_table.py.

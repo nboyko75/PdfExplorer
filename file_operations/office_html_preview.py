@@ -1,6 +1,7 @@
 """Render Word and Excel documents to cached HTML using Microsoft Office COM."""
 
 import hashlib
+import logging
 import os
 import shutil
 import sys
@@ -19,6 +20,8 @@ except ImportError:  # pragma: no cover - optional outside Windows
 
 from common.consts import _CACHE_ROOT
 from file_operations.document_types import WORD_EXTENSIONS, EXCEL_EXTENSIONS, HTML_OFFICE_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 
 def is_html_office_document(path):
@@ -47,14 +50,22 @@ def _require_office_com():
 
 def _export_word_to_html(source_path, html_path):
     with preview_document(win32_client, pythoncom, "Word", source_path) as document:
-        document.SaveAs2(
-            FileName=os.path.abspath(html_path),
-            FileFormat=10,  # wdFormatFilteredHTML
-            AddToRecentFiles=False,
-            Encoding=65001,  # UTF-8
-        )
-
-
+        original_view_type = document.ActiveWindow.View.Type
+        try:
+            document.SaveAs2(
+                FileName=os.path.abspath(html_path),
+                FileFormat=10,  # wdFormatFilteredHTML
+                AddToRecentFiles=False,
+                Encoding=65001,  # UTF-8
+            )
+        finally:
+            # HTML SaveAs switches Word to Web Layout. Restore the original
+            # view before closing the preview instance.
+            # The read-only source and exported HTML are not saved again.
+            try:
+                document.ActiveWindow.View.Type = original_view_type
+            except Exception:
+                logger.warning("Cannot restore Word view after HTML preview", exc_info=True)
 
 
 def _export_excel_to_html(source_path, html_path):
@@ -66,8 +77,6 @@ def _export_excel_to_html(source_path, html_path):
             CreateBackup=False,
             AddToMru=False,
         )
-
-
 
 
 def render_to_html(path):
