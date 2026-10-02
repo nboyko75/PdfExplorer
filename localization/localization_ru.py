@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_mark_changes': 'Отмечать изменения цветом',
+    'merge_change_color': 'Цвет изменений',
     'help_manual_missing': 'Файл справки не найден:\n{path}',
     'help_manual_viewer_unavailable': 'Встроенный просмотрщик HTML недоступен. Нажмите «Открыть в браузере» для просмотра справки.',
     "confirm_bulk_pdf_operation": 'Выполнить «{operation}» для:\n{path}\n\nPDF-файлы будут изменены и сохранены. Для папки также будут обработаны все PDF-файлы в её подпапках.\n\nПродолжить?',

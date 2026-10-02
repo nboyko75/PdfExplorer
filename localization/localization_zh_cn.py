@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_mark_changes': '用颜色标记更改',
+    'merge_change_color': '更改颜色',
     'menu_file': '文件',
     'menu_navigation': '导航',
     'menu_document': '文档',

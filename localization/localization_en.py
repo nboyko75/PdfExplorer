@@ -1,4 +1,6 @@
 TRANSLATIONS = {
+    'merge_mark_changes': 'Mark changes with color',
+    'merge_change_color': 'Change color',
     'help_manual_missing': 'Help file was not found:\n{path}',
     'help_manual_viewer_unavailable': 'The embedded HTML viewer is unavailable. Select Open in browser to view Help.',
     "confirm_bulk_pdf_operation": 'Run “{operation}” for:\n{path}\n\nPDF files will be modified and saved. For a folder, all PDF files in its subfolders will also be processed.\n\nContinue?',

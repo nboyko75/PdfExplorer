@@ -187,6 +187,43 @@ class WordMergeTests(unittest.TestCase):
                 m.save_merge(base, [conflict])
             self.assertEqual(path.read_bytes(), b'changed')
 
+    def test_save_colors_only_replacement_text_with_exact_rgb(self):
+        for color in (None, (255, 255, 0), (18, 52, 86), (0, 0, 0)):
+            with self.subTest(color=color), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / 'original.docx'
+                path.write_bytes(b'original')
+                base = m.Document(str(path), m.fingerprint(path), 'A\U0001f600 old keep delete\r')
+                conflicts = [m.Conflict(3, 6, ['old', 'new\U0001f600'], [], 1),
+                             m.Conflict(7, 11, ['keep', 'reject'], [], 0),
+                             m.Conflict(12, 18, ['delete', ''], [], 1)]
+                ranges = {}
+                def area(start, end):
+                    if (start, end) not in ranges:
+                        ranges[start, end] = Mock(Text={(4, 7): 'old', (13, 19): 'delete'}.get((start, end), ''),
+                                                  HighlightColorIndex=7)
+                        ranges[start, end].Shading.BackgroundPatternColor = 123
+                        ranges[start, end].Shading.Texture = 10
+                    return ranges[start, end]
+                doc = Mock(ReadOnly=False, ProtectionType=-1, TrackRevisions=False)
+                doc.Revisions.Count = 0
+                doc.Range.side_effect = area
+                @contextmanager
+                def app():
+                    yield object()
+                with patch.object(m, 'word_app', app), patch.object(m, 'open_document', return_value=doc), \
+                        patch.object(m, 'read_document', return_value=document('A\U0001f600 new\U0001f600 keep \r')):
+                    m.save_merge(base, conflicts, backup_original=False, change_color=color)
+                self.assertEqual(ranges[4, 7].Text, 'new\U0001f600')
+                self.assertEqual(ranges[13, 19].Text, '')
+                self.assertEqual(set(ranges), {(4, 7), (13, 19)} | ({(4, 9)} if color is not None else set()))
+                if color is not None:
+                    self.assertEqual(ranges[4, 9].Font.Color,
+                                     color[0] | color[1] << 8 | color[2] << 16)
+                for area in ranges.values():
+                    self.assertEqual(area.Shading.BackgroundPatternColor, 123)
+                    self.assertEqual(area.Shading.Texture, 10)
+                    self.assertEqual(area.HighlightColorIndex, 7)
+
 
 if __name__ == '__main__':
     unittest.main()

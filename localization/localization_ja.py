@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_mark_changes': '変更箇所を色でマークする',
+    'merge_change_color': '変更箇所の色',
     'menu_file': 'ファイル',
     'menu_navigation': 'ナビゲーション',
     'menu_document': 'ドキュメント',

@@ -170,6 +170,16 @@ class MergeDialog(wx.Dialog):
         self.notebook.SetFont(wx.Font(10, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL,
                                       wx.FONTWEIGHT_NORMAL, faceName="Calibri"))
         right_sizer.Add(self.notebook, 1, wx.EXPAND)
+        mark_bar = wx.BoxSizer(wx.HORIZONTAL)
+        self.mark_changes_checkbox = wx.CheckBox(right, label=tr('merge_mark_changes'))
+        self.change_color_picker = wx.ColourPickerCtrl(right, colour=wx.Colour(255, 255, 0))
+        self.change_color_picker.SetName(tr('merge_change_color'))
+        self.change_color_picker.SetToolTip(tr('merge_change_color'))
+        self.change_color_picker.Disable()
+        self.mark_changes_checkbox.Bind(wx.EVT_CHECKBOX, self.on_mark_changes)
+        mark_bar.Add(self.mark_changes_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        mark_bar.Add(self.change_color_picker, 0, wx.ALIGN_CENTER_VERTICAL)
+        right_sizer.Add(mark_bar, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 8)
         right.SetSizer(right_sizer)
         splitter.SplitVertically(left, right, 250)
         splitter.SetMinimumPaneSize(160)
@@ -211,6 +221,15 @@ class MergeDialog(wx.Dialog):
 
     def on_backup_checkbox(self, event):
         update_settings({'merge_backup_original_file': bool(self.backup_checkbox.GetValue())})
+
+    def on_mark_changes(self, event):
+        self.change_color_picker.Enable(not self.busy and self.mark_changes_checkbox.GetValue())
+
+    def selected_change_color(self):
+        if not self.mark_changes_checkbox.GetValue():
+            return None
+        color = self.change_color_picker.GetColour()
+        return color.Red(), color.Green(), color.Blue()
 
     def show_instructions(self, event):
         popup = wx.PopupTransientWindow(self, wx.BORDER_SIMPLE)
@@ -313,6 +332,8 @@ class MergeDialog(wx.Dialog):
         self.check_all.Enable(not self.busy)
         self.uncheck_all.Enable(not self.busy)
         self.notebook.Enable(not self.busy)
+        self.mark_changes_checkbox.Enable(not self.busy)
+        self.on_mark_changes(None)
 
     def on_search(self, event):
         self.compared = False
@@ -623,6 +644,8 @@ class MergeDialog(wx.Dialog):
             return
         self.cancel_button.Disable()
         self.saving = True
+        backup = self.backup_checkbox.GetValue()
+        change_color = self.selected_change_color()
         def done(result):
             self.saving = False
             self.saved_changes = True
@@ -633,7 +656,8 @@ class MergeDialog(wx.Dialog):
             self.status.SetLabel(tr('merge_saved'))
         def save():
             try:
-                engine.save_merge(self.base, self.conflicts, backup_original=self.backup_checkbox.GetValue())
+                engine.save_merge(self.base, self.conflicts, backup_original=backup,
+                                  change_color=change_color)
             except Exception:
                 wx.CallAfter(self.save_failed)
                 raise
@@ -826,11 +850,13 @@ class WordMergeDialog(MergeDialog):
             self.update_conflicts()
             return
         backup = self.backup_checkbox.GetValue()
+        change_color = self.selected_change_color()
         self.saving = True
         self.cancel_button.Disable()
         def task():
             try:
-                word_merge.save_merge(self.base, self.conflicts, backup_original=backup)
+                word_merge.save_merge(self.base, self.conflicts, backup_original=backup,
+                                      change_color=change_color)
             except Exception:
                 wx.CallAfter(self.save_failed)
                 raise

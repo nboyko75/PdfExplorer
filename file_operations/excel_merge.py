@@ -612,7 +612,7 @@ def search_books(path, base=None, cache=None, progress=None):
     return base, sorted(matches, key=lambda item: (-item[1], item[0].path.casefold())), skipped
 
 
-def save_merge(base, conflicts, backup_original=True):
+def save_merge(base, conflicts, backup_original=True, change_color=None):
     if any(c.selected is None for c in conflicts):
         raise MergeError('merge_unresolved')
     if fingerprint(base.path) != base.digest:
@@ -665,6 +665,9 @@ def save_merge(base, conflicts, backup_original=True):
                     else:
                         saved = value.value
                         cell.Value2 = value.value
+                    if change_color is not None:
+                        red, green, blue = change_color
+                        cell.Font.Color = red | (green << 8) | (blue << 16)
                     persisted[conflict.sheet, conflict.row, conflict.col] = (cell.Formula if value.formula else saved)
                 document.Save()
             finally:
@@ -707,6 +710,8 @@ def save_merge(base, conflicts, backup_original=True):
         # Keep the in-memory original in step with the file for subsequent saves.
         for conflict in changes:
             model = base.sheets[conflict.sheet]
+            if change_color is not None:
+                model.styles_loaded = False
             value = conflict.values[conflict.selected]
             if value.value is None:
                 model.cells.pop((conflict.row, conflict.col), None)

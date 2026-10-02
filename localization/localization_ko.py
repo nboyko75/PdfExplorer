@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_mark_changes': '변경 사항을 색상으로 표시',
+    'merge_change_color': '변경 사항 색상',
     'menu_file': '파일',
     'menu_navigation': '탐색',
     'menu_document': '문서',

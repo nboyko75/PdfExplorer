@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_mark_changes': 'Evidenzia le modifiche con un colore',
+    'merge_change_color': 'Colore delle modifiche',
     'help_manual_missing': 'File della guida non trovato:\n{path}',
     'help_manual_viewer_unavailable': 'Il visualizzatore HTML integrato non è disponibile. Selezionare «Apri nel browser» per consultare la guida.',
     "confirm_bulk_pdf_operation": 'Eseguire «{operation}» per:\n{path}\n\nI file PDF verranno modificati e salvati. Per una cartella, verranno elaborati anche tutti i PDF nelle relative sottocartelle.\n\nContinuare?',

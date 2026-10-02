@@ -30,6 +30,7 @@ def run(folder, ui=False):
                 table.Cell(1, 2).Range.Text = 'Color'
                 table.Cell(2, 1).Range.Text = 'Car'
                 table.Cell(2, 2).Range.Text = 'Red'
+                table.Cell(2, 2).Shading.BackgroundPatternColor = 0xCCEEFF
                 doc.Sections(1).Headers(1).Range.Text = 'Original header'
                 doc.SaveAs2(FileName=str(original), FileFormat=file_format, AddToRecentFiles=False)
                 area = doc.Paragraphs(2).Range
@@ -59,7 +60,7 @@ def run(folder, ui=False):
         if ui:
             check_ui(original)
         print(extension, 'saving and verifying', flush=True)
-        m.save_merge(base, conflicts)
+        m.save_merge(base, conflicts, change_color=(18, 52, 86))
         assert Path(str(original) + '.merge-backup').read_bytes() == original_bytes
         with m.word_app() as app:
             doc = m.open_document(app, str(original))
@@ -67,9 +68,15 @@ def run(folder, ui=False):
                 assert 'Amount: 200 USD' in doc.Content.Text
                 assert doc.Tables.Count == 1
                 assert doc.Tables(1).Cell(2, 2).Range.Text == 'Blue\r\x07'
+                assert doc.Tables(1).Cell(2, 2).Shading.BackgroundPatternColor == 0xCCEEFF
                 assert doc.Paragraphs(1).Range.Font.Bold == -1
                 assert 'Original header' in doc.Sections(1).Headers(1).Range.Text
                 assert doc.Fields.Count == 1
+                for text in ('200', 'Blue'):
+                    marked = doc.Content.Duplicate
+                    assert marked.Find.Execute(FindText=text)
+                    assert marked.Font.Color == 0x563412
+                    marked = None
             finally:
                 doc.Close(False)
                 doc = None

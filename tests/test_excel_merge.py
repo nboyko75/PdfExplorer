@@ -573,6 +573,38 @@ class MergeTests(unittest.TestCase):
                     self.assertEqual(base.sheets['s'].cells[1,1].value, 'new')
                 self.assertEqual(document.Close.call_count, 1 if fail else 2)
 
+    def test_save_colors_changed_cell_fonts_and_preserves_fill(self):
+        for color in (None, (255, 255, 0), (18, 52, 86), (0, 0, 0)):
+            with self.subTest(color=color), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / 'original.xlsx'
+                path.write_bytes(b'original')
+                base = m.Book(str(path), m.fingerprint(path), {'s': m.Sheet(
+                    {(1, col): m.Cell('old') for col in (1, 2, 3)}, styles_loaded=True)})
+                cells = {col: Mock(HasArray=False, MergeCells=False) for col in (1, 2, 3)}
+                for cell in cells.values():
+                    cell.Font.Color = 123
+                    cell.Interior.Color = 123
+                    cell.Interior.Pattern = 9
+                sheet = Mock(ProtectContents=False)
+                sheet.Cells.side_effect = lambda row, col: cells[col]
+                doc = Mock(ReadOnly=False)
+                doc.Worksheets.return_value = sheet
+                conflicts = [m.Conflict('s', 1, col, [m.Cell('old'), m.Cell(value)], [], selected)
+                             for col, value, selected in ((1, 'new', 1), (2, None, 1), (3, 'reject', 0))]
+                @contextmanager
+                def app():
+                    yield object()
+                with patch.object(m, 'excel_app', app), patch.object(m, 'open_book', return_value=doc):
+                    m.save_merge(base, conflicts, backup_original=False, change_color=color)
+                expected = 123 if color is None else color[0] | color[1] << 8 | color[2] << 16
+                self.assertEqual(cells[1].Font.Color, expected)
+                self.assertEqual(cells[2].Font.Color, expected)
+                self.assertEqual(cells[3].Font.Color, 123)
+                for cell in cells.values():
+                    self.assertEqual(cell.Interior.Color, 123)
+                    self.assertEqual(cell.Interior.Pattern, 9)
+                self.assertEqual(base.sheets['s'].styles_loaded, color is None)
+
     def test_search_is_non_recursive_and_excludes_target_and_locks(self):
         with tempfile.TemporaryDirectory() as d:
             folder=Path(d)

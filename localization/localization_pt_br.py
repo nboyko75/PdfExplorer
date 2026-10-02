@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_mark_changes': 'Marcar alterações com cor',
+    'merge_change_color': 'Cor das alterações',
     'help_manual_missing': 'Arquivo de ajuda não encontrado:\n{path}',
     'help_manual_viewer_unavailable': 'O visualizador HTML integrado não está disponível. Selecione «Abrir no navegador» para consultar a ajuda.',
     "confirm_bulk_pdf_operation": 'Executar “{operation}” para:\n{path}\n\nOs arquivos PDF serão modificados e salvos. Para uma pasta, todos os PDFs em suas subpastas também serão processados.\n\nContinuar?',

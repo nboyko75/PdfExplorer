@@ -334,7 +334,7 @@ def render_preview(base, folder, conflicts=(), colors=None, labels=None, token='
     return output
 
 
-def save_merge(base, conflicts, backup_original=True):
+def save_merge(base, conflicts, backup_original=True, change_color=None):
     if any(type(c.selected) is not int or not 0 <= c.selected < len(c.values) for c in conflicts):
         raise MergeError('merge_unresolved')
     if fingerprint(base.path) != base.digest:
@@ -365,7 +365,16 @@ def save_merge(base, conflicts, backup_original=True):
                 track = document.TrackRevisions
                 document.TrackRevisions = False
                 for conflict in reversed(changes):
-                    checked_range(document, base, conflict).Text = conflict.values[conflict.selected]
+                    replacement = conflict.values[conflict.selected]
+                    checked_range(document, base, conflict).Text = replacement
+                    if change_color is not None and replacement:
+                        # Explicit offsets cover insertions and UTF-16 characters.
+                        # Deletions leave no text to color.
+                        start = word_offset(base.text, conflict.start)
+                        area = document.Range(start, start + word_offset(replacement, len(replacement)))
+                        red, green, blue = change_color
+                        area.Font.Color = red | (green << 8) | (blue << 16)
+                        area = None
                 document.TrackRevisions = track
                 document.Save()
             finally:
