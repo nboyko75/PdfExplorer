@@ -323,3 +323,14 @@ TRANSLATIONS.update({"merge_check_all": 'Tout cocher', "merge_uncheck_all": 'Tou
 TRANSLATIONS['merge_initializing'] = 'Initialisation…'
 
 TRANSLATIONS['merge_saved'] = 'Valeurs fusionnées enregistrées dans le fichier original.'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "Recherchez des documents Word similaires dans ce dossier.",
+    'word_merge_instructions': "Recherchez par contenu dans ce dossier, puis comparez les fichiers cochés. Choisissez le texte dans les listes déroulantes intégrées ; conservez l’original pour rejeter une modification. Le corps du texte et le texte des cellules de tableau sont fusionnés en conservant la mise en forme d’origine. Les modifications structurelles, les en-têtes, les pieds de page, les champs et les contrôles de contenu ne sont pas fusionnés. Microsoft Word est requis.",
+    'word_merge_conflicts': "Différences de texte : {total}. Non résolues : {count}.",
+    'word_merge_skipped': "Ces différences de structure ou de texte protégé ont été laissées inchangées (fichier : nombre) :",
+    'word_merge_protected': "Impossible de fusionner du texte protégé ou des documents contenant des modifications suivies non résolues.",
+    'word_merge_too_large': "Le document dépasse la limite de {count} caractères : {path}",
+    'word_merge_preview_failed': "Impossible d’intégrer les choix de fusion dans l’aperçu Word.",
+    'word_merge_verify_failed': "Le texte Word enregistré ne correspond pas aux choix sélectionnés. L’original n’a pas été remplacé.",
+})

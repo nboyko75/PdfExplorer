@@ -323,3 +323,14 @@ TRANSLATIONS.update({"merge_check_all": 'Marcar todos', "merge_uncheck_all": 'De
 TRANSLATIONS['merge_initializing'] = 'Inicializando…'
 
 TRANSLATIONS['merge_saved'] = 'Valores mesclados salvos no arquivo original.'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "Pesquise documentos Word semelhantes nesta pasta.",
+    'word_merge_instructions': "Pesquise por conteúdo nesta pasta e compare os arquivos marcados. Escolha o texto nas listas suspensas incorporadas; mantenha o original para rejeitar uma alteração. O corpo do texto e o texto das células das tabelas são mesclados mantendo a formatação original. Alterações estruturais, cabeçalhos, rodapés, campos e controles de conteúdo não são mesclados. Requer Microsoft Word.",
+    'word_merge_conflicts': "Diferenças de texto: {total}. Não resolvidas: {count}.",
+    'word_merge_skipped': "Estas diferenças na estrutura ou no texto protegido foram mantidas sem alterações (arquivo: quantidade):",
+    'word_merge_protected': "Não é possível mesclar texto protegido ou documentos com alterações controladas não resolvidas.",
+    'word_merge_too_large': "O documento excede o limite de {count} caracteres: {path}",
+    'word_merge_preview_failed': "Não foi possível incorporar as opções de mesclagem na visualização do Word.",
+    'word_merge_verify_failed': "O texto Word salvo não corresponde às opções selecionadas. O original não foi substituído.",
+})

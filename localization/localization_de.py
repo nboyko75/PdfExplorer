@@ -323,3 +323,14 @@ TRANSLATIONS.update({"merge_check_all": 'Alle markieren', "merge_uncheck_all": '
 TRANSLATIONS['merge_initializing'] = 'Initialisierung…'
 
 TRANSLATIONS['merge_saved'] = 'Zusammengeführte Werte in der Originaldatei gespeichert.'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "In diesem Ordner nach ähnlichen Word-Dokumenten suchen.",
+    'word_merge_instructions': "Durchsuchen Sie diesen Ordner nach Inhalten und vergleichen Sie dann die markierten Dateien. Wählen Sie Text in den eingebetteten Auswahllisten; behalten Sie das Original, um eine Änderung abzulehnen. Fließtext und Text in Tabellenzellen werden unter Beibehaltung der ursprünglichen Formatierung zusammengeführt. Strukturänderungen, Kopf- und Fußzeilen, Felder und Inhaltssteuerelemente werden nicht zusammengeführt. Microsoft Word ist erforderlich.",
+    'word_merge_conflicts': "Textunterschiede: {total}. Ungelöst: {count}.",
+    'word_merge_skipped': "Diese Unterschiede in der Struktur oder im geschützten Text wurden unverändert belassen (Datei: Anzahl):",
+    'word_merge_protected': "Geschützter Text oder Dokumente mit nicht abschließend bearbeiteten nachverfolgten Änderungen können nicht zusammengeführt werden.",
+    'word_merge_too_large': "Das Dokument überschreitet das Limit von {count} Zeichen: {path}",
+    'word_merge_preview_failed': "Die Auswahlmöglichkeiten zum Zusammenführen konnten nicht in die Word-Vorschau eingebettet werden.",
+    'word_merge_verify_failed': "Der gespeicherte Word-Text entspricht nicht der Auswahl. Das Original wurde nicht ersetzt.",
+})

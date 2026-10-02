@@ -323,3 +323,14 @@ TRANSLATIONS.update({"merge_check_all": 'Marcar todos', "merge_uncheck_all": 'De
 TRANSLATIONS['merge_initializing'] = 'Inicializando…'
 
 TRANSLATIONS['merge_saved'] = 'Valores combinados guardados en el archivo original.'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "Busque documentos de Word similares en esta carpeta.",
+    'word_merge_instructions': "Busque por contenido en esta carpeta y luego compare los archivos marcados. Elija el texto en las listas desplegables integradas; conserve el original para rechazar un cambio. Se combina el texto del cuerpo y de las celdas de las tablas conservando el formato original. No se combinan los cambios estructurales, los encabezados, los pies de página, los campos ni los controles de contenido. Se requiere Microsoft Word.",
+    'word_merge_conflicts': "Diferencias de texto: {total}. Sin resolver: {count}.",
+    'word_merge_skipped': "Estas diferencias de estructura o de texto protegido se dejaron sin cambios (archivo: cantidad):",
+    'word_merge_protected': "No se puede combinar texto protegido ni documentos con cambios controlados sin resolver.",
+    'word_merge_too_large': "El documento supera el límite de {count} caracteres: {path}",
+    'word_merge_preview_failed': "No se pudieron integrar las opciones de combinación en la vista previa de Word.",
+    'word_merge_verify_failed': "El texto de Word guardado no coincide con las opciones seleccionadas. No se reemplazó el original.",
+})

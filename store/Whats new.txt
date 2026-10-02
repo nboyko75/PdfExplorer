@@ -13,9 +13,9 @@ A form for searching, previewing, and renaming using regular expressions has bee
 
 Added export pdf to image format.
 
-10.0.4.0
+10.0.5.0
 
-Added new operation "Merge similar files" that supports excel files merge for a while
+Added new operation "Merge similar files" that supports excel and word files merge
 
 Moved SheetTable to common/sheet_table.py.
 Added a top-right info icon with an instructions popup.
@@ -37,4 +37,4 @@ Implemented fixes for all six issues:
 - Made the first blank merge option selectable.
 - Removed “Empty” labels.
 
-Empty source values are excluded from merge dropdowns; only the first (original) option may be empty. Zero and False remain available.
+Implemented Word merging for .doc, .docx, and .docm

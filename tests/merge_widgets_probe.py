@@ -107,7 +107,7 @@ def read_saved_book(path):
 
 def probe_dialog(folder):
     """Exercise Search -> check three of six -> Compare -> each sheet tab."""
-    from controls.merge_documents import MergeDialog
+    from controls.merge_excel import MergeDialog
     paths = list(Path(folder).glob('*.xlsx'))
     base_path = min(paths, key=lambda path: len(path.name))
     books = {engine.source_key(path): read_saved_book(path) for path in paths}

@@ -312,3 +312,14 @@ TRANSLATIONS.update({"merge_check_all": '全部勾选', "merge_uncheck_all": '�
 TRANSLATIONS['merge_initializing'] = '正在初始化…'
 
 TRANSLATIONS['merge_saved'] = '合并的值已保存到原始文件。'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "在此文件夹中查找相似的 Word 文档。",
+    'word_merge_instructions': "按内容搜索此文件夹，然后比较勾选的文件。在嵌入的下拉列表中选择文本；保留原文即可拒绝更改。合并正文和表格单元格中的文本，同时保留原始格式。不会合并结构更改、页眉、页脚、域和内容控件。需要 Microsoft Word。",
+    'word_merge_conflicts': "文本差异：{total}。未解决：{count}。",
+    'word_merge_skipped': "以下结构或受保护文本的差异保持不变（文件：数量）：",
+    'word_merge_protected': "无法合并受保护的文本或包含未处理修订的文档。",
+    'word_merge_too_large': "文档超过了 {count} 个字符的限制：{path}",
+    'word_merge_preview_failed': "无法在 Word 预览中嵌入合并选项。",
+    'word_merge_verify_failed': "保存的 Word 文本与所选内容不一致。未替换原始文件。",
+})

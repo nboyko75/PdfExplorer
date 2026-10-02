@@ -1,9 +1,11 @@
-"""Excel merge review dialog. All workbook I/O runs outside the GUI thread."""
+"""Shared Excel/Word merge review form. Office I/O runs off the GUI thread."""
 import os
 import colorsys
 import tempfile
 import threading
 import time
+import json
+import uuid
 from pathlib import Path
 import wx.html2 as html2
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +13,8 @@ import wx
 import wx.grid as gridlib
 from localization import tr
 from file_operations import excel_merge as engine
+from file_operations import word_merge
+from common.webview import create_webview
 from common.sheet_table import SheetTable, OverflowRenderer
 from common.window_tools import load_settings, update_settings
 
@@ -105,6 +109,9 @@ class MergeFileList(wx.ListCtrl):
 
 
 class MergeDialog(wx.Dialog):
+    instructions_key = 'merge_instructions'
+    ready_key = 'merge_ready'
+
     def __init__(self, owner, path):
         super().__init__(owner, title=tr('merge_documents'), size=(1150, 750),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -133,7 +140,7 @@ class MergeDialog(wx.Dialog):
         title.SetToolTip(self.path)
         header.Add(title, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         info = wx.BitmapButton(self, bitmap=wx.ArtProvider.GetBitmap(wx.ART_INFORMATION, wx.ART_BUTTON, (20, 20)))
-        info.SetToolTip(tr('merge_instructions'))
+        info.SetToolTip(tr(self.instructions_key))
         info.SetName(tr('merge_preview'))
         info.Bind(wx.EVT_BUTTON, self.show_instructions)
         header.Add(info, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -167,7 +174,7 @@ class MergeDialog(wx.Dialog):
         splitter.SplitVertically(left, right, 250)
         splitter.SetMinimumPaneSize(160)
         outer.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        self.status = wx.StaticText(self, label=tr('merge_ready'))
+        self.status = wx.StaticText(self, label=tr(self.ready_key))
         info_bar = wx.BoxSizer(wx.HORIZONTAL)
         info_bar.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         self.progress = wx.Gauge(self, range=1000, size=(180, 16))
@@ -208,7 +215,7 @@ class MergeDialog(wx.Dialog):
     def show_instructions(self, event):
         popup = wx.PopupTransientWindow(self, wx.BORDER_SIMPLE)
         panel = wx.Panel(popup)
-        label = wx.StaticText(panel, label=tr('merge_instructions'))
+        label = wx.StaticText(panel, label=tr(self.instructions_key))
         label.Wrap(480)
         content = wx.BoxSizer(wx.VERTICAL)
         content.Add(label, 0, wx.ALL, 12)
@@ -663,10 +670,188 @@ class MergeDialog(wx.Dialog):
             pass
 
 
+class WordMergeDialog(MergeDialog):
+    """The same form, with the original Word document as its review surface."""
+    instructions_key = 'word_merge_instructions'
+    ready_key = 'word_merge_ready'
+
+    def load_initial(self):
+        with word_merge.word_app() as app:
+            document = word_merge.read_document(app, self.path)
+            app = None
+        return document, self.render_word(document)
+
+    def render_word(self, document, conflicts=(), token=''):
+        return word_merge.render_preview(
+            document, os.path.join(self.preview_dir.name, uuid.uuid4().hex),
+            conflicts, self.source_colors,
+            {'choose': tr('merge_choose'), 'empty': tr('merge_empty'), 'keep': tr('merge_keep')}, token)
+
+    def loaded(self, result):
+        super().loaded(result)
+        self.status.SetLabel(tr(self.ready_key))
+
+    def ensure_selected_sheet(self):
+        pass
+
+    def show_book(self, book, target=False):
+        if self.base is None:
+            return
+        if not hasattr(self, 'word_view'):
+            self.word_view = create_webview(html2, self.notebook, backend=html2.WebViewBackendEdge)
+            if not self.word_view.AddScriptMessageHandler('wordMerge'):
+                raise word_merge.MergeError('word_merge_preview_failed')
+            self.word_view.Bind(html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.on_word_choice)
+            self.word_view.Bind(html2.EVT_WEBVIEW_NAVIGATING, self.on_word_navigation)
+            self.word_view.Bind(html2.EVT_WEBVIEW_LOADED, self.on_word_loaded)
+            self.word_view.Bind(html2.EVT_WEBVIEW_ERROR, self.on_word_error)
+            self.word_view.Bind(html2.EVT_WEBVIEW_NEWWINDOW, lambda event: event.Veto())
+            self.notebook.AddPage(self.word_view, tr('merge_preview'), select=True)
+        path = self.review_path if self.compared else self.preview_paths.get(self.base.digest)
+        if path:
+            self.word_preview_ready = False
+            self.word_preview_url = Path(path).as_uri()
+            self.word_view.LoadURL(self.word_preview_url)
+
+    def update_buttons(self):
+        super().update_buttons()
+        if not getattr(self, 'word_preview_ready', False):
+            self.save_button.Disable()
+
+    def on_word_loaded(self, event):
+        if self.disposed:
+            return
+        if event.GetURL().split('#', 1)[0] == self.word_preview_url:
+            self.word_preview_ready = True
+            self.update_buttons()
+
+    def on_word_error(self, event):
+        if self.disposed:
+            return
+        self.word_preview_ready = False
+        self.status.SetLabel(tr('word_merge_preview_failed') + ' ' + event.GetString())
+        self.update_buttons()
+
+    def on_word_navigation(self, event):
+        if event.GetURL().split('#', 1)[0] != self.word_preview_url:
+            event.Veto()
+
+    def on_word_choice(self, event):
+        if self.disposed or self.busy or not self.compared:
+            return
+        try:
+            message = json.loads(event.GetString())
+            if not isinstance(message, dict) or message.get('token') != self.review_token:
+                return
+            index, choice = message['conflict'], message['choice']
+            if type(index) is not int or type(choice) is not int:
+                return
+            if not 0 <= index < len(self.conflicts):
+                return
+            conflict = self.conflicts[index]
+            if not 0 <= choice < len(conflict.values):
+                return
+        except (ValueError, KeyError, TypeError):
+            return
+        conflict.selected = choice
+        self.update_conflicts()
+
+    def on_search(self, event):
+        self.on_checks(None)
+        self.matches = []
+        self.files.Clear()
+        self.source_colors = {}
+        def task():
+            result = word_merge.search_documents(self.path, self.base, self.book_cache, self.report_progress)
+            base = result[0]
+            preview = self.preview_paths.get(base.digest) or self.render_word(base)
+            return result, preview
+        def done(result):
+            (self.base, self.matches, skipped), preview = result
+            self.preview_paths[self.base.digest] = preview
+            for document, score in self.matches:
+                index = self.files.Append(os.path.basename(document.path))
+                self.files.Check(index, True)
+                color = file_color(index)
+                self.source_colors[engine.source_key(document.path)] = color
+                self.files.SetItemTextColour(index, wx.Colour(*color))
+            self.show_selected_book()
+            self.status.SetLabel(tr('merge_found', count=len(self.matches), skipped=len(skipped)))
+            if skipped:
+                wx.MessageBox('\n'.join(os.path.basename(p) + ': ' + error_text(e) for p, e in skipped),
+                              tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)
+        self.run_job(task, done, tr('merge_search'))
+
+    def on_compare(self, event):
+        self.on_checks(None)
+        documents = [self.matches[i][0] for i in self.files.GetCheckedItems()]
+        token = uuid.uuid4().hex
+        def task():
+            for document in [self.base] + documents:
+                if engine.fingerprint(document.path) != document.digest:
+                    raise engine.MergeError('merge_changed', path=document.path)
+            conflicts, skipped = word_merge.conflicts_for(self.base, documents)
+            preview = self.render_word(self.base, conflicts, token)
+            return conflicts, skipped, preview
+        def done(result):
+            self.conflicts, skipped, self.review_path = result
+            self.review_token = token
+            self.compared = True
+            self.show_selected_book()
+            self.update_conflicts()
+            if skipped:
+                wx.MessageBox(tr('word_merge_skipped') + '\n' + '\n'.join(
+                    os.path.basename(path) + ': ' + str(count) for path, count in skipped),
+                    tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)
+        self.run_job(task, done)
+
+    def on_checks(self, event):
+        had_comparison = self.compared
+        self.compared = False
+        self.conflicts = []
+        if had_comparison:
+            self.show_selected_book()
+        self.status.SetLabel(tr('merge_recompare'))
+        self.update_buttons()
+
+    def update_conflicts(self):
+        if not self.disposed:
+            self.status.SetLabel(tr('word_merge_conflicts', total=len(self.conflicts),
+                                    count=sum(c.selected is None for c in self.conflicts)))
+            self.update_buttons()
+
+    def on_save(self, event):
+        if (not getattr(self, 'word_preview_ready', False) or not self.compared
+                or any(c.selected is None for c in self.conflicts)):
+            self.update_conflicts()
+            return
+        backup = self.backup_checkbox.GetValue()
+        self.saving = True
+        self.cancel_button.Disable()
+        def task():
+            try:
+                word_merge.save_merge(self.base, self.conflicts, backup_original=backup)
+            except Exception:
+                wx.CallAfter(self.save_failed)
+                raise
+        def done(result):
+            self.saving = False
+            self.saved_changes = True
+            self.cancel_button.Enable()
+            self.conflicts = []
+            self.compared = False
+            # Reload after saving so subsequent comparisons use new text offsets.
+            self.run_job(self.load_initial, refreshed, tr('merge_initializing'))
+        def refreshed(result):
+            self.loaded(result)
+            self.status.SetLabel(tr('merge_saved'))
+        self.run_job(task, done)
+
+
 def show_merge_dialog(owner, path):
-    if not engine.is_excel(path):
+    if not (engine.is_excel(path) or word_merge.is_word(path)):
         return
-    dialog = MergeDialog(owner, path)
+    dialog = (WordMergeDialog if word_merge.is_word(path) else MergeDialog)(owner, path)
     try:
         dialog.ShowModal()
         if dialog.saved_changes:

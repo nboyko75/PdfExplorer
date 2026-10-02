@@ -323,3 +323,14 @@ TRANSLATIONS.update({"merge_check_all": 'Seleziona tutto', "merge_uncheck_all": 
 TRANSLATIONS['merge_initializing'] = 'Inizializzazione…'
 
 TRANSLATIONS['merge_saved'] = 'Valori uniti salvati nel file originale.'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "Cerca documenti Word simili in questa cartella.",
+    'word_merge_instructions': "Cerca per contenuto in questa cartella, poi confronta i file selezionati. Scegli il testo negli elenchi a discesa incorporati; mantieni l’originale per rifiutare una modifica. Il corpo del testo e il testo delle celle delle tabelle vengono uniti mantenendo la formattazione originale. Le modifiche strutturali, le intestazioni, i piè di pagina, i campi e i controlli contenuto non vengono uniti. È necessario Microsoft Word.",
+    'word_merge_conflicts': "Differenze di testo: {total}. Irrisolte: {count}.",
+    'word_merge_skipped': "Queste differenze nella struttura o nel testo protetto sono rimaste invariate (file: numero):",
+    'word_merge_protected': "Impossibile unire testo protetto o documenti con revisioni irrisolte.",
+    'word_merge_too_large': "Il documento supera il limite di {count} caratteri: {path}",
+    'word_merge_preview_failed': "Impossibile incorporare le opzioni di unione nell’anteprima di Word.",
+    'word_merge_verify_failed': "Il testo Word salvato non corrisponde alle opzioni selezionate. L’originale non è stato sostituito.",
+})

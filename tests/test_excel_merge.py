@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 import sys
+from string import Formatter
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -837,14 +838,25 @@ class MergeTests(unittest.TestCase):
 
     def test_all_languages_have_merge_labels(self):
         required=set()
-        for module in ('controls/merge_documents.py','file_operations/excel_merge.py','common/sheet_table.py'):
+        for module in ('controls/merge_documents.py','file_operations/excel_merge.py',
+                       'file_operations/word_merge.py','common/sheet_table.py'):
             tree=ast.parse((ROOT/module).read_text())
             for node in ast.walk(tree):
-                if isinstance(node,ast.Constant) and isinstance(node.value,str) and node.value.startswith('merge_'):
+                if (isinstance(node,ast.Constant) and isinstance(node.value,str)
+                        and node.value.startswith(('merge_', 'word_merge_'))):
                     required.add(node.value)
+        english = {}
+        exec((ROOT/'localization/localization_en.py').read_text(encoding='utf-8'), english)
+        def placeholders(text):
+            return {name for _, name, _, _ in Formatter().parse(text) if name is not None}
         for path in (ROOT/'localization').glob('localization_*.py'):
             env={};exec(compile(path.read_text(encoding='utf-8'),str(path),'exec'),env)
             self.assertFalse(required-set(env['TRANSLATIONS']), (path.name,required-set(env['TRANSLATIONS'])))
+            for key in required:
+                value = env['TRANSLATIONS'][key]
+                self.assertTrue(value.strip(), (path.name, key))
+                self.assertEqual(placeholders(value), placeholders(english['TRANSLATIONS'][key]),
+                                 (path.name, key))
 
 
 if __name__=='__main__':unittest.main()

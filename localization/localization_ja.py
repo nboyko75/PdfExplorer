@@ -312,3 +312,14 @@ TRANSLATIONS.update({"merge_check_all": 'すべてチェック', "merge_uncheck_
 TRANSLATIONS['merge_initializing'] = '初期化中…'
 
 TRANSLATIONS['merge_saved'] = '統合した値を元のファイルに保存しました。'
+
+TRANSLATIONS.update({
+    'word_merge_ready': "このフォルダー内の類似した Word 文書を検索します。",
+    'word_merge_instructions': "このフォルダーを内容で検索し、チェックしたファイルを比較します。埋め込まれたドロップダウンリストでテキストを選択します。変更を拒否するには元のテキストを保持してください。元の書式を維持しながら、本文と表のセル内のテキストを結合します。構造の変更、ヘッダー、フッター、フィールド、コンテンツコントロールは結合されません。Microsoft Word が必要です。",
+    'word_merge_conflicts': "テキストの相違点: {total}。未解決: {count}。",
+    'word_merge_skipped': "次の構造または保護されたテキストの相違点は変更されませんでした（ファイル: 件数）:",
+    'word_merge_protected': "保護されたテキストや、未解決の変更履歴を含む文書は結合できません。",
+    'word_merge_too_large': "文書が {count} 文字の上限を超えています: {path}",
+    'word_merge_preview_failed': "Word プレビューに結合の選択肢を埋め込めませんでした。",
+    'word_merge_verify_failed': "保存された Word テキストが選択内容と一致しませんでした。元のファイルは置き換えられていません。",
+})

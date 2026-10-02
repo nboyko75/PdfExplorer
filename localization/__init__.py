@@ -325,6 +325,17 @@ DEFAULT_TRANSLATIONS['export_unsupported_format'] = 'Unsupported export file for
 
 DEFAULT_TRANSLATIONS.update({'export_resolution_auto': 'Determine automatically', 'export_resolution_value': '{dpi} pixels/inch'})
 
+DEFAULT_TRANSLATIONS.update({
+    'word_merge_ready': 'Search this folder for similar Word documents.',
+    'word_merge_instructions': 'Search this folder by content, then compare checked files. Choose text in the embedded dropdowns; keep the original to reject a change. Merges body text and table-cell text while keeping the original formatting. Structural changes, headers, footers, fields and content controls are not merged. Requires Microsoft Word.',
+    'word_merge_conflicts': 'Text differences: {total}. Unresolved: {count}.',
+    'word_merge_skipped': 'These structural or protected-text differences were left unchanged (file: count):',
+    'word_merge_protected': 'Cannot merge protected text or documents with unresolved tracked changes.',
+    'word_merge_too_large': 'The document exceeds the {count} character limit: {path}',
+    'word_merge_preview_failed': 'Could not embed merge choices in the Word preview.',
+    'word_merge_verify_failed': 'The saved Word text did not match the selected choices. The original was not replaced.',
+})
+
 TRANSLATIONS: Dict[str, str] = DEFAULT_TRANSLATIONS.copy()
 
 

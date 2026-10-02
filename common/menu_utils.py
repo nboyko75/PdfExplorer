@@ -213,8 +213,9 @@ def _can_process_pdf_path(context):
 
 def merge_selected_path(context):
     from file_operations.excel_merge import is_excel
+    from file_operations.word_merge import is_word
     paths = [context.target_path] if context.source == 'tree' and context.target_path else context.selected_paths
-    return paths[0] if len(paths) == 1 and is_excel(paths[0]) else None
+    return paths[0] if len(paths) == 1 and (is_excel(paths[0]) or is_word(paths[0])) else None
 
 
 def _handle_merge(context, event):
