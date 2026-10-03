@@ -561,7 +561,9 @@ def read_book(app, path, load_first_style=True, progress=None, values_only=False
                             except Exception:
                                 if text and set(text) == {'#'}:
                                     text = format_system_number(result)
-                        cells[row, col] = Cell(value, formula, text, result)
+                        # Value2 preserves the source's numeric/boolean type;
+                        # Formula is needed only for actual formula cells.
+                        cells[row, col] = Cell(value if formula else result, formula, text, result)
                     excel_cell = None
             model = Sheet(cells, start_row+rows-1, start_col+cols-1,
                           hidden_rows, hidden_cols, styles)
@@ -643,28 +645,28 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
                         if int(area.Row) != conflict.row or int(area.Column) != conflict.col:
                             raise MergeError('merge_protected', sheet=conflict.sheet)
                     value = conflict.values[conflict.selected]
+                    saved = coerce_numeric_string(value.value) if not value.formula else value.value
                     if value.formula:
                         # Do not introduce implicit external links from another workbook.
                         if re.search(r'\[[^\]]+\][^!]*!', str(value.value)):
                             raise MergeError('merge_external_formula', sheet=conflict.sheet)
                         cell.Formula = value.value
-                    elif isinstance(value.value, str):
-                        # Excel otherwise coerces numeric/date-like text and '=' text.
-                        numeric = coerce_numeric_string(value.value)
-                        saved = numeric if numeric is not value.value else value.value
+                    elif isinstance(saved, (int, float)) and not isinstance(saved, bool):
+                        # Text-formatted targets must accept a numeric value,
+                        # independent of the localized label in the merge UI.
+                        if cell.NumberFormat == '@':
+                            cell.NumberFormat = 'General'
+                        cell.Value2 = saved
+                    elif isinstance(saved, str):
+                        # Preserve identifiers and literal text, including '='.
                         old_format = cell.NumberFormat
                         try:
-                            if numeric is not value.value:
-                                cell.NumberFormat = 'General'
-                                cell.Value2 = numeric
-                            else:
-                                cell.NumberFormat = '@'
-                                cell.Value2 = value.value
+                            cell.NumberFormat = '@'
+                            cell.Value2 = saved
                         finally:
                             cell.NumberFormat = old_format
                     else:
-                        saved = value.value
-                        cell.Value2 = value.value
+                        cell.Value2 = saved
                     if change_color is not None:
                         red, green, blue = change_color
                         cell.Font.Color = red | (green << 8) | (blue << 16)
@@ -687,8 +689,9 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
                         expected = None
                         actual = None if actual == '' else actual
                     equal = actual == expected
-                    if type(actual) in (int, float) and type(expected) in (int, float):
-                        equal = math.isclose(actual, expected, rel_tol=1e-14, abs_tol=0.0)
+                    if type(expected) in (int, float):
+                        equal = (type(actual) in (int, float)
+                                 and math.isclose(actual, expected, rel_tol=1e-14, abs_tol=0.0))
                     if not equal:
                         raise RuntimeError(f'{conflict.sheet}!R{conflict.row}C{conflict.col}: '
                                            f'saved value {actual!r} differs from {expected!r}.')
@@ -713,6 +716,9 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
             if change_color is not None:
                 model.styles_loaded = False
             value = conflict.values[conflict.selected]
+            if not value.formula:
+                saved = persisted[conflict.sheet, conflict.row, conflict.col]
+                value = Cell(saved, display_text=value.display_text, result=saved)
             if value.value is None:
                 model.cells.pop((conflict.row, conflict.col), None)
             else:

@@ -38,3 +38,6 @@ Implemented fixes for all six issues:
 - Removed “Empty” labels.
 
 Implemented Word merging for .doc, .docx, and .docm
+
+Fixed Excel merging to preserve numeric types when reading and saving
+Added a save prompt when closing Excel or Word merge forms with unsaved changes. Save closes only after success; Cancel keeps edits, and No closes without saving.

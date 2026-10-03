@@ -80,6 +80,25 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(cell.display_text, '1,234.57')
         app.WorksheetFunction.Text.assert_called_once_with(1234.567, '#,##0.00')
 
+    def test_read_preserves_raw_numeric_values_separately_from_display_text(self):
+        for values_only in (False, True):
+            with self.subTest(values_only=values_only):
+                sheet = Mock(Name='Sheet1', Visible=-1)
+                used = sheet.UsedRange
+                used.Rows.Count = used.Columns.Count = used.Row = used.Column = 1
+                used.Formula = '1250,50'
+                used.Value2 = 1250.5
+                used.NumberFormat = 'General'
+                sheet.Rows.return_value.Hidden = sheet.Columns.return_value.Hidden = False
+                document = Mock(Worksheets=[sheet])
+                with patch.object(m, 'fingerprint', return_value='digest'), \
+                     patch.object(m, 'open_book', return_value=document):
+                    result = m.read_book(Mock(), 'test.xlsx', load_first_style=False, values_only=values_only)
+                cell = result.sheets['Sheet1'].cells[1, 1]
+                self.assertIsInstance(cell.value, float)
+                self.assertEqual(cell.value, 1250.5)
+                self.assertFalse(cell.formula)
+
     def test_checkbox_notification_is_deferred_until_native_state_changes(self):
         tree = ast.parse((ROOT/'controls/merge_documents.py').read_text())
         cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeFileList')
@@ -761,8 +780,11 @@ class MergeTests(unittest.TestCase):
         method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'on_save')
         done = next(n for n in method.body if isinstance(n, ast.FunctionDef) and n.name == 'done')
         dialog = Mock()
+        dialog.close_after_save = False
         scope = {'self': dialog, 'tr': lambda key: key}
-        exec(compile(ast.Module(body=[done], type_ignores=[]), 'save_done', 'exec'), scope)
+        finish_save = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'finish_save')
+        exec(compile(ast.Module(body=[done, finish_save], type_ignores=[]), 'save_done', 'exec'), scope)
+        dialog.finish_save.side_effect = lambda: scope['finish_save'](dialog)
         scope['done'](None)
         dialog.EndModal.assert_not_called()
         self.assertFalse(dialog.saving)
@@ -833,6 +855,49 @@ class MergeTests(unittest.TestCase):
             self.assertEqual(cell.Value2, '00123')
             self.assertEqual(cell.NumberFormat, 'General')
             self.assertEqual(path.read_bytes(), b'saved')
+
+    def test_save_numbers_into_text_formatted_cells(self):
+        class Cell:
+            HasArray = MergeCells = False
+            value = None
+
+            def __init__(self, number_format):
+                self.NumberFormat = number_format
+
+            @property
+            def Value2(self):
+                return self.value
+
+            @Value2.setter
+            def Value2(self, value):
+                self.value = str(value) if self.NumberFormat == '@' else value
+
+        for number_format in ('@', '#,##0.00'):
+            for value in (0, -12, 1250.5, '1250.5'):
+                with self.subTest(number_format=number_format, value=value), tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / 'base.xlsx'
+                    path.write_bytes(b'original')
+                    base = m.Book(str(path), m.fingerprint(path), {'Sheet1': m.Sheet({(1, 1): m.Cell('old')})})
+                    cell = Cell(number_format)
+                    sheet = Mock(ProtectContents=False)
+                    sheet.Cells.return_value = cell
+                    document = Mock(ReadOnly=False)
+                    document.Worksheets.return_value = sheet
+                    def opened(app, filename, **kwargs):
+                        document.Save.side_effect = lambda: Path(filename).write_bytes(b'saved')
+                        return document
+                    @contextmanager
+                    def excel():
+                        yield object()
+                    conflict = m.Conflict('Sheet1', 1, 1,
+                                          [m.Cell('old'), m.Cell(value, display_text='1 250,50')], [], 1)
+                    with patch.object(m, 'excel_app', excel), patch.object(m, 'open_book', opened):
+                        m.save_merge(base, [conflict])
+                    self.assertIsInstance(cell.Value2, (int, float))
+                    self.assertEqual(cell.Value2, float(value))
+                    self.assertEqual(cell.NumberFormat, 'General' if number_format == '@' else number_format)
+                    self.assertIsInstance(base.sheets['Sheet1'].cells[1, 1].value, (int, float))
+                    self.assertEqual(base.sheets['Sheet1'].cells[1, 1].value, cell.Value2)
 
     def test_save_numeric_string_uses_system_decimal_separator(self):
         class Cell:

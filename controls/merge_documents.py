@@ -129,6 +129,7 @@ class MergeDialog(wx.Dialog):
         self.saved_changes = False
         self.busy = False
         self.cancel_pending = False
+        self.close_after_save = False
         self.disposed = False
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.display_book = None
@@ -298,6 +299,8 @@ class MergeDialog(wx.Dialog):
             self.progress.Hide()
             self.busy = False
             self.wait_cursor = None
+            if getattr(self, 'saving', False):
+                self.save_failed()
             self.update_buttons()
             raise
         def finished(future):
@@ -313,16 +316,15 @@ class MergeDialog(wx.Dialog):
         self.Layout()
         self.busy = False
         self.wait_cursor = None
-        if self.cancel_pending:
-            self.EndModal(wx.ID_CANCEL)
-            return
         try:
             result = future.result()
             done(result)
         except Exception as exc:
             self.status.SetLabel(tr('merge_failed'))
             wx.MessageBox(error_text(exc), tr('merge_documents'), wx.OK | wx.ICON_ERROR, self)
-        self.update_buttons()
+        if not self.disposed:
+            self.update_buttons()
+            wx.CallAfter(self.resume_close)
 
     def update_buttons(self):
         self.search_button.Enable(not self.busy and self.base is not None)
@@ -516,7 +518,7 @@ class MergeDialog(wx.Dialog):
         def batch():
             if self.disposed:
                 return
-            complete = self.cancel_pending
+            complete = False
             failure = None
             grid.BeginBatch()
             try:
@@ -537,9 +539,6 @@ class MergeDialog(wx.Dialog):
             self.progress_timer.Stop()
             self.progress.Hide()
             self.busy = False
-            if self.cancel_pending:
-                self.EndModal(wx.ID_CANCEL)
-                return
             self.status.SetLabel(tr('merge_failed') if failure else previous_status)
             if failure:
                 wx.MessageBox(error_text(failure), tr('merge_documents'), wx.OK | wx.ICON_ERROR, self)
@@ -553,6 +552,7 @@ class MergeDialog(wx.Dialog):
                 if position is not None:
                     grid.SetGridCursor(*position)
                     grid.MakeCellVisible(*position)
+            wx.CallAfter(self.resume_close)
         wx.CallLater(1, batch)
 
     def select_preview(self, book, target=False):
@@ -633,12 +633,15 @@ class MergeDialog(wx.Dialog):
         self.status.SetLabel(tr('merge_recompare'))
         self.update_buttons()
 
-    def on_save(self, event):
+    def commit_pending_edits(self):
         for i in range(self.notebook.GetPageCount()):
             grid = getattr(self.notebook.GetPage(i), "grid", None)
             if isinstance(grid, gridlib.Grid) and grid.IsCellEditControlEnabled():
                 grid.SaveEditControlValue()
                 grid.DisableCellEditControl()
+
+    def on_save(self, event):
+        self.commit_pending_edits()
         if not self.compared or any(c.selected is None for c in self.conflicts):
             self.update_conflicts()
             return
@@ -647,11 +650,8 @@ class MergeDialog(wx.Dialog):
         backup = self.backup_checkbox.GetValue()
         change_color = self.selected_change_color()
         def done(result):
-            self.saving = False
-            self.saved_changes = True
-            self.cancel_button.Enable()
-            self.conflicts = []
-            self.compared = False
+            if self.finish_save():
+                return
             self.show_selected_book()
             self.status.SetLabel(tr('merge_saved'))
         def save():
@@ -663,24 +663,72 @@ class MergeDialog(wx.Dialog):
                 raise
         self.run_job(save, done)
 
+    def finish_save(self):
+        self.saving = False
+        self.saved_changes = True
+        self.cancel_button.Enable()
+        self.conflicts = []
+        self.compared = False
+        if self.close_after_save:
+            self.close_after_save = False
+            self.close_dialog()
+            return True
+        return False
+
     def save_failed(self):
         if not self.disposed:
             self.saving = False
+            self.close_after_save = False
             self.cancel_button.Enable()
 
+    def resume_close(self):
+        if not self.disposed and self.cancel_pending and not self.busy:
+            self.cancel_pending = False
+            self.cancel_button.Enable()
+            self.on_cancel(None)
+
+    def close_dialog(self):
+        if self.IsModal():
+            self.EndModal(wx.ID_CANCEL)
+        else:
+            self.dispose()
+
     def on_cancel(self, event):
+        if self.disposed:
+            return
+        if hasattr(event, 'Veto') and event.CanVeto():
+            event.Veto()
         if getattr(self, 'saving', False):
-            if hasattr(event, 'Veto'):
-                event.Veto()
             return
         if self.busy:
             self.cancel_pending = True
             self.status.SetLabel(tr('merge_cancelling'))
             self.cancel_button.Disable()
-            if hasattr(event, 'Veto'):
-                event.Veto()
-        else:
-            self.EndModal(wx.ID_CANCEL)
+            return
+        self.commit_pending_edits()
+        if self.compared and any(c.selected != 0 for c in self.conflicts):
+            prompt = wx.MessageDialog(
+                self, tr('confirm_save_selected_file') + '\n\n' + self.path,
+                tr('merge_documents'), wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING)
+            prompt.SetYesNoCancelLabels(tr('merge_save'), tr('confirm_no'), tr('cancel_button'))
+            try:
+                answer = prompt.ShowModal()
+            finally:
+                prompt.Destroy()
+            if answer == wx.ID_YES:
+                if any(c.selected is None for c in self.conflicts):
+                    wx.MessageBox(tr('merge_unresolved'), tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)
+                    return
+                self.close_after_save = True
+                try:
+                    self.on_save(None)
+                finally:
+                    if not getattr(self, 'saving', False):
+                        self.close_after_save = False
+                return
+            if answer != wx.ID_NO:
+                return
+        self.close_dialog()
 
     def dispose(self):
         self.disposed = True
@@ -861,11 +909,8 @@ class WordMergeDialog(MergeDialog):
                 wx.CallAfter(self.save_failed)
                 raise
         def done(result):
-            self.saving = False
-            self.saved_changes = True
-            self.cancel_button.Enable()
-            self.conflicts = []
-            self.compared = False
+            if self.finish_save():
+                return
             # Reload after saving so subsequent comparisons use new text offsets.
             self.run_job(self.load_initial, refreshed, tr('merge_initializing'))
         def refreshed(result):
