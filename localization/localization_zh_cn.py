@@ -16,6 +16,7 @@ TRANSLATIONS = {
     "help_manual_open_in_browser_button": "在浏览器中打开",
     "help_manual_open_pdf_button": "打开 PDF",
     "menu_about": "关于",
+    "about_version": "版本 {version}",
     "menu_file_options": "选项",
     "options_dialog_title": "选项",
     "options_group_main": "主要",

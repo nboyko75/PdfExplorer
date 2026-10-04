@@ -33,6 +33,7 @@ TRANSLATIONS = {
     "help_manual_open_in_browser_button": "Відкрити в браузері",
     "help_manual_open_pdf_button": "Відкрити PDF",
     "menu_about": "Про програму",
+    "about_version": "Версія {version}",
     "menu_file_options": "Параметри",
     "options_dialog_title": "Параметри",
     "options_group_main": "Основні",

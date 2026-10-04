@@ -79,6 +79,7 @@ a = Analysis(
         (str(project_dir / "images"), "images"),
         (str(project_dir / "localization"), "localization"),
         (str(project_dir / "docs"), "docs"),
+        (str(project_dir / "store" / "AppxManifest.xml"), "store"),
     ] + pymupdf_datas,
     hiddenimports=pymupdf_hiddenimports + pywin32_hiddenimports + store_hiddenimports + ["wx.html2"],
     hookspath=[],

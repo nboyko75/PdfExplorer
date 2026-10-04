@@ -16,6 +16,7 @@ TRANSLATIONS = {
     "help_manual_open_in_browser_button": "Abrir en el navegador",
     "help_manual_open_pdf_button": "Abrir PDF",
     "menu_about": "Acerca de",
+    "about_version": "Versión {version}",
     "menu_file_options": "Opciones",
     "options_dialog_title": "Opciones",
     "options_group_main": "Principal",

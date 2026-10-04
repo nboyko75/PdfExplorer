@@ -14,6 +14,7 @@ TRANSLATIONS = {
     "help_manual_open_in_browser_button": "Open in browser",
     "help_manual_open_pdf_button": "Open PDF",
     "menu_about": "About",
+    "about_version": "Version {version}",
     "back_button": "Back",
     "forward_button": "Forward",
     "folder_up_button": "Folder up",

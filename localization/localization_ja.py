@@ -16,6 +16,7 @@ TRANSLATIONS = {
     "help_manual_open_in_browser_button": "ブラウザーで開く",
     "help_manual_open_pdf_button": "PDF を開く",
     "menu_about": "情報",
+    "about_version": "バージョン {version}",
     "menu_file_options": "オプション",
     "options_dialog_title": "オプション",
     "options_group_main": "メイン",

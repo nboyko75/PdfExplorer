@@ -16,6 +16,7 @@ TRANSLATIONS = {
     "help_manual_open_in_browser_button": "브라우저에서 열기",
     "help_manual_open_pdf_button": "PDF 열기",
     "menu_about": "정보",
+    "about_version": "버전 {version}",
     "menu_file_options": "옵션",
     "options_dialog_title": "옵션",
     "options_group_main": "기본",

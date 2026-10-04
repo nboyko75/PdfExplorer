@@ -33,6 +33,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "help_manual_open_in_browser_button": "Open in browser",
     "help_manual_open_pdf_button": "Open PDF",
     "menu_about": "About",
+    "about_version": "Version {version}",
     "menu_file_options": "Options",
     "favorite_add_menu_item": "Add to favorite",
     "favorite_remove_menu_item": "Remove from favorite",

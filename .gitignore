@@ -21,3 +21,5 @@ store/DocExplorer.msix
 store/DocExplorer.Dev.cer
 store/DevPackageLayout-*/
 store/add cer to trusted people.ps1
+build_dev.cmd
+build_store.cmd
