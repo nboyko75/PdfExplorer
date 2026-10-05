@@ -549,26 +549,8 @@ def get_selected_tree_paths(owner):
 
 
 def _build_tree_drag_payload(selected_paths):
-    file_data = wx.FileDataObject()
-    for path in selected_paths:
-        file_data.AddFile(path)
-
-    payload_data = wx.TextDataObject()
-    marker_name = __import__("controls.drag_and_drop", fromlist=["INTERNAL_DRAG_MARKER"]).INTERNAL_DRAG_MARKER
-    payload = marker_name + "\n" + "\n".join(selected_paths)
-    payload_data.SetText(payload)
-
-    is_mocked_data_object = getattr(type(file_data), "__module__", "").startswith("unittest.mock") or getattr(type(wx.DataObjectComposite), "__module__", "").startswith("unittest.mock")
-    if isinstance(file_data, wx.DataObject) or is_mocked_data_object:
-        composite_data = wx.DataObjectComposite()
-        if hasattr(wx, "DATADOBJECT_PREFERRED"):
-            composite_data.Add(payload_data, wx.DATADOBJECT_PREFERRED)
-        else:
-            composite_data.Add(payload_data)
-        composite_data.Add(file_data)
-        return composite_data
-
-    return payload_data
+    # Share the file list's native file transfer and internal move formats.
+    return filelist._build_drag_payload(selected_paths)
 
 
 def on_tree_begin_drag(owner, event):

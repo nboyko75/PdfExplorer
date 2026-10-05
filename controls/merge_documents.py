@@ -115,6 +115,7 @@ class MergeDialog(wx.Dialog):
     def __init__(self, owner, path):
         super().__init__(owner, title=tr('merge_documents'), size=(1150, 750),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        self.owner = owner
         self.path = os.path.abspath(path)
         self.preview_dir = tempfile.TemporaryDirectory(prefix="docexplorer_merge_")
         self.preview_paths = {}
@@ -345,6 +346,7 @@ class MergeDialog(wx.Dialog):
         self.source_colors = {}
         def done(result):
             self.base, self.matches, skipped = result
+            self.matches.sort(key=lambda match: os.path.basename(match[0].path).casefold())
             for book, score in self.matches:
                 index = self.files.Append(os.path.basename(book.path))
                 self.files.Check(index, True)
@@ -731,7 +733,11 @@ class MergeDialog(wx.Dialog):
         self.close_dialog()
 
     def dispose(self):
+        if self.disposed:
+            return
         self.disposed = True
+        if getattr(self.owner, '_merge_dialog', None) is self:
+            self.owner._merge_dialog = None
         self.progress_timer.Stop()
         self.wait_cursor = None
         self.executor.shutdown(wait=False)
@@ -740,6 +746,19 @@ class MergeDialog(wx.Dialog):
             self.preview_dir.cleanup()
         except OSError:
             pass
+        wx.CallAfter(self.refresh_owner)
+
+    def refresh_owner(self):
+        owner = self.owner
+        if not owner or getattr(owner, '_closing_workspace', False):
+            return
+        if self.saved_changes:
+            owner.refresh_current_folder_preserving_context()
+        # The user may have selected another file while this form was open.
+        current_path = getattr(owner, 'current_preview_path', None)
+        if current_path and engine.source_key(current_path) == engine.source_key(self.path):
+            from controls.file_preview import show_file_preview
+            show_file_preview(owner, current_path, force_refresh=True)
 
 
 class WordMergeDialog(MergeDialog):
@@ -840,6 +859,7 @@ class WordMergeDialog(MergeDialog):
             return result, preview
         def done(result):
             (self.base, self.matches, skipped), preview = result
+            self.matches.sort(key=lambda match: os.path.basename(match[0].path).casefold())
             self.preview_paths[self.base.digest] = preview
             for document, score in self.matches:
                 index = self.files.Append(os.path.basename(document.path))
@@ -922,11 +942,12 @@ class WordMergeDialog(MergeDialog):
 def show_merge_dialog(owner, path):
     if not (engine.is_excel(path) or word_merge.is_word(path)):
         return
+    existing = getattr(owner, '_merge_dialog', None)
+    if existing and not existing.disposed:
+        existing.Show()
+        existing.Raise()
+        return existing
     dialog = (WordMergeDialog if word_merge.is_word(path) else MergeDialog)(owner, path)
-    try:
-        dialog.ShowModal()
-        if dialog.saved_changes:
-            from controls.filelist import _refresh_after_fs_change
-            _refresh_after_fs_change(owner, affected_dirs=[os.path.dirname(path)], preferred_preview_path=path)
-    finally:
-        dialog.dispose()
+    owner._merge_dialog = dialog
+    dialog.Show()
+    return dialog

@@ -734,6 +734,12 @@ class ExplorerWorkspace(wx.Panel):
                 self.favorite_panel.GetSizer().Layout()
 
     def confirm_close(self):
+        merge_dialog = getattr(self, '_merge_dialog', None)
+        if merge_dialog and not merge_dialog.disposed:
+            merge_dialog.Raise()
+            merge_dialog.on_cancel(None)
+            if not merge_dialog.disposed:
+                return False
         # PDF buffers belong to this workspace, including inactive preview tabs.
         unsaved_pdf_paths = get_unsaved_pdf_paths()
         if not unsaved_pdf_paths:

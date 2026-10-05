@@ -1,10 +1,12 @@
 """Merge close/save lifecycle checks without Office or a GUI event loop."""
 import ast
 from concurrent.futures import Future
+import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class MergeCloseTests(unittest.TestCase):
@@ -174,6 +176,99 @@ class MergeCloseTests(unittest.TestCase):
         dialog.on_cancel(None)
         dialog.dispose.assert_called_once()
         dialog.EndModal.assert_not_called()
+
+    def test_modeless_save_on_close_waits_for_success(self):
+        self.wx.MessageDialog.return_value.ShowModal.return_value = self.wx.ID_YES
+        for cls in self.classes:
+            with self.subTest(dialog=cls.__name__):
+                dialog = self.dialog(cls)
+                dialog.IsModal.return_value = False
+                dialog.on_cancel(None)
+                dialog.dispose.assert_not_called()
+                task, done = dialog.run_job.call_args.args
+                task()
+                done(None)
+                dialog.dispose.assert_called_once()
+                dialog.EndModal.assert_not_called()
+                self.assertTrue(dialog.saved_changes)
+
+
+class ModelessMergeTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(__file__).resolve().parents[1]
+        tree = ast.parse((root / 'controls/merge_documents.py').read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'MergeDialog')
+        methods = [n for n in cls.body if isinstance(n, ast.FunctionDef)
+                   and n.name in ('dispose', 'refresh_owner')]
+        methods += [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'show_merge_dialog']
+        main = ast.parse((root / 'main.py').read_text())
+        workspace = next(n for n in main.body if isinstance(n, ast.ClassDef) and n.name == 'ExplorerWorkspace')
+        methods += [n for n in workspace.body if isinstance(n, ast.FunctionDef) and n.name == 'confirm_close']
+        self.wx = Mock()
+        self.excel, self.word = Mock(), Mock()
+        self.scope = {'wx': self.wx, 'MergeDialog': self.excel, 'WordMergeDialog': self.word,
+                      'engine': SimpleNamespace(is_excel=lambda p: p.endswith('.xlsx'),
+                                                source_key=lambda p: os.path.normcase(os.path.abspath(p))),
+                      'word_merge': SimpleNamespace(is_word=lambda p: p.endswith('.docx')),
+                      'get_unsaved_pdf_paths': lambda: []}
+        exec(compile(ast.Module(body=methods, type_ignores=[]), 'modeless_merge', 'exec'), self.scope)
+
+    def test_open_returns_without_modal_loop_and_reuses_existing_form(self):
+        for path, factory in (('original.xlsx', self.excel), ('original.docx', self.word)):
+            with self.subTest(path=path):
+                owner = SimpleNamespace()
+                factory.return_value.disposed = False
+                dialog = self.scope['show_merge_dialog'](owner, path)
+                self.assertIs(owner._merge_dialog, dialog)
+                dialog.Show.assert_called_once()
+                dialog.ShowModal.assert_not_called()
+                dialog.dispose.assert_not_called()
+                self.assertIs(self.scope['show_merge_dialog'](owner, path), dialog)
+                factory.assert_called_once_with(owner, path)
+                dialog.Raise.assert_called_once()
+
+    def test_dispose_releases_resources_and_defers_refresh_once(self):
+        dialog = Mock(disposed=False)
+        dialog.owner = SimpleNamespace(_merge_dialog=dialog)
+        self.scope['dispose'](dialog)
+        self.scope['dispose'](dialog)
+        self.assertIsNone(dialog.owner._merge_dialog)
+        dialog.Destroy.assert_called_once()
+        dialog.executor.shutdown.assert_called_once_with(wait=False)
+        dialog.preview_dir.cleanup.assert_called_once()
+        self.wx.CallAfter.assert_called_once_with(dialog.refresh_owner)
+        dialog.refresh_owner.assert_not_called()
+
+    def test_close_refreshes_only_the_merged_preview_and_preserves_selection(self):
+        preview = SimpleNamespace(show_file_preview=Mock())
+        for saved in (False, True):
+            for selected in ('original.docx', 'another.docx', None):
+                with self.subTest(saved=saved, selected=selected):
+                    preview.show_file_preview.reset_mock()
+                    owner = SimpleNamespace(current_preview_path=selected,
+                                            refresh_current_folder_preserving_context=Mock())
+                    dialog = SimpleNamespace(owner=owner, path='original.docx', saved_changes=saved)
+                    with patch.dict(sys.modules, {'controls.file_preview': preview}):
+                        self.scope['refresh_owner'](dialog)
+                    self.assertEqual(owner.current_preview_path, selected)
+                    self.assertEqual(owner.refresh_current_folder_preserving_context.call_count, int(saved))
+                    if selected == dialog.path:
+                        preview.show_file_preview.assert_called_once_with(owner, selected, force_refresh=True)
+                    else:
+                        preview.show_file_preview.assert_not_called()
+
+    def test_queued_refresh_ignores_closing_workspace(self):
+        owner = SimpleNamespace(_closing_workspace=True, refresh_current_folder_preserving_context=Mock())
+        self.scope['refresh_owner'](SimpleNamespace(owner=owner, saved_changes=True))
+        owner.refresh_current_folder_preserving_context.assert_not_called()
+
+    def test_workspace_stays_open_until_merge_close_completes(self):
+        dialog = Mock(disposed=False)
+        owner = SimpleNamespace(_merge_dialog=dialog)
+        self.assertFalse(self.scope['confirm_close'](owner))
+        dialog.on_cancel.assert_called_once_with(None)
+        dialog.on_cancel.side_effect = lambda event: setattr(dialog, 'disposed', True)
+        self.assertTrue(self.scope['confirm_close'](owner))
 
 
 if __name__ == '__main__':

@@ -1853,7 +1853,7 @@ def on_office_preview_checkbox_toggle(event):
     show_file_preview(owner, current_preview_path)
 
 
-def show_file_preview(owner, path):
+def show_file_preview(owner, path, *, force_refresh=False):
     _ensure_preview_tab_state(owner)
 
     if path is not None and not _is_existing_path_with_valid_parents(path):
@@ -1945,11 +1945,11 @@ def show_file_preview(owner, path):
             normalized_tab_path = _normalize_preview_path(tab_path)
             if normalized_tab_path == normalized_path:
                 owner.preview_active_tab_index = tab_index
-                if normalized_previous == normalized_path:
+                if normalized_previous == normalized_path and not force_refresh:
                     return
                 break
 
-    if normalized_previous != normalized_path:
+    if normalized_previous != normalized_path or force_refresh:
         close_office_preview(owner, save_changes=False)
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
