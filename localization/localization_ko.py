@@ -228,6 +228,8 @@ TRANSLATIONS = {
     "preview_delete_button": "파일 삭제",
     "preview_zoom_in_button": "확대",
     "preview_zoom_out_button": "축소",
+    "preview_horizontal_view": "가로 보기",
+    "preview_vertical_view": "세로 보기",
     "preview_show_mode": "보기 모드",
     "preview_show_1_page_wide": "가로 1페이지 보기",
     "preview_show_2_pages_wide": "가로 2페이지 보기",

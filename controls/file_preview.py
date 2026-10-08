@@ -75,6 +75,10 @@ def set_preview_mode(owner, mode):
             pass
 
     owner.current_preview_mode = mode_name
+    for name in ("preview_horizontal_view_btn", "preview_vertical_view_btn"):
+        button = getattr(owner, name, None)
+        if button is not None:
+            button.Enable(mode_name == "pages")
 
 
 def _get_preview_tab_label(path):
@@ -495,6 +499,50 @@ def _sync_preview_tab_for_path(owner, path):
     _render_preview_tab_bar(owner)
 
 
+def _create_preview_orientation_button(parent, vertical=False):
+    """Draw two sheets along the requested axis using native toolbar colours."""
+    bitmap = wx.Bitmap(16, 16)
+    dc = wx.MemoryDC(bitmap)
+    dc.SetBackground(wx.Brush(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE)))
+    dc.Clear()
+    dc.SetPen(wx.Pen(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNTEXT)))
+    dc.SetBrush(wx.Brush(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)))
+    sheets = ((5, 0, 6, 7), (5, 9, 6, 7)) if vertical else ((0, 3, 7, 10), (9, 3, 7, 10))
+    for x, y, width, height in sheets:
+        dc.DrawRectangle(x, y, width, height)
+        dc.DrawLine(x + width - 3, y, x + width - 3, y + 2)
+        dc.DrawLine(x + width - 3, y + 2, x + width - 1, y + 2)
+    dc.SelectObject(wx.NullBitmap)
+    button = wx.BitmapToggleButton(parent, wx.ID_ANY, bitmap, size=(24, 24))
+    label = tr("preview_vertical_view" if vertical else "preview_horizontal_view")
+    button.SetToolTip(label)
+    button.SetName(label)
+    button.SetValue(not vertical)
+    button.Enable(False)
+    return button
+
+
+def _layout_pdf_pages(owner):
+    """Reflow existing pages and insertion gaps without rebuilding the preview."""
+    vertical = getattr(owner, "preview_vertical_view", False)
+    owner.pdf_pages_sizer.SetOrientation(wx.VERTICAL if vertical else wx.HORIZONTAL)
+    page_sizes = [panel.GetBestSize() for panel in getattr(owner, "pdf_page_panels", {}).values()]
+    cross_size = max((size.x if vertical else size.y for size in page_sizes), default=180)
+    gap_size = (cross_size, 22) if vertical else (22, cross_size)
+    for gap in getattr(owner, "pdf_page_gaps", []):
+        gap.SetMinSize(gap_size)
+    owner.pdf_pages_panel.Layout()
+    owner.pdf_pages_panel.FitInside()
+
+
+def _set_preview_orientation(owner, vertical):
+    owner.preview_vertical_view = vertical
+    owner.preview_horizontal_view_btn.SetValue(not vertical)
+    owner.preview_vertical_view_btn.SetValue(vertical)
+    _layout_pdf_pages(owner)
+    owner.pdf_pages_panel.Scroll(0, 0)
+
+
 def build_file_preview_pane(owner, file_splitter):
     """Create and configure the file preview pane UI."""
     owner.preview_content_panel = wx.Panel(file_splitter)
@@ -546,6 +594,12 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_load_all_btn, 0, wx.RIGHT, 3)
+    owner.preview_vertical_view = False
+    owner.preview_horizontal_view_btn = _create_preview_orientation_button(owner.filePreview)
+    owner.preview_vertical_view_btn = _create_preview_orientation_button(owner.filePreview, vertical=True)
+    owner.preview_toolbar.AddStretchSpacer()
+    owner.preview_toolbar.Add(owner.preview_horizontal_view_btn, 0, wx.RIGHT, 3)
+    owner.preview_toolbar.Add(owner.preview_vertical_view_btn, 0, wx.RIGHT, 3)
 
     owner.preview_save_btn.Enable(False)
     owner.preview_cancel_btn.Enable(False)
@@ -628,6 +682,8 @@ def bind_preview_events(owner):
     owner.preview_adjust_page_width_btn.Bind(wx.EVT_BUTTON, on_preview_adjust_page_width)
     owner.preview_remove_page_btn.Bind(wx.EVT_BUTTON, on_preview_remove_page)
     owner.preview_load_all_btn.Bind(wx.EVT_BUTTON, on_preview_load_all_pages)
+    owner.preview_horizontal_view_btn.Bind(wx.EVT_TOGGLEBUTTON, lambda event: _set_preview_orientation(owner, False))
+    owner.preview_vertical_view_btn.Bind(wx.EVT_TOGGLEBUTTON, lambda event: _set_preview_orientation(owner, True))
 
 
 def confirm_preview_change(owner, next_path):
@@ -1393,6 +1449,7 @@ def clear_pdf_feed(owner):
     """Clear the PDF feed display."""
     owner.pdf_pages_sizer.Clear(True)
     owner.pdf_page_panels = {}
+    owner.pdf_page_gaps = []
     owner.selected_pdf_page_panel = None
     owner.selected_pdf_page_indices = set()
     owner.pdf_selection_anchor = None
@@ -1701,6 +1758,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
             leading_gap.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
             leading_gap.SetDropTarget(PdfPageDropTarget(owner, 0, leading_gap, insert_before=True))
             owner.pdf_pages_sizer.Add(leading_gap, 0, wx.ALL, 0)
+            owner.pdf_page_gaps.append(leading_gap)
 
             for index, (page_no, bitmap) in enumerate(previews):
                 page_panel = wx.Panel(owner.pdf_pages_panel, style=wx.BORDER_SIMPLE)
@@ -1741,6 +1799,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
                 gap_panel.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
                 gap_panel.SetDropTarget(PdfPageDropTarget(owner, index + 1, gap_panel, insert_before=True))
                 owner.pdf_pages_sizer.Add(gap_panel, 0, wx.ALL, 0)
+                owner.pdf_page_gaps.append(gap_panel)
 
             trailing_gap = wx.Panel(owner.pdf_pages_panel, size=(gap_width, page_height), style=wx.BORDER_NONE)
             trailing_gap.SetMinSize((gap_width, page_height))
@@ -1748,6 +1807,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
             trailing_gap.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
             trailing_gap.SetDropTarget(PdfPageDropTarget(owner, page_count, trailing_gap, insert_before=False))
             owner.pdf_pages_sizer.Add(trailing_gap, 0, wx.ALL, 0)
+            owner.pdf_page_gaps.append(trailing_gap)
 
             if page_count > shown_pages:
                 note = wx.StaticText(
@@ -1764,8 +1824,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
             update_pdf_save_button_state(owner)
 
     set_preview_mode(owner, "pages")
-    owner.pdf_pages_panel.Layout()
-    owner.pdf_pages_panel.FitInside()
+    _layout_pdf_pages(owner)
     owner.filePreview.Layout()
 
 

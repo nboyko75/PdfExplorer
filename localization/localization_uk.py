@@ -205,6 +205,8 @@ TRANSLATIONS = {
     "preview_delete_button": "Видалити файл",
     "preview_zoom_in_button": "Збільшити",
     "preview_zoom_out_button": "Зменшити",
+    "preview_horizontal_view": "Горизонтальний вигляд",
+    "preview_vertical_view": "Вертикальний вигляд",
     "preview_show_mode": "Режим перегляду",
     "preview_show_1_page_wide": "1 сторінка по ширині",
     "preview_show_2_pages_wide": "2 сторінки по ширині",

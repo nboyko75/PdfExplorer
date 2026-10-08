@@ -239,6 +239,8 @@ TRANSLATIONS = {
     "preview_delete_button": "Elimina file",
     "preview_zoom_in_button": "Zoom avanti",
     "preview_zoom_out_button": "Zoom indietro",
+    "preview_horizontal_view": "Vista orizzontale",
+    "preview_vertical_view": "Vista verticale",
     "preview_show_mode": "Modalita di visualizzazione",
     "preview_show_1_page_wide": "Mostra 1 pagina in larghezza",
     "preview_show_2_pages_wide": "Mostra 2 pagine in larghezza",

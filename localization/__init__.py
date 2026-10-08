@@ -255,6 +255,8 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "preview_delete_button": "Delete file",
     "preview_zoom_in_button": "Zoom In",
     "preview_zoom_out_button": "Zoom Out",
+    "preview_horizontal_view": "Horizontal view",
+    "preview_vertical_view": "Vertical view",
     "preview_show_mode": "Show mode",
     "preview_show_1_page_wide": "Show 1 page wide",
     "preview_show_2_pages_wide": "Show 2 pages wide",

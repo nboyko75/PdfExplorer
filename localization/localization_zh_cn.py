@@ -228,6 +228,8 @@ TRANSLATIONS = {
     "preview_delete_button": "删除文件",
     "preview_zoom_in_button": "放大",
     "preview_zoom_out_button": "缩小",
+    "preview_horizontal_view": "水平视图",
+    "preview_vertical_view": "垂直视图",
     "preview_show_mode": "显示模式",
     "preview_show_1_page_wide": "按宽度显示 1 页",
     "preview_show_2_pages_wide": "按宽度显示 2 页",

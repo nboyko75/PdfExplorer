@@ -228,6 +228,8 @@ TRANSLATIONS = {
     "preview_delete_button": "ファイルを削除",
     "preview_zoom_in_button": "拡大",
     "preview_zoom_out_button": "縮小",
+    "preview_horizontal_view": "横並び表示",
+    "preview_vertical_view": "縦並び表示",
     "preview_show_mode": "表示モード",
     "preview_show_1_page_wide": "横に1ページ表示",
     "preview_show_2_pages_wide": "横に2ページ表示",
