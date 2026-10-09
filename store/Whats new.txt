@@ -53,3 +53,7 @@ Make the merge form nonmodal that user can work with the main form in the backgr
 Added two toggle buttons at the right of the preview toolbar, with matching two-sheet icons:
 - Horizontal view — selected by default.
 - Vertical view — stacks pages vertically.
+
+Fixed reactivation now preserves the top visible file’s vertical position after refreshing, preventing the list from jumping upward.
+
+Added drag-and-drop reordering for explorer tabs. Drag a tab heading to move it; a marker shows the drop position, and the bar scrolls automatically at its edges.

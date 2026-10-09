@@ -1209,6 +1209,8 @@ class ExplorerWorkspace(wx.Panel):
         focused_path = self._list_item_paths.get(focused)
         top = self.list.GetTopItem()
         top_path = self._list_item_paths.get(top)
+        top_y = self.list.GetItemRect(top).y if self.list.GetItemCount() else None
+        scroll_row = None
         tree_item = self.tree.GetSelection()
         tree_path = self.tree.GetItemData(tree_item) if tree_item and tree_item.IsOk() else None
         restoring = getattr(self, '_restoring_list_selection', False)
@@ -1227,8 +1229,8 @@ class ExplorerWorkspace(wx.Panel):
                     self.list.SetItemState(rows[path], wx.LIST_STATE_SELECTED, wx.LIST_STATE_SELECTED)
             if focused_path in rows:
                 self.list.SetItemState(rows[focused_path], wx.LIST_STATE_FOCUSED, wx.LIST_STATE_FOCUSED)
-            if self.list.GetItemCount():
-                self.list.EnsureVisible(rows.get(top_path, min(top, self.list.GetItemCount() - 1)))
+            if top_y is not None and self.list.GetItemCount():
+                scroll_row = rows.get(top_path, min(top, self.list.GetItemCount() - 1))
             if tree_path:
                 item = filelist._find_tree_item_without_expanding(self, tree_path)
                 if item is not None and item.IsOk():
@@ -1242,6 +1244,10 @@ class ExplorerWorkspace(wx.Panel):
             self._syncing_tree_from_path = syncing
             self.updating_tree = updating
             self.Thaw()
+        if scroll_row is not None:
+            # Thaw updates the native scroll range; restore the row's position,
+            # not just its visibility (EnsureVisible can leave it at the bottom).
+            self.list.ScrollList(0, self.list.GetItemRect(scroll_row).y - top_y)
         self._update_main_menu_state()
         self.update_list_toolbar_buttons()
 
@@ -1376,6 +1382,16 @@ class FileExplorer(wx.Frame):
         workspace.dispose()
         self.explorer_tabs.rebuild()
         self.body.Layout()
+
+    def move_tab(self, workspace, index):
+        if self._closing or workspace not in self.workspaces:
+            return
+        index = max(0, min(index, len(self.workspaces) - 1))
+        if self.workspaces.index(workspace) == index:
+            return
+        self.workspaces.remove(workspace)
+        self.workspaces.insert(index, workspace)
+        self.explorer_tabs.reorder()
 
     def cycle_tab(self, backwards=False):
         index = self.workspaces.index(self.active_workspace)

@@ -175,7 +175,8 @@ class WorkspaceTests(unittest.TestCase):
         h._geometry_save_timer = None
         h.last_tab_layout = {}
         h.body = SimpleNamespace(Layout=lambda: None)
-        h.explorer_tabs = SimpleNamespace(mark_active=lambda w: None, rebuild=lambda: None)
+        h.explorer_tabs = SimpleNamespace(mark_active=lambda w: None, rebuild=lambda: None,
+                                         reorder=lambda: None)
         h.workspace_sizer = SimpleNamespace(Detach=lambda w: None)
         h.activate_tab(self.a)
         scheduled.clear()
@@ -370,6 +371,35 @@ class WorkspaceTests(unittest.TestCase):
         self.assertIs(self.host.active_workspace, self.b)
         self.host.cycle_tab(backwards=True)
         self.assertIs(self.host.active_workspace, self.a)
+
+    def test_move_tab_preserves_workspace_state_and_active_menu(self):
+        previews, history = self.a.preview_tabs, self.a.history
+        self.host.move_tab(self.a, 1)
+        self.assertEqual(self.host.workspaces, [self.b, self.a])
+        self.assertIs(self.host.active_workspace, self.a)
+        self.assertIs(self.host.menu, self.a.menu_bar)
+        self.assertIs(self.a.preview_tabs, previews)
+        self.assertIs(self.a.history, history)
+        self.assertFalse(self.a.disposed or self.b.disposed)
+        self.assertEqual(scheduled, [])
+
+    def test_cycle_and_close_follow_reordered_tabs(self):
+        c = Workspace('C')
+        self.host.workspaces.append(c)
+        self.host.move_tab(c, 1)
+        self.host.cycle_tab()
+        self.assertIs(self.host.active_workspace, c)
+        self.host.cycle_tab()
+        self.assertIs(self.host.active_workspace, self.b)
+        self.host.close_tab(self.b)
+        self.assertIs(self.host.active_workspace, c)
+        self.assertEqual(self.host.workspaces, [self.a, c])
+
+    def test_move_tab_ignores_missing_workspace_and_closing_window(self):
+        self.host.move_tab(Workspace('missing'), 0)
+        self.host._closing = True
+        self.host.move_tab(self.a, 1)
+        self.assertEqual(self.host.workspaces, [self.a, self.b])
 
 
 class GeometryTests(unittest.TestCase):

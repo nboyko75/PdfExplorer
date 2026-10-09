@@ -37,7 +37,9 @@ class TabHeading(wx.Panel):
         self.set_active(False)
 
     def _select(self, event):
+        position = event.GetEventObject().ClientToScreen(event.GetPosition())
         self.host.activate_tab(self.workspace)
+        self.GetParent().begin_drag(self.workspace, position)
 
     def _close(self, event):
         wx.CallAfter(self.host.close_tab, self.workspace)
@@ -114,8 +116,21 @@ class ExplorerTabs(wx.ScrolledWindow):
         self.SetMinSize((-1, self.FromDIP(28)))
         self.SetMaxSize((-1, self.FromDIP(28)))
         self.Bind(wx.EVT_MOUSEWHEEL, self._on_wheel)
+        self._drag_workspace = None
+        self._dragging = False
+        self._drop_index = None
+        self._drag_timer = wx.Timer(self)
+        self._drop_marker = wx.Panel(self)
+        self._drop_marker.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT))
+        self._drop_marker.Hide()
+        self.Bind(wx.EVT_MOTION, self._on_drag_motion)
+        self.Bind(wx.EVT_LEFT_UP, self._on_drag_end)
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._cancel_drag)
+        self.Bind(wx.EVT_TIMER, self._on_drag_timer, self._drag_timer)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
 
     def rebuild(self):
+        self._cancel_drag()
         self.row.Clear(True)
         self.headings = {}
         for workspace in self.host.workspaces:
@@ -132,6 +147,104 @@ class ExplorerTabs(wx.ScrolledWindow):
         self.Layout()
         self.FitInside()
         self.mark_active(self.host.active_workspace)
+
+    def reorder(self):
+        # Keep the existing headings and workspace panels alive.
+        self.row.Clear(False)
+        for workspace in self.host.workspaces:
+            self.row.Add(self.headings[workspace], 0, wx.EXPAND)
+        self.row.Add(self.add_button, 0, wx.EXPAND)
+        self.Layout()
+        self.FitInside()
+        self.mark_active(self.host.active_workspace)
+
+    def begin_drag(self, workspace, position):
+        self._cancel_drag()
+        if len(self.host.workspaces) < 2:
+            return
+        self._drag_workspace = workspace
+        self._drag_start = position
+        self.CaptureMouse()
+
+    def _on_drag_motion(self, event):
+        if self._drag_workspace is None:
+            event.Skip()
+            return
+        if not event.LeftIsDown():
+            self._cancel_drag()
+            return
+        position = self.ClientToScreen(event.GetPosition())
+        if not self._dragging:
+            delta = position - self._drag_start
+            if (abs(delta.x) < max(1, wx.SystemSettings.GetMetric(wx.SYS_DRAG_X))
+                    and abs(delta.y) < max(1, wx.SystemSettings.GetMetric(wx.SYS_DRAG_Y))):
+                return
+            self._dragging = True
+            self.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
+            self._drag_timer.Start(75)
+        self._update_drop_position(position)
+
+    def _update_drop_position(self, position):
+        point = self.ScreenToClient(position)
+        self._drop_index = None
+        self._drop_marker.Hide()
+        if not self.GetClientRect().Contains(point):
+            return
+        # Compare against the other headings so the result is an index after
+        # removing the dragged workspace from the order.
+        others = [page for page in self.host.workspaces if page is not self._drag_workspace]
+        index = len(others)
+        marker_x = self.add_button.GetPosition().x
+        for i, page in enumerate(others):
+            rect = self.headings[page].GetRect()
+            if point.x < rect.x + rect.width // 2:
+                index, marker_x = i, rect.x
+                break
+        self._drop_index = index
+        width = self.FromDIP(3)
+        marker_x = max(0, min(marker_x, self.GetClientSize().width - width))
+        self._drop_marker.SetSize(marker_x, 0, width, self.GetClientSize().height)
+        self._drop_marker.Show()
+        self._drop_marker.Raise()
+
+    def _on_drag_timer(self, event):
+        if wx.GetKeyState(wx.WXK_ESCAPE):
+            self._cancel_drag()
+            return
+        position = wx.GetMousePosition()
+        point = self.ScreenToClient(position)
+        if self.GetClientRect().Contains(point):
+            margin = self.FromDIP(24)
+            x, _ = self.GetViewStart()
+            if point.x < margin:
+                self.Scroll(max(0, x - 1), 0)
+            elif point.x >= self.GetClientSize().width - margin:
+                self.Scroll(x + 1, 0)
+        self._update_drop_position(position)
+
+    def _on_drag_end(self, event):
+        workspace = self._drag_workspace
+        if self._dragging:
+            self._update_drop_position(self.ClientToScreen(event.GetPosition()))
+        index = self._drop_index
+        self._cancel_drag()
+        if workspace is not None and index is not None:
+            self.host.move_tab(workspace, index)
+
+    def _cancel_drag(self, event=None):
+        self._drag_timer.Stop()
+        self._drag_workspace = None
+        self._dragging = False
+        self._drop_index = None
+        self._drop_marker.Hide()
+        self.SetCursor(wx.NullCursor)
+        if self.HasCapture():
+            self.ReleaseMouse()
+
+    def _on_destroy(self, event):
+        if event.GetEventObject() is self:
+            self._cancel_drag()
+        event.Skip()
 
     def mark_active(self, workspace):
         for page, heading in self.headings.items():
