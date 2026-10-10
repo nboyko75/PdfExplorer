@@ -594,9 +594,11 @@ def build_file_preview_pane(owner, file_splitter):
     owner.preview_toolbar.Add(owner.preview_optimize_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_adjust_page_width_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_load_all_btn, 0, wx.RIGHT, 3)
-    owner.preview_vertical_view = False
+    owner.preview_vertical_view = getattr(owner, "preview_vertical_view", False)
     owner.preview_horizontal_view_btn = _create_preview_orientation_button(owner.filePreview)
     owner.preview_vertical_view_btn = _create_preview_orientation_button(owner.filePreview, vertical=True)
+    owner.preview_horizontal_view_btn.SetValue(not owner.preview_vertical_view)
+    owner.preview_vertical_view_btn.SetValue(owner.preview_vertical_view)
     owner.preview_toolbar.AddStretchSpacer()
     owner.preview_toolbar.Add(owner.preview_horizontal_view_btn, 0, wx.RIGHT, 3)
     owner.preview_toolbar.Add(owner.preview_vertical_view_btn, 0, wx.RIGHT, 3)
@@ -624,7 +626,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.pdf_pages_panel.SetScrollRate(10, 10)
     owner.pdf_pages_panel.Hide()
     owner.pdf_pages_panel.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
-    owner.pdf_pages_sizer = wx.BoxSizer(wx.HORIZONTAL)
+    owner.pdf_pages_sizer = wx.BoxSizer(wx.VERTICAL if owner.preview_vertical_view else wx.HORIZONTAL)
     owner.pdf_pages_panel.SetSizer(owner.pdf_pages_sizer)
 
     owner.pdf_preview_container = wx.ScrolledWindow(owner.filePreview, style=wx.HSCROLL | wx.VSCROLL)

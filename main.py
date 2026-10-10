@@ -47,6 +47,7 @@ class ExplorerWorkspace(wx.Panel):
         self.history_index = -1
         self.show_hidden = bool(settings.get("show_hidden", False))
         self.preview_enabled = bool(settings.get("preview_enabled", True))
+        self.preview_vertical_view = bool(settings.get("preview_vertical_view", False))
         self.office_preview_enabled = bool(settings.get("office_preview_enabled", False))
         self.current_pdf_path = None
         self.selected_pdf_page_panel = None
@@ -1475,10 +1476,12 @@ class FileExplorer(wx.Frame):
             event.Veto()
             return
         original = self.active_workspace
+        settings = dict(self.last_tab_layout)
         if original is not None:
             original.save_list_view_state()
             original.save_last_folder()
-        update_settings(self.last_tab_layout)
+            settings["preview_vertical_view"] = getattr(original, "preview_vertical_view", False)
+        update_settings(settings)
         if self._geometry_save_timer is not None:
             self._geometry_save_timer.Stop()
             self._geometry_save_timer = None
