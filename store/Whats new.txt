@@ -56,3 +56,11 @@ Added two toggle buttons at the right of the preview toolbar, with matching two-
 Fixed reactivation now preserves the top visible file’s vertical position after refreshing, preventing the list from jumping upward.
 
 Added drag-and-drop reordering for explorer tabs. Drag a tab heading to move it; a marker shows the drop position, and the bar scrolls automatically at its edges.
+
+10.0.7.0
+
+Implemented: the active tab’s horizontal/vertical preview mode now saves on exit and restores on startup, with toolbar buttons synchronized.
+
+Updated Word merging to apply the selected color behind changed text, preserving font and table-cell colors. Excel retains its existing font coloring.
+
+Fixed the missing view restoration in Word Merge. Both HTML preview paths now restore Word’s original view before closing, including when export fails.

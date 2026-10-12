@@ -187,7 +187,7 @@ class WordMergeTests(unittest.TestCase):
                 m.save_merge(base, [conflict])
             self.assertEqual(path.read_bytes(), b'changed')
 
-    def test_save_colors_only_replacement_text_with_exact_rgb(self):
+    def test_save_shades_only_replacement_text_with_exact_rgb(self):
         for color in (None, (255, 255, 0), (18, 52, 86), (0, 0, 0)):
             with self.subTest(color=color), tempfile.TemporaryDirectory() as folder:
                 path = Path(folder) / 'original.docx'
@@ -203,6 +203,9 @@ class WordMergeTests(unittest.TestCase):
                                                   HighlightColorIndex=7)
                         ranges[start, end].Shading.BackgroundPatternColor = 123
                         ranges[start, end].Shading.Texture = 10
+                        ranges[start, end].Font.Color = 456
+                        ranges[start, end].Font.Shading.BackgroundPatternColor = 789
+                        ranges[start, end].Font.Shading.Texture = 20
                     return ranges[start, end]
                 doc = Mock(ReadOnly=False, ProtectionType=-1, TrackRevisions=False)
                 doc.Revisions.Count = 0
@@ -217,12 +220,17 @@ class WordMergeTests(unittest.TestCase):
                 self.assertEqual(ranges[13, 19].Text, '')
                 self.assertEqual(set(ranges), {(4, 7), (13, 19)} | ({(4, 9)} if color is not None else set()))
                 if color is not None:
-                    self.assertEqual(ranges[4, 9].Font.Color,
+                    self.assertEqual(ranges[4, 9].Font.Shading.BackgroundPatternColor,
                                      color[0] | color[1] << 8 | color[2] << 16)
-                for area in ranges.values():
+                for offsets, area in ranges.items():
+                    marked = color is not None and offsets == (4, 9)
+                    self.assertEqual(area.Font.Color, 456)
+                    self.assertEqual(area.Font.Shading.Texture, 0 if marked else 20)
+                    if not marked:
+                        self.assertEqual(area.Font.Shading.BackgroundPatternColor, 789)
                     self.assertEqual(area.Shading.BackgroundPatternColor, 123)
                     self.assertEqual(area.Shading.Texture, 10)
-                    self.assertEqual(area.HighlightColorIndex, 7)
+                    self.assertEqual(area.HighlightColorIndex, 0 if marked else 7)
 
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ import sys
 import tempfile
 import time
 
-from file_operations.office_session import preview_document
+from file_operations.office_session import preview_document, save_word_html
 
 try:
     import pythoncom
@@ -50,22 +50,7 @@ def _require_office_com():
 
 def _export_word_to_html(source_path, html_path):
     with preview_document(win32_client, pythoncom, "Word", source_path) as document:
-        original_view_type = document.ActiveWindow.View.Type
-        try:
-            document.SaveAs2(
-                FileName=os.path.abspath(html_path),
-                FileFormat=10,  # wdFormatFilteredHTML
-                AddToRecentFiles=False,
-                Encoding=65001,  # UTF-8
-            )
-        finally:
-            # HTML SaveAs switches Word to Web Layout. Restore the original
-            # view before closing the preview instance.
-            # The read-only source and exported HTML are not saved again.
-            try:
-                document.ActiveWindow.View.Type = original_view_type
-            except Exception:
-                logger.warning("Cannot restore Word view after HTML preview", exc_info=True)
+        save_word_html(document, html_path)
 
 
 def _export_excel_to_html(source_path, html_path):

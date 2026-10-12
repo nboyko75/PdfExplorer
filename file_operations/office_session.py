@@ -19,6 +19,25 @@ def _close_quietly(obj, method, *args):
             logger.debug("Office cleanup failed: %s", method, exc_info=True)
 
 
+def save_word_html(document, html_path):
+    """Export HTML without leaving the owned Word instance in Web Layout."""
+    original_view_type = document.ActiveWindow.View.Type
+    try:
+        document.SaveAs2(
+            FileName=os.path.abspath(html_path),
+            FileFormat=10,  # wdFormatFilteredHTML
+            AddToRecentFiles=False,
+            Encoding=65001,  # UTF-8
+        )
+    finally:
+        # HTML SaveAs switches Word to Web Layout, which can affect later opens.
+        # Restore before closing; neither the source nor HTML is saved again.
+        try:
+            document.ActiveWindow.View.Type = original_view_type
+        except Exception:
+            logger.warning("Cannot restore Word view after HTML preview", exc_info=True)
+
+
 @contextmanager
 def preview_document(client, com, kind, source_path, *, hide_excel_window=False):
     """Close the document/application and balance COM even if export fails."""

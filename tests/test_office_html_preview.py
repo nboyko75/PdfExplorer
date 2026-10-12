@@ -1,11 +1,14 @@
 """Word HTML export must preserve the original document view."""
+from contextlib import contextmanager
 from itertools import product
 import os
+from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from file_operations import office_html_preview
+from file_operations import office_html_preview, office_session, word_merge
 
 
 class WordHtmlPreviewTests(unittest.TestCase):
@@ -57,12 +60,55 @@ class WordHtmlPreviewTests(unittest.TestCase):
         ])
         with mock.patch.object(office_html_preview, 'win32_client', client), \
                 mock.patch.object(office_html_preview, 'pythoncom', com), \
-                self.assertLogs(office_html_preview.__name__, level='WARNING'), \
+                self.assertLogs(office_session.__name__, level='WARNING'), \
                 self.assertRaisesRegex(RuntimeError, 'export failed'):
             office_html_preview._export_word_to_html('source.docx', 'preview.html')
         document.Close.assert_called_once_with(False)
         app.Quit.assert_called_once_with(0)
         com.CoUninitialize.assert_called_once_with()
+
+
+    def test_merge_preview_restores_view_before_close_on_success_and_failure(self):
+        for original_view, fails in product((1, 3, 6), (False, True)):
+            with self.subTest(original_view=original_view, export_fails=fails), \
+                    tempfile.TemporaryDirectory() as folder:
+                source = Path(folder) / 'source.docx'
+                source.write_bytes(b'original document')
+                base = word_merge.Document(str(source), word_merge.fingerprint(source), '')
+                document = mock.MagicMock()
+                view = SimpleNamespace(Type=original_view)
+                document.ActiveWindow.View = view
+                events = []
+
+                def save_html(**kwargs):
+                    view.Type = 6
+                    if fails:
+                        raise RuntimeError('export failed')
+                    Path(kwargs['FileName']).write_text('<html>preview</html>')
+
+                document.SaveAs2.side_effect = save_html
+                document.Close.side_effect = lambda *args: events.append(('close', view.Type))
+
+                @contextmanager
+                def app():
+                    try:
+                        yield mock.Mock()
+                    finally:
+                        events.append(('quit', view.Type))
+
+                with mock.patch.object(word_merge, 'word_app', app), \
+                        mock.patch.object(word_merge, 'open_document', return_value=document):
+                    if fails:
+                        with self.assertRaisesRegex(RuntimeError, 'export failed'):
+                            word_merge.render_preview(base, str(Path(folder) / 'preview'))
+                    else:
+                        output = word_merge.render_preview(base, str(Path(folder) / 'preview'))
+                        self.assertEqual(Path(output).read_text(), '<html>preview</html>')
+
+                self.assertEqual(events, [('close', original_view), ('quit', original_view)])
+                self.assertEqual(source.read_bytes(), b'original document')
+                document.Save.assert_not_called()
+                document.Close.assert_called_once_with(False)
 
 
 if __name__ == '__main__':

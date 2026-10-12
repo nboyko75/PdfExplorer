@@ -19,6 +19,7 @@ import tempfile
 import uuid
 
 from file_operations.excel_merge import MergeError, fingerprint, source_key
+from file_operations.office_session import save_word_html
 
 EXTENSIONS = {'.doc', '.docx', '.docm'}
 MAX_CHARACTERS = 500000
@@ -283,21 +284,40 @@ def review_html(html, markers, conflicts, colors, labels, token):
             color = '#%02x%02x%02x' % colors.get(source, (0, 0, 0))
             label = value or labels['empty']
             provenance = ', '.join(os.path.basename(p) for p in conflict.sources[choice])
-            options.append('<option value="%s" style="color:%s"%s>%s</option>' % (
-                choice, color, ' selected' if conflict.selected == choice else '',
+            options.append('<option value="%s" data-label="%s" style="color:%s"%s>%s</option>' % (
+                choice, escape(label, quote=True), color, ' selected' if conflict.selected == choice else '',
                 escape(label + ' [' + provenance + ']')))
         select = ('<select class="word-merge-choice" data-conflict="%s" aria-label="%s">%s</select>'
                   % (index, escape(labels['choose'], quote=True), ''.join(options)))
         if html.count(marker) != 1:
             raise MergeError('word_merge_preview_failed')
         html = html.replace(marker, select)
-    style = '<style>.word-merge-choice {font:inherit;max-width:100%;background:#fff7ce;border:1px solid #b18a25;border-radius:3px;padding:1px 3px;}</style>'
+    style = '<style>.word-merge-choice {font:inherit;box-sizing:border-box;max-width:100%;background:#fff7ce;border:1px solid #b18a25;border-radius:3px;padding:1px 3px;}</style>'
     script = '''<script>
 document.querySelectorAll('.word-merge-choice').forEach(function(select) {
-    function color() { select.style.color = select.options[select.selectedIndex].style.color; }
-    color();
+    function update() {
+        var selected = select.options[select.selectedIndex];
+        select.style.color = selected.style.color;
+        select.title = selected.text;
+        // Let the native control measure values, including its arrow and padding.
+        var measure = select.cloneNode(true);
+        measure.removeAttribute('aria-label');
+        measure.style.cssText = 'position:absolute;visibility:hidden;width:auto;max-width:none;';
+        Array.from(measure.options).forEach(function(option) {
+            if (option.disabled && select.value !== '') {
+                option.remove();
+            } else if (option.dataset.label !== undefined) {
+                option.text = option.dataset.label;
+            }
+        });
+        select.parentNode.appendChild(measure);
+        select.style.width = Math.ceil(measure.getBoundingClientRect().width) + 'px';
+        measure.remove();
+    }
+    update();
+    if (document.fonts) document.fonts.ready.then(update);
     select.addEventListener('change', function() {
-        color();
+        update();
         window.wordMerge.postMessage(JSON.stringify({token:TOKEN,
             conflict:Number(select.dataset.conflict), choice:Number(select.value)}));
     });
@@ -319,8 +339,7 @@ def render_preview(base, folder, conflicts=(), colors=None, labels=None, token='
             for conflict, marker in reversed(list(zip(conflicts, markers))):
                 checked_range(document, base, conflict).Text = marker
             document.WebOptions.Encoding = 65001
-            document.SaveAs2(FileName=os.path.abspath(output), FileFormat=10,
-                             AddToRecentFiles=False, Encoding=65001)
+            save_word_html(document, output)
         finally:
             document.Close(False)
             document = None
@@ -373,7 +392,11 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
                         start = word_offset(base.text, conflict.start)
                         area = document.Range(start, start + word_offset(replacement, len(replacement)))
                         red, green, blue = change_color
-                        area.Font.Color = red | (green << 8) | (blue << 16)
+                        # Character shading keeps paragraph and table-cell fills intact.
+                        # Clear highlighting so it cannot obscure the chosen RGB shade.
+                        area.HighlightColorIndex = 0  # wdNoHighlight
+                        area.Font.Shading.Texture = 0  # wdTextureNone
+                        area.Font.Shading.BackgroundPatternColor = red | (green << 8) | (blue << 16)
                         area = None
                 document.TrackRevisions = track
                 document.Save()

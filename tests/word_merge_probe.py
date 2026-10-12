@@ -23,6 +23,7 @@ def run(folder, ui=False):
             doc = app.Documents.Add(Visible=False)
             try:
                 doc.Content.Text = 'Invoice \U0001f600\rAmount: 100 USD\rDescription: red car\r'
+                doc.Content.Font.Color = 0x332211
                 doc.Paragraphs(1).Range.Font.Bold = True
                 doc.Fields.Add(doc.Range(0, 0), 33)  # PAGE field before the edited text
                 table = doc.Tables.Add(doc.Range(doc.Content.End-1, doc.Content.End-1), 2, 2)
@@ -30,6 +31,7 @@ def run(folder, ui=False):
                 table.Cell(1, 2).Range.Text = 'Color'
                 table.Cell(2, 1).Range.Text = 'Car'
                 table.Cell(2, 2).Range.Text = 'Red'
+                table.Cell(2, 2).Range.Font.Color = 0x332211
                 table.Cell(2, 2).Shading.BackgroundPatternColor = 0xCCEEFF
                 doc.Sections(1).Headers(1).Range.Text = 'Original header'
                 doc.SaveAs2(FileName=str(original), FileFormat=file_format, AddToRecentFiles=False)
@@ -75,7 +77,10 @@ def run(folder, ui=False):
                 for text in ('200', 'Blue'):
                     marked = doc.Content.Duplicate
                     assert marked.Find.Execute(FindText=text)
-                    assert marked.Font.Color == 0x563412
+                    assert marked.Font.Color == 0x332211
+                    assert marked.Font.Shading.BackgroundPatternColor == 0x563412
+                    assert marked.Font.Shading.Texture == 0
+                    assert marked.HighlightColorIndex == 0
                     marked = None
             finally:
                 doc.Close(False)
