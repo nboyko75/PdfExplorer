@@ -66,3 +66,5 @@ Updated Word merging to apply the selected color behind changed text, preserving
 Fixed the missing view restoration in Word Merge. Both HTML preview paths now restore Word’s original view before closing, including when export fails.
 
 Swapped Open and Scan in the File menu, file list and tree context menus, and file list toolbar. Open now appears first.
+
+Fixed image import to preserve original resolution instead of reducing images to 72 DPI. JPEGs also retain their original data without recompression.

@@ -435,20 +435,12 @@ def import_pdf_pages(path, source_path, insert_at_index):
                 if insert_at_index > 0:
                     new_doc.insert_pdf(target_doc, from_page=0, to_page=insert_at_index - 1)
 
-                image = fitz.open(source_path)
-                try:
-                    if len(image) > 0:
-                        for page_index in range(len(image)):
-                            img_page = image[page_index]
-                            pix = img_page.get_pixmap(alpha=False)
-                            pdf_page = new_doc.new_page(width=pix.width, height=pix.height)
-                            pdf_page.insert_image(pdf_page.rect, stream=pix.tobytes("png"))
-                    else:
-                        pix = fitz.Pixmap(source_path)
-                        page = new_doc.new_page(width=pix.width, height=pix.height)
-                        page.insert_image(page.rect, stream=pix.tobytes("png"))
-                finally:
-                    image.close()
+                with fitz.open(source_path) as image:
+                    # Rendering with get_pixmap() defaults to 72 DPI and discards
+                    # scan detail. Convert directly to retain the original pixels,
+                    # image compression, page dimensions and all TIFF pages.
+                    with fitz.open(stream=image.convert_to_pdf(), filetype="pdf") as image_pdf:
+                        new_doc.insert_pdf(image_pdf)
 
                 if insert_at_index < target_page_count:
                     new_doc.insert_pdf(target_doc, from_page=insert_at_index, to_page=target_page_count - 1)
