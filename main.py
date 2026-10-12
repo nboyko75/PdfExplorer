@@ -144,8 +144,8 @@ class ExplorerWorkspace(wx.Panel):
         list_context = lambda: filelist.build_list_command_context(self, source="main")
 
         self.file_menu = wx.Menu()
-        self.file_scan_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["scan"], context_factory=list_context)
         self.file_open_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open"], context_factory=list_context)
+        self.file_scan_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["scan"], context_factory=list_context)
         self.file_open_with_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open_with"], context_factory=list_context)
         self.file_new_folder_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["new_folder"], context_factory=list_context)
         self.file_refresh_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["refresh"], context_factory=list_context)

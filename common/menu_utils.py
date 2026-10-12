@@ -307,7 +307,7 @@ append_menu_command = append_command
 def build_file_operations_menu(context):
     menu = wx.Menu()
     owner = context.owner
-    for key in ("scan", "open", "open_with", "folder_up", "new_folder", "refresh", "print", "merge"):
+    for key in ("open", "scan", "open_with", "folder_up", "new_folder", "refresh", "print", "merge"):
         append_command(menu, owner, FILE_COMMANDS[key], context)
     if context.source == "tree":
         menu.AppendSeparator()

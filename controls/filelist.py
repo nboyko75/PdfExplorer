@@ -103,19 +103,19 @@ def build_list_panel(owner, parent_splitter):
 
     list_btn_icon_size = (16, 16)
     list_btn_size = (24, 24)
-    owner.list_scan_btn = image_utils.create_bitmap_button2(
-        owner.list_host_panel,
-        owner.icon_manager,
-        "scan",
-        tr("scan"),
-        icon_size=list_btn_icon_size,
-        button_size=list_btn_size,
-    )
     owner.list_open_btn = image_utils.create_bitmap_button2(
         owner.list_host_panel,
         owner.icon_manager,
         "file_view",
         tr("context_open"),
+        icon_size=list_btn_icon_size,
+        button_size=list_btn_size,
+    )
+    owner.list_scan_btn = image_utils.create_bitmap_button2(
+        owner.list_host_panel,
+        owner.icon_manager,
+        "scan",
+        tr("scan"),
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
@@ -199,8 +199,8 @@ def build_list_panel(owner, parent_splitter):
     owner.search_box = wx.TextCtrl(owner.list_host_panel, style=wx.TE_PROCESS_ENTER)
     owner.search_box.SetHint(tr("search_hint"))
 
-    owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_with_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_up_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_new_folder_btn, 0, wx.RIGHT, 3)
