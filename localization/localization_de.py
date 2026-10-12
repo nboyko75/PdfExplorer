@@ -330,6 +330,10 @@ TRANSLATIONS['merge_initializing'] = 'Initialisierung…'
 TRANSLATIONS['merge_saved'] = 'Zusammengeführte Werte in der Originaldatei gespeichert.'
 
 TRANSLATIONS.update({
+    "review_title": "DocExplorer bewerten",
+    "review_message": "Bitte bewerten Sie DocExplorer und hinterlassen Sie Feedback im Microsoft Store.\n\nWählen Sie „Später erinnern“, um in {days} Tagen erneut gefragt zu werden.",
+    "review_store": "Zum Microsoft Store",
+    "review_later": "Später erinnern",
     'word_merge_ready': "In diesem Ordner nach ähnlichen Word-Dokumenten suchen.",
     'word_merge_instructions': "Durchsuchen Sie diesen Ordner nach Inhalten und vergleichen Sie dann die markierten Dateien. Wählen Sie Text in den eingebetteten Auswahllisten; behalten Sie das Original, um eine Änderung abzulehnen. Fließtext und Text in Tabellenzellen werden unter Beibehaltung der ursprünglichen Formatierung zusammengeführt. Strukturänderungen, Kopf- und Fußzeilen, Felder und Inhaltssteuerelemente werden nicht zusammengeführt. Microsoft Word ist erforderlich.",
     'word_merge_conflicts': "Textunterschiede: {total}. Ungelöst: {count}.",

@@ -330,6 +330,10 @@ TRANSLATIONS['merge_initializing'] = 'Inizializzazione…'
 TRANSLATIONS['merge_saved'] = 'Valori uniti salvati nel file originale.'
 
 TRANSLATIONS.update({
+    "review_title": "Valuta DocExplorer",
+    "review_message": "Valuta DocExplorer e lascia una recensione su Microsoft Store.\n\nScegli «Ricordamelo più tardi» per ricevere un promemoria tra {days} giorni.",
+    "review_store": "Vai a Microsoft Store",
+    "review_later": "Ricordamelo più tardi",
     'word_merge_ready': "Cerca documenti Word simili in questa cartella.",
     'word_merge_instructions': "Cerca per contenuto in questa cartella, poi confronta i file selezionati. Scegli il testo negli elenchi a discesa incorporati; mantieni l’originale per rifiutare una modifica. Il corpo del testo e il testo delle celle delle tabelle vengono uniti mantenendo la formattazione originale. Le modifiche strutturali, le intestazioni, i piè di pagina, i campi e i controlli contenuto non vengono uniti. È necessario Microsoft Word.",
     'word_merge_conflicts': "Differenze di testo: {total}. Irrisolte: {count}.",

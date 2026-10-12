@@ -221,6 +221,8 @@ def get_configurable_settings_rows(settings):
 
     rows = []
     for key, value in sorted(settings.items()):
+        if key == "store_review":
+            continue
         if key in PERSISTED_LAYOUT_KEYS:
             continue
         if key.endswith("_position") or key.endswith("_size"):

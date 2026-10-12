@@ -330,6 +330,10 @@ TRANSLATIONS['merge_initializing'] = 'Inicializando…'
 TRANSLATIONS['merge_saved'] = 'Valores mesclados salvos no arquivo original.'
 
 TRANSLATIONS.update({
+    "review_title": "Avaliar o DocExplorer",
+    "review_message": "Avalie o DocExplorer e deixe seus comentários na Microsoft Store.\n\nEscolha «Lembrar mais tarde» para receber um lembrete em {days} dias.",
+    "review_store": "Ir para a Microsoft Store",
+    "review_later": "Lembrar mais tarde",
     'word_merge_ready': "Pesquise documentos Word semelhantes nesta pasta.",
     'word_merge_instructions': "Pesquise por conteúdo nesta pasta e compare os arquivos marcados. Escolha o texto nas listas suspensas incorporadas; mantenha o original para rejeitar uma alteração. O corpo do texto e o texto das células das tabelas são mesclados mantendo a formatação original. Alterações estruturais, cabeçalhos, rodapés, campos e controles de conteúdo não são mesclados. Requer Microsoft Word.",
     'word_merge_conflicts': "Diferenças de texto: {total}. Não resolvidas: {count}.",

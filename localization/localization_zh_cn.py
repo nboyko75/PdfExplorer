@@ -319,6 +319,10 @@ TRANSLATIONS['merge_initializing'] = '正在初始化…'
 TRANSLATIONS['merge_saved'] = '合并的值已保存到原始文件。'
 
 TRANSLATIONS.update({
+    "review_title": "评价 DocExplorer",
+    "review_message": "请在 Microsoft Store 中为 DocExplorer 评分并留下反馈。\n\n选择“稍后提醒”，将在 {days} 天后再次提醒您。",
+    "review_store": "前往 Microsoft Store",
+    "review_later": "稍后提醒",
     'word_merge_ready': "在此文件夹中查找相似的 Word 文档。",
     'word_merge_instructions': "按内容搜索此文件夹，然后比较勾选的文件。在嵌入的下拉列表中选择文本；保留原文即可拒绝更改。合并正文和表格单元格中的文本，同时保留原始格式。不会合并结构更改、页眉、页脚、域和内容控件。需要 Microsoft Word。",
     'word_merge_conflicts': "文本差异：{total}。未解决：{count}。",

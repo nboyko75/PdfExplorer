@@ -1509,4 +1509,6 @@ if __name__ == "__main__":
     frame.Show()
     if store_license.state != "unpackaged":
         frame.store_license_monitor = LicenseMonitor(frame, store_license)
+    from controls.store_review import check_store_review
+    wx.CallAfter(check_store_review, frame)
     app.MainLoop()

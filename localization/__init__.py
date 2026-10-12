@@ -339,6 +339,13 @@ DEFAULT_TRANSLATIONS.update({
     'word_merge_verify_failed': 'The saved Word text did not match the selected choices. The original was not replaced.',
 })
 
+DEFAULT_TRANSLATIONS.update({
+    "review_title": "Rate DocExplorer",
+    "review_message": "Please rate DocExplorer and leave your feedback in Microsoft Store.\n\nChoose Remind me later to be asked again in {days} days.",
+    "review_store": "Go to Microsoft Store",
+    "review_later": "Remind me later",
+})
+
 TRANSLATIONS: Dict[str, str] = DEFAULT_TRANSLATIONS.copy()
 
 

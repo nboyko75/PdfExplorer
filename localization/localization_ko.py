@@ -319,6 +319,10 @@ TRANSLATIONS['merge_initializing'] = '초기화 중…'
 TRANSLATIONS['merge_saved'] = '병합된 값을 원본 파일에 저장했습니다.'
 
 TRANSLATIONS.update({
+    "review_title": "DocExplorer 평가",
+    "review_message": "Microsoft Store에서 DocExplorer를 평가하고 의견을 남겨 주세요.\n\n'나중에 알림'을 선택하면 {days}일 후에 다시 알려드립니다.",
+    "review_store": "Microsoft Store 열기",
+    "review_later": "나중에 알림",
     'word_merge_ready': "현재 폴더에서 유사한 Word 문서를 검색합니다.",
     'word_merge_instructions': "현재 폴더에서 내용으로 검색한 다음 체크한 파일을 비교하세요. 포함된 드롭다운 목록에서 텍스트를 선택하고, 변경을 거부하려면 원본을 유지하세요. 원래 서식을 유지하면서 본문과 표 셀의 텍스트를 병합합니다. 구조 변경, 머리글, 바닥글, 필드 및 콘텐츠 컨트롤은 병합하지 않습니다. Microsoft Word가 필요합니다.",
     'word_merge_conflicts': "텍스트 차이: {total}. 미해결: {count}.",

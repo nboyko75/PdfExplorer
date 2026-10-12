@@ -258,6 +258,10 @@ TRANSLATIONS['merge_initializing'] = 'Initializing…'
 TRANSLATIONS['merge_saved'] = 'Merged values saved to the original file.'
 
 TRANSLATIONS.update({
+    "review_title": "Rate DocExplorer",
+    "review_message": "Please rate DocExplorer and leave your feedback in Microsoft Store.\n\nChoose Remind me later to be asked again in {days} days.",
+    "review_store": "Go to Microsoft Store",
+    "review_later": "Remind me later",
     'word_merge_ready': "Search this folder for similar Word documents.",
     'word_merge_instructions': "Search this folder by content, then compare checked files. Choose text in the embedded dropdowns; keep the original to reject a change. Merges body text and table-cell text while keeping the original formatting. Structural changes, headers, footers, fields and content controls are not merged. Requires Microsoft Word.",
     'word_merge_conflicts': "Text differences: {total}. Unresolved: {count}.",

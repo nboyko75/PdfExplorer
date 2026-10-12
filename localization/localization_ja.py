@@ -319,6 +319,10 @@ TRANSLATIONS['merge_initializing'] = '初期化中…'
 TRANSLATIONS['merge_saved'] = '統合した値を元のファイルに保存しました。'
 
 TRANSLATIONS.update({
+    "review_title": "DocExplorer を評価",
+    "review_message": "Microsoft Store で DocExplorer を評価し、レビューをお寄せください。\n\n「後で通知する」を選択すると、{days} 日後に再び通知します。",
+    "review_store": "Microsoft Store を開く",
+    "review_later": "後で通知する",
     'word_merge_ready': "このフォルダー内の類似した Word 文書を検索します。",
     'word_merge_instructions': "このフォルダーを内容で検索し、チェックしたファイルを比較します。埋め込まれたドロップダウンリストでテキストを選択します。変更を拒否するには元のテキストを保持してください。元の書式を維持しながら、本文と表のセル内のテキストを結合します。構造の変更、ヘッダー、フッター、フィールド、コンテンツコントロールは結合されません。Microsoft Word が必要です。",
     'word_merge_conflicts': "テキストの相違点: {total}。未解決: {count}。",
