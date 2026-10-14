@@ -115,6 +115,105 @@ def _ensure_preview_tab_state(owner):
         owner.preview_active_tab_index = None
 
 
+def _get_pinned_preview_tab(owner):
+    # The active tab index can already point at the destination while switching.
+    path = _normalize_preview_path(getattr(owner, "current_preview_path", None))
+    if path:
+        for tab in getattr(owner, "preview_tabs", []):
+            if tab.get("pinned") and _normalize_preview_path(tab.get("path")) == path:
+                return tab
+    return None
+
+
+def _save_pinned_preview_position(owner):
+    tab = _get_pinned_preview_tab(owner)
+    if tab is None:
+        return
+    mode = getattr(owner, "current_preview_mode", None)
+    if mode == "pages":
+        panels = getattr(owner, "pdf_page_panels", {})
+        if not panels:
+            return
+        axis = 1 if getattr(owner, "preview_vertical_view", False) else 0
+        # Child positions are in scrolled client coordinates. Anchor to the
+        # first page crossing the viewport edge, not the selected page.
+        page_index, panel = next(
+            ((index, panel) for index, panel in sorted(panels.items())
+             if panel.GetPosition()[axis] + panel.GetSize()[axis] > 0),
+            max(panels.items()),
+        )
+        tab["preview_position"] = {
+            "mode": mode,
+            "page": page_index,
+            "offset": tuple(-panel.GetPosition()[i] / max(1, panel.GetSize()[i]) for i in (0, 1)),
+            "vertical": bool(axis),
+        }
+    elif mode in {"html", "office"}:
+        request = getattr(owner, "_html_preview_request", None)
+        if not request or not request.get("loaded"):
+            return
+        try:
+            success, result = owner.html_preview.RunScript("JSON.stringify([window.scrollX, window.scrollY])")
+            if success:
+                position = json.loads(result)
+                if len(position) == 2 and all(isinstance(value, (int, float)) for value in position):
+                    tab["preview_position"] = {
+                        "mode": "html", "scroll": position,
+                        "zoom": getattr(owner, "current_html_zoom", 1.0),
+                    }
+        except Exception:
+            pass
+    elif mode == "text":
+        tab["preview_position"] = {"mode": mode, "line": owner.preview_text.GetScrollPos(wx.VERTICAL)}
+    elif mode == "single":
+        tab["preview_position"] = {
+            "mode": mode, "scroll": tuple(owner.pdf_preview_container.GetViewStart()),
+            "zoom": getattr(owner, "current_image_zoom", 1.0),
+        }
+
+
+def _restore_pinned_preview_position(owner):
+    tab = _get_pinned_preview_tab(owner)
+    position = tab.get("preview_position") if tab else None
+    if not position:
+        return
+    mode = getattr(owner, "current_preview_mode", None)
+    if mode == "pages" and position["mode"] == "pages":
+        panels = getattr(owner, "pdf_page_panels", {})
+        if not panels:
+            return
+        panel = panels[min(position["page"], max(panels))]
+        scroller = owner.pdf_pages_panel
+        origin = scroller.CalcUnscrolledPosition(panel.GetPosition())
+        offsets = position["offset"]
+        vertical = getattr(owner, "preview_vertical_view", False)
+        if vertical != position["vertical"]:
+            # A different reading direction should still return to this page.
+            offsets = (0, 0)
+        units = scroller.GetScrollPixelsPerUnit()
+        scroller.Scroll(*(max(0, round((origin[i] + offsets[i] * panel.GetSize()[i]) / max(1, units[i])))
+                          for i in (0, 1)))
+    elif mode == "text" and position["mode"] == "text":
+        owner.preview_text.ScrollLines(position["line"] - owner.preview_text.GetScrollPos(wx.VERTICAL))
+    elif mode == "single" and position["mode"] == "single":
+        owner.pdf_preview_container.Scroll(*position["scroll"])
+
+
+def _restore_html_preview_position(owner, html_preview, request):
+    if getattr(owner, "_html_preview_request", None) is not request or not request.get("loaded"):
+        return
+    _apply_html_zoom(owner, html_preview)
+    tab = _get_pinned_preview_tab(owner)
+    position = tab.get("preview_position") if tab else None
+    if position and position["mode"] == "html":
+        x, y = position["scroll"]
+        script = f"window.scrollTo({json.dumps(x)}, {json.dumps(y)});"
+        if hasattr(html_preview, "RunScriptAsync"):
+            html_preview.RunScriptAsync(script)
+        else:
+            html_preview.RunScript(script)
+
+
 def _clear_preview_content_state(owner):
     owner.selected_pdf_page_panel = None
     owner.selected_pdf_page_indices = set()
@@ -257,6 +356,8 @@ def _toggle_preview_tab_pin(owner, tab_index):
 
     active_path = owner.preview_tabs[tab_index].get("path")
     owner.preview_tabs[tab_index]["pinned"] = not bool(owner.preview_tabs[tab_index].get("pinned", False))
+    if not owner.preview_tabs[tab_index]["pinned"]:
+        owner.preview_tabs[tab_index].pop("preview_position", None)
     _normalize_preview_tabs(owner)
 
     if active_path is not None:
@@ -1528,7 +1629,10 @@ def _on_html_preview_loaded(owner, event):
         if request and unquote(event.GetURL()) == unquote(request["url"]):
             # A successful load may arrive after an aborted earlier navigation.
             request["recovering"] = False
-        wx.CallAfter(_apply_html_zoom, owner, html_preview)
+            request["loaded"] = True
+            wx.CallAfter(_restore_html_preview_position, owner, html_preview, request)
+        else:
+            wx.CallAfter(_apply_html_zoom, owner, html_preview)
     if event is not None:
         event.Skip()
 
@@ -1722,6 +1826,13 @@ def on_preview_load_all_pages(event):
 
 
 def show_pdf_feed(owner, path, force_all_pages=False):
+    if (getattr(owner, "current_preview_mode", None) == "pages"
+            and _normalize_preview_path(getattr(owner, "current_pdf_path", None)) == _normalize_preview_path(path)):
+        _save_pinned_preview_position(owner)
+    tab = _get_pinned_preview_tab(owner)
+    position = tab.get("preview_position") if tab else None
+    if position and position["mode"] == "pages":
+        force_all_pages = force_all_pages or position["page"] >= pdf_utils._get_show_pages_limit_for_path(path)
     update_preview_toolbar_visibility(owner, is_pdf=True, is_image=False)
     sync_pdf_page_view_mode_controls(owner)
     with owner.busy_cursor():
@@ -1828,6 +1939,7 @@ def show_pdf_feed(owner, path, force_all_pages=False):
     set_preview_mode(owner, "pages")
     _layout_pdf_pages(owner)
     owner.filePreview.Layout()
+    _restore_pinned_preview_position(owner)
 
 
 def on_pdf_page_select_wrapper(owner, event):
@@ -1927,6 +2039,7 @@ def show_file_preview(owner, path, *, force_refresh=False):
         if not confirm_preview_change(owner, path):
             return
 
+    _save_pinned_preview_position(owner)
     _prune_deleted_preview_tabs(owner)
 
     clear_for_selection = (
@@ -2015,6 +2128,12 @@ def show_file_preview(owner, path, *, force_refresh=False):
     owner.current_preview_path = path
     _reset_pdf_view_mode_for_new_file(owner, previous_path, path)
     _clear_preview_content_state(owner)
+    tab = _get_pinned_preview_tab(owner)
+    position = tab.get("preview_position") if tab else None
+    if position and position["mode"] == "html":
+        owner.current_html_zoom = position["zoom"]
+    elif position and position["mode"] == "single":
+        owner.current_image_zoom = position["zoom"]
 
     can_preview_office = is_office_preview_allowed(owner, path)
     if not can_preview_office:
@@ -2036,6 +2155,8 @@ def show_file_preview(owner, path, *, force_refresh=False):
             continue
         try:
             handler(owner, path)
+            if getattr(owner, "current_preview_mode", None) in {"text", "single"}:
+                _restore_pinned_preview_position(owner)
         except Exception as exc:
             owner.preview_text.SetValue(tr("unable_preview_file", exc=exc))
             set_preview_mode(owner, "text")
