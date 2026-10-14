@@ -83,7 +83,7 @@ class OptionsDialog(wx.Dialog):
             group_fields.setdefault(field["group"], []).append({**field, "value": value})
 
         if not group_fields:
-            group_fields = {"main": [{"key": "ui_locale", "group": "main", "label_key": "settings_ui_locale", "kind": "locale_choice", "default": "uk", "value": self.settings.get("ui_locale", "uk")}]}
+            group_fields = {"main": [{"key": "ui_locale", "group": "main", "label_key": "settings_ui_locale", "kind": "locale_choice", "default": "en", "value": self.settings.get("ui_locale", "en")}]}
         return group_fields
 
     def _restore_geometry(self):
@@ -275,7 +275,7 @@ class OptionsDialog(wx.Dialog):
             locale_code = str(changes["ui_locale"]).strip().lower().replace("-", "_")
             if locale_code == "ua":
                 locale_code = "uk"
-            new_locale = locale_code if locale_code in {"en", "uk", "de", "fr", "es", "it", "pt_br", "ja", "ko", "zh_cn", "ru"} else "uk"
+            new_locale = locale_code if locale_code in {"en", "uk", "de", "fr", "es", "it", "pt_br", "ja", "ko", "zh_cn", "ru"} else "en"
 
             try:
                 from localization import load_locale

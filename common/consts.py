@@ -54,7 +54,7 @@ OPTION_GROUP_TRANSLATION_KEYS = {
     "preview": "options_group_preview",
 }
 OPTION_FIELDS = [
-    {"key": "ui_locale", "group": "main", "label_key": "settings_ui_locale", "kind": "locale_choice", "default": "uk"},
+    {"key": "ui_locale", "group": "main", "label_key": "settings_ui_locale", "kind": "locale_choice", "default": "en"},
     {"key": "optimize_pdf_image_width", "group": "optimization", "label_key": "settings_optimize_pdf_image_width", "kind": "int", "default": 1000},
     {"key": "optimize_pdf_image_quality", "group": "optimization", "label_key": "settings_optimize_pdf_image_quality", "kind": "int", "default": 70},
     {"key": "optimize_pdf_color_target_dpi", "group": "optimization", "label_key": "settings_optimize_pdf_color_target_dpi", "kind": "int", "default": 110},

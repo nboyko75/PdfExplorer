@@ -62,11 +62,11 @@ class ExplorerWorkspace(wx.Panel):
         self.list_sort_direction = 0
         self.file_clipboard_paths = []
         self.file_clipboard_mode = None
-        saved_locale = str(settings.get("ui_locale", "uk")).lower()
+        saved_locale = str(settings.get("ui_locale", "en")).lower()
         saved_locale = saved_locale.replace("-", "_")
         if saved_locale == "ua":
             saved_locale = "uk"
-        self.current_locale = saved_locale if saved_locale in SUPPORTED_LOCALES else "uk"
+        self.current_locale = saved_locale if saved_locale in SUPPORTED_LOCALES else "en"
         self.pdf_preview_zoom = 1.0
         self.main_splitter = None
         self.favorite_splitter = None
@@ -1500,7 +1500,7 @@ if __name__ == "__main__":
     app = wx.App(False)
     wx.InitAllImageHandlers()
     from controls.store_license import startup_license, LicenseMonitor
-    load_locale(str(load_settings().get("ui_locale", "uk")).lower().replace("-", "_"))
+    load_locale(str(load_settings().get("ui_locale", "en")).lower().replace("-", "_"))
     store_license = startup_license()
     if store_license is None:
         sys.exit(0)
