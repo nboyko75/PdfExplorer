@@ -68,3 +68,6 @@ Fixed image import to preserve original resolution instead of reducing images to
 1.0.8.0
 
 Implemented pinned-document position saving
+Changed the default language to English
+
+1.0.9.0

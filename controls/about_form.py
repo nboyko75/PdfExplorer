@@ -3,6 +3,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import wx
+import wx.adv
 
 from localization import tr
 
@@ -36,6 +37,8 @@ def show_about_form(owner):
     description = wx.StaticText(panel, label="Document Explorer")
     copyright = wx.StaticText(panel, label="(c) Nick Boiko")
     email = wx.StaticText(panel, label="nboyko75@gmail.com")
+    website_url = "https://nboyko75.github.io/NBWebsite/"
+    website = wx.adv.HyperlinkCtrl(panel, wx.ID_ANY, website_url, website_url)
 
     close_btn = wx.Button(panel, wx.ID_OK, tr("exit_button"))
 
@@ -44,9 +47,14 @@ def show_about_form(owner):
     sizer.Add(version, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
     sizer.Add(description, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
     sizer.Add(copyright, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
-    sizer.Add(email, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 16)
+    sizer.Add(email, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 6)
+    sizer.Add(website, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 16)
     sizer.Add(close_btn, 0, wx.ALIGN_CENTRE | wx.BOTTOM, 12)
     panel.SetSizer(sizer)
+    dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+    dialog_sizer.Add(panel, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+    dialog.SetSizer(dialog_sizer)
+    dialog_sizer.SetSizeHints(dialog)
     dialog.CenterOnParent()
     dialog.ShowModal()
     dialog.Destroy()
