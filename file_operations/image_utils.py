@@ -34,6 +34,7 @@ class IconManager:
         "cancel": "cancel.bmp",
         "copy": "copy.bmp",
         "file_view": "file_view.bmp",
+        "document_generator": "document_generator.bmp",
         "load_all": "load_all.bmp",
         "add_to_archive": "add_to_archive.bmp",
         "extract_from_archive": "extract_from_archive.bmp",

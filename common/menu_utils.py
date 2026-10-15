@@ -225,6 +225,19 @@ def _handle_merge(context, event):
         show_merge_dialog(context.owner, path)
 
 
+def generator_selected_path(context):
+    from file_operations.word_merge import is_word
+    paths = [context.target_path] if context.source == 'tree' and context.target_path else context.selected_paths
+    return paths[0] if len(paths) == 1 and is_word(paths[0]) else None
+
+
+def _handle_document_generator(context, event):
+    from file_operations.document_generator import show_document_generator
+    path = generator_selected_path(context)
+    if path:
+        show_document_generator(context.owner, path)
+
+
 def _handle_rename_files(context, event):
     from controls.rename_files import show_rename_files
     target = _tree_target(context) if context.source == 'tree' else (context.selected_paths[0] if len(context.selected_paths) == 1 else context.current_folder)
@@ -235,6 +248,7 @@ def _handle_rename_files(context, event):
 FILE_COMMANDS = {
     "rename_files": MenuCommand("rename_files", "rename_files", _handle_rename_files, art_id=wx.ART_EDIT),
     "merge": MenuCommand("merge", "merge_documents", _handle_merge, art_id=wx.ART_REPORT_VIEW, can_execute=lambda c: bool(merge_selected_path(c))),
+    "document_generator": MenuCommand("document_generator", "create_document_generator", _handle_document_generator, custom_icon="document_generator", can_execute=lambda c: bool(generator_selected_path(c))),
     "scan": MenuCommand("scan", "scan", _handle_scan, custom_icon="scan"),
     "open": MenuCommand("open", "context_open", _handle_open, custom_icon="file_view", can_execute=_can_select_one),
     "open_with": MenuCommand("open_with", "context_open_with", open_with.popup, can_execute=lambda c: bool(open_with.selected_file(c))),
@@ -307,7 +321,10 @@ append_menu_command = append_command
 def build_file_operations_menu(context):
     menu = wx.Menu()
     owner = context.owner
-    for key in ("open", "scan", "open_with", "folder_up", "new_folder", "refresh", "print", "merge"):
+    for key in ("open", "scan", "open_with", "folder_up", "new_folder", "refresh", "print"):
+        append_command(menu, owner, FILE_COMMANDS[key], context)
+    menu.AppendSeparator()
+    for key in ("merge", "document_generator"):
         append_command(menu, owner, FILE_COMMANDS[key], context)
     if context.source == "tree":
         menu.AppendSeparator()

@@ -180,6 +180,7 @@ class ExplorerWorkspace(wx.Panel):
 
         self.document_menu = wx.Menu()
         self.doc_merge_item = menu_utils.append_menu_command(self.document_menu, self, menu_utils.FILE_COMMANDS["merge"], context_factory=list_context)
+        self.doc_generator_item = menu_utils.append_menu_command(self.document_menu, self, menu_utils.FILE_COMMANDS["document_generator"], context_factory=list_context)
         self.document_menu.AppendSeparator()
         self.doc_import_item = self.document_menu.Append(wx.ID_ANY, tr("preview_import_from_file_button"))
         self.doc_import_scanner_item = self.document_menu.Append(wx.ID_ANY, tr("preview_import_from_scanner_button"))
@@ -375,6 +376,7 @@ class ExplorerWorkspace(wx.Panel):
         )
 
         self.doc_merge_item.Enable(bool(menu_utils.merge_selected_path(filelist.build_list_command_context(self, source="main"))))
+        self.doc_generator_item.Enable(bool(menu_utils.generator_selected_path(filelist.build_list_command_context(self, source="main"))))
         self.doc_import_item.Enable(is_pdf_preview)
         self.doc_import_scanner_item.Enable(is_pdf_preview)
         self.doc_export_item.Enable(is_pdf_preview)
@@ -811,6 +813,7 @@ class ExplorerWorkspace(wx.Panel):
             self.nav_search_item.SetItemLabel(tr("search_in_files_button"))
             self.help_about_item.SetItemLabel(tr("menu_about"))
             self.doc_merge_item.SetItemLabel(tr("merge_documents"))
+            self.doc_generator_item.SetItemLabel(tr("create_document_generator"))
             self.doc_import_item.SetItemLabel(tr("preview_import_from_file_button"))
             self.doc_import_scanner_item.SetItemLabel(tr("preview_import_from_scanner_button"))
             self.doc_export_item.SetItemLabel(tr("preview_export_pages_button"))
@@ -861,6 +864,7 @@ class ExplorerWorkspace(wx.Panel):
         self.list_up_btn.SetToolTip(tr("folder_up_button"))
         self.list_new_folder_btn.SetToolTip(tr("context_new_folder"))
         self.list_merge_btn.SetToolTip(tr("merge_documents"))
+        self.list_generator_btn.SetToolTip(tr("create_document_generator"))
         self.list_print_btn.SetToolTip(tr("context_print"))
         self.list_copy_btn.SetToolTip(tr("context_copy"))
         self.list_cut_btn.SetToolTip(tr("context_cut"))

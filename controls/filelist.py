@@ -210,6 +210,11 @@ def build_list_panel(owner, parent_splitter):
         owner.list_host_panel, wx.ART_REPORT_VIEW, tr("merge_documents"),
         icon_size=(16, 16), button_size=(24, 24))
     owner.list_toolbar.Add(owner.list_merge_btn, 0, wx.RIGHT, 3)
+    owner.list_generator_btn = image_utils.create_bitmap_button2(
+        owner.list_host_panel, owner.icon_manager, "document_generator",
+        tr("create_document_generator"), icon_size=list_btn_icon_size,
+        button_size=list_btn_size)
+    owner.list_toolbar.Add(owner.list_generator_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_copy_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_cut_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_paste_btn, 0, wx.RIGHT, 3)
@@ -262,6 +267,7 @@ def bind_list_events(owner):
     bind_command(owner.list_new_folder_btn, owner, FILE_COMMANDS["new_folder"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_refresh_btn, owner, FILE_COMMANDS["refresh"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_merge_btn, owner, FILE_COMMANDS["merge"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_generator_btn, owner, FILE_COMMANDS["document_generator"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_print_btn, owner, FILE_COMMANDS["print"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_copy_btn, owner, FILE_COMMANDS["copy"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_cut_btn, owner, FILE_COMMANDS["cut"], wx.EVT_BUTTON, context_factory)
@@ -325,6 +331,10 @@ def update_list_toolbar_buttons(owner):
     button = getattr(owner, "list_merge_btn", None)
     if button is not None:
         button.Enable(bool(FILE_COMMANDS["merge"].can_execute(build_list_command_context(owner))))
+
+    button = getattr(owner, "list_generator_btn", None)
+    if button is not None:
+        button.Enable(bool(FILE_COMMANDS["document_generator"].can_execute(build_list_command_context(owner))))
 
     button = getattr(owner, "list_refresh_btn", None)
     if button is not None:

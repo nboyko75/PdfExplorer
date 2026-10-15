@@ -23,6 +23,8 @@ for source in (wx, getattr(wx, "adv", None)):
 
 # common/dict_tools.py
 PERSISTED_LAYOUT_KEYS = {
+    "document_generator_position",
+    "document_generator_size",
     "rename_files_position",
     "rename_files_size",
     "rename_files_sash_position",
