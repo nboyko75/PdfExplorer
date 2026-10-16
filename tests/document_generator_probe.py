@@ -68,6 +68,10 @@ def run(folder):
             assert session.document.Content.Text == 'AlphaBeta again\r'
             session.update_rows([{'name': 'First', 'value': 'Replacement'},
                                  {'name': 'Second', 'value': ''}])
+            session.save_document()
+            assert session.document.Saved
+            assert session.document.Content.Text == 'AlphaBeta again\r'
+            assert session._load_rows() == session.rows
             result = folder / ('result' + extension)
             session.export_document(str(result))
             assert session.document.Content.Text == 'AlphaBeta again\r'

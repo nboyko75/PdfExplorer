@@ -74,6 +74,24 @@ class GeneratorTests(unittest.TestCase):
         self.app.Quit.assert_called_once_with(0)
         self.assertEqual(self.app.AutomationSecurity, 2)
         self.assertTrue(self.app.Options.UpdateLinksAtOpen)
+        self.assertIsNone(self.session.app)
+        self.assertIsNone(self.session.document)
+
+    def test_unavailable_document_does_not_launch_word(self):
+        with patch.object(generator, 'check_document_available',
+                          side_effect=generator.GeneratorError('File is in use')):
+            with self.assertRaisesRegex(generator.GeneratorError, 'File is in use'):
+                self.session.open()
+        self.client.DispatchEx.assert_not_called()
+
+    def test_open_suppresses_word_alerts_and_restores_setting(self):
+        self.app.DisplayAlerts = -1
+        def open_document(**kwargs):
+            self.assertEqual(self.app.DisplayAlerts, 0)
+            return self.document
+        self.app.Documents.Open.side_effect = open_document
+        self.session.open()
+        self.assertEqual(self.app.DisplayAlerts, -1)
 
     def test_read_only_and_protected_files_are_rejected(self):
         for read_only, protection in ((True, -1), (False, 2)):
@@ -235,6 +253,93 @@ class GeneratorTests(unittest.TestCase):
                 self.session.export_document(str(target))
         self.document.Save.assert_not_called()
 
+    def test_save_persists_fields_without_creating_or_filling_output(self):
+        self.session.open()
+        self.session.rows = [{'name': 'Customer', 'value': 'New value'}]
+        with patch.object(self.session, '_fill_output') as fill, patch.object(generator.shutil, 'copyfile') as copy:
+            self.session.save_document()
+        self.document.Save.assert_called_once_with()
+        self.document.SaveAs2.assert_not_called()
+        self.document.Variables.Add.assert_called_once_with(
+            generator.STATE_VARIABLE, json.dumps(self.session.rows, ensure_ascii=False))
+        self.app.Documents.Open.assert_called_once()
+        fill.assert_not_called()
+        copy.assert_not_called()
+
+    def test_table_state_loads_independently_of_legacy_bookmark_fields(self):
+        table = {'name': 'Products', 'rows': [['Item', '2']], 'widths': [120, 60], 'applied_rows': 1}
+        self.document.Variables.Count = 1
+        variable = self.document.Variables.Item.return_value
+        variable.Name = generator.TABLE_STATE_VARIABLE
+        variable.Value = json.dumps([table])
+        self.assertEqual(self.session.open(), [])
+        self.assertEqual(self.session.tables, [table])
+        state = self.session.state()
+        state['tables'][0]['rows'][0][0] = 'Edited snapshot'
+        self.assertEqual(self.session.tables[0]['rows'][0][0], 'Item')
+
+    def test_corrupt_table_dimensions_and_values_are_rejected(self):
+        self.document.Variables.Count = 1
+        variable = self.document.Variables.Item.return_value
+        variable.Name = generator.TABLE_STATE_VARIABLE
+        for changes in ({'widths': []}, {'widths': [-1]}, {'rows': []}, {'rows': [['A', 'B']]},
+                        {'rows': [[5]]}, {'applied_rows': 0}, {'name': 'invalid name'}):
+            table = {'name': 'Products', 'rows': [['A']], 'widths': [120], 'applied_rows': 1}
+            table.update(changes)
+            variable.Value = json.dumps([table])
+            with self.assertRaises(generator.GeneratorError):
+                self.session.open()
+        self.document.Save.assert_not_called()
+
+    def test_scalar_and_table_bookmark_names_must_be_unique(self):
+        self.session.open()
+        self.session.rows = [{'name': 'Customer', 'value': 'A'}]
+        self.session.tables = [{'name': 'Products', 'rows': [['B']], 'widths': [120], 'applied_rows': 1}]
+        with self.assertRaises(generator.GeneratorError):
+            self.session.update_fields(self.session.snapshot(), [{'name': 'CUSTOMER', 'rows': [['B']]}])
+        self.document.Bookmarks.Add.assert_not_called()
+
+    def test_table_rename_and_cell_edits_are_persisted_without_inserting_rows(self):
+        self.session.open()
+        self.session.tables = [{'name': 'table1', 'rows': [['A']], 'widths': [120], 'applied_rows': 1}]
+        self.document.Bookmarks.Exists.side_effect = lambda name: name == 'table1'
+        with patch.object(self.session, '_apply_tables') as apply:
+            self.session.update_fields([], [{'name': 'Products', 'rows': [['Edited'], ['Added']]}])
+        self.assertEqual(self.session.tables[0]['name'], 'Products')
+        self.assertEqual(self.session.tables[0]['applied_rows'], 1)
+        self.assertEqual(self.session.tables[0]['rows'], [['Edited'], ['Added']])
+        apply.assert_not_called()
+        self.document.Save.assert_not_called()
+        self.document.Variables.Add.assert_called_once()
+
+    def test_table_delete_keeps_word_rows(self):
+        self.session.open()
+        self.session.tables = [{'name': 'Products', 'rows': [['A']], 'widths': [120], 'applied_rows': 1}]
+        self.document.Bookmarks.Exists.return_value = True
+        self.session.delete_table(0)
+        self.assertEqual(self.session.tables, [])
+        self.document.Bookmarks.return_value.Delete.assert_called_once()
+        self.assertNotIn('Tables', self.document._mock_children)
+
+    def test_add_table_requires_selection_in_its_own_document(self):
+        self.session.open()
+        self.app.ActiveDocument.FullName = str(self.source.with_name('other.docx'))
+        with self.assertRaises(generator.GeneratorError):
+            self.session.add_table_selection()
+        self.app.ActiveDocument.FullName = str(self.source)
+        self.app.Selection.Range.Duplicate.Tables.Count = 0
+        with self.assertRaises(generator.GeneratorError):
+            self.session.add_table_selection()
+        self.document.Bookmarks.Add.assert_not_called()
+
+    def test_missing_table_bookmark_stops_save_before_changes(self):
+        self.session.open()
+        self.session.tables = [{'name': 'Products', 'rows': [['A']], 'widths': [120], 'applied_rows': 1}]
+        with self.assertRaises(generator.GeneratorError):
+            self.session.save_document()
+        self.document.Save.assert_not_called()
+        self.app.UndoRecord.StartCustomRecord.assert_not_called()
+
     def test_export_failure_preserves_existing_target_and_restores_security(self):
         self.session.open()
         target = self.source.with_name('result.docx')
@@ -270,6 +375,48 @@ class GeneratorTests(unittest.TestCase):
         com.CoInitialize.assert_called_once()
         com.CoUninitialize.assert_called_once()
 
+    def test_worker_suppresses_disconnect_and_stops_queued_word_operations(self):
+        error = RuntimeError('The object invoked has disconnected from its clients')
+        error.hresult = -2147417848
+        wrapped = generator.GeneratorError('Wrapped table error')
+        wrapped.__cause__ = error
+        for failure in (error, wrapped):
+            with self.subTest(failure=type(failure).__name__):
+                completed = threading.Event()
+                results = []
+                operation = Mock(side_effect=failure)
+                queued = Mock()
+                def receive(result, error):
+                    results.append((result, error))
+                    if len(results) == 2:
+                        completed.set()
+                with patch.dict(sys.modules, {'pythoncom': Mock()}), \
+                     patch.object(generator, 'DocumentGenerator', return_value=Mock()):
+                    worker = generator.GeneratorWorker(str(self.source), lambda callback, *args: callback(*args))
+                    try:
+                        worker.submit(operation, receive)
+                        worker.submit(queued, receive)
+                        self.assertTrue(completed.wait(5))
+                    finally:
+                        worker.close()
+                        worker.thread.join(5)
+                queued.assert_not_called()
+                for result, message in results:
+                    self.assertIsNone(result)
+                    self.assertIsInstance(message, generator.WordDisconnected)
+                    self.assertEqual(message, generator.tr('generator_word_disconnected'))
+                    self.assertNotIn('clients', message)
+
+    def test_disconnect_detection_handles_nested_hresult_but_not_busy_or_validation_errors(self):
+        nested = RuntimeError('Localized COM failure')
+        nested.hresult = -2147352567  # DISP_E_EXCEPTION
+        nested.excepinfo = (0, 'Word', 'Localized message', None, 0, -2147417848)
+        self.assertTrue(generator._word_disconnected(nested))
+        busy = RuntimeError('Word is busy')
+        busy.hresult = -2147418111  # RPC_E_CALL_REJECTED
+        self.assertFalse(generator._word_disconnected(busy))
+        self.assertFalse(generator._word_disconnected(generator.GeneratorError('Invalid bookmark')))
+
     def test_all_locales_translate_generator_and_preserve_placeholders(self):
         import string
         keys = {key for key in DEFAULT_TRANSLATIONS if key.startswith('generator_') or key == 'create_document_generator'}
@@ -296,6 +443,53 @@ class GeneratorTests(unittest.TestCase):
             # from a lossy PowerShell encoding must never reach the dialog.
             self.assertLessEqual(message.count('?'), 1, locale)
             self.assertEqual(message.count('\n'), 4, locale)
+
+
+class AvailabilityTests(unittest.TestCase):
+    def setUp(self):
+        self.owner = SimpleNamespace(_document_generators={})
+        self.frame = Mock()
+        self.message = Mock(return_value=1)
+        self.controls = SimpleNamespace(DocumentGeneratorFrame=self.frame,
+                                        show_generator_message=self.message)
+        self.addCleanup(patch.stopall)
+        patch.dict(sys.modules, {'controls.document_generator': self.controls,
+                                 'wx': SimpleNamespace(ID_OK=1)}).start()
+
+    def test_retry_checks_again_before_creating_form(self):
+        def confirm(*args, **kwargs):
+            self.frame.assert_not_called()
+            self.assertTrue(kwargs['retry'])
+            return 1
+        self.message.side_effect = confirm
+        with patch.object(generator, 'check_document_available', side_effect=[
+                generator.GeneratorError('Locked'), generator.GeneratorError('Still locked'), None]) as check:
+            generator.show_document_generator(self.owner, 'example.docx')
+        self.assertEqual(check.call_count, 3)
+        self.assertEqual(self.message.call_count, 2)
+        self.assertIn('Still locked', self.message.call_args.args[1])
+        self.frame.assert_called_once_with(self.owner, 'example.docx')
+        self.frame.return_value.Show.assert_called_once()
+
+    def test_cancel_does_not_create_form_or_open_word(self):
+        self.message.return_value = 2
+        with patch.object(generator, 'check_document_available',
+                          side_effect=generator.GeneratorError('Locked')) as check:
+            generator.show_document_generator(self.owner, 'example.docx')
+        check.assert_called_once()
+        self.frame.assert_not_called()
+        self.assertEqual(self.owner._document_generators, {})
+
+    def test_existing_generator_is_raised_without_checking_its_own_lock(self):
+        existing = Mock()
+        key = generator.os.path.normcase(generator.os.path.abspath('example.docx'))
+        self.owner._document_generators[key] = existing
+        with patch.object(generator, 'check_document_available') as check:
+            generator.show_document_generator(self.owner, 'example.docx')
+        check.assert_not_called()
+        self.message.assert_not_called()
+        self.frame.assert_not_called()
+        existing.Raise.assert_called_once()
 
 
 class CommandTests(unittest.TestCase):

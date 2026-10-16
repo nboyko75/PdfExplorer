@@ -25,6 +25,7 @@ for source in (wx, getattr(wx, "adv", None)):
 PERSISTED_LAYOUT_KEYS = {
     "document_generator_position",
     "document_generator_size",
+    "document_generator_sash_position",
     "rename_files_position",
     "rename_files_size",
     "rename_files_sash_position",
