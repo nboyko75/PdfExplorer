@@ -1,6 +1,8 @@
 """Native, modeless editor for Word document generator fields."""
 import os
 import logging
+import csv
+import io
 
 import wx
 import wx.grid as gridlib
@@ -8,6 +10,8 @@ import wx.grid as gridlib
 from file_operations.document_generator import GeneratorWorker, WordDisconnected
 from common.window_tools import load_settings, restore_control_geometry, update_settings
 from localization import tr
+
+TABLE_COLUMN_WIDTHS = 'document_generator_table_column_widths'
 
 
 def show_generator_message(owner, message, retry=False):
@@ -55,8 +59,10 @@ class DocumentGeneratorFrame(wx.Frame):
         self.rows = []
         self.fields = []
         self.expand_checks = []
+        self.bookmark_add_buttons = []
         self.tables = []
         self.table_fields = []
+        self.table_add_buttons = []
         self.active_table = None
         self.busy = False
         self.closing = False
@@ -88,13 +94,12 @@ class DocumentGeneratorFrame(wx.Frame):
         bookmarks_layout.Add(bookmark_header, 0, wx.EXPAND | wx.ALL, 8)
         self.scroller = wx.ScrolledWindow(self.bookmark_panel, style=wx.VSCROLL)
         self.scroller.SetScrollRate(0, 16)
-        self.grid = wx.FlexGridSizer(cols=5, vgap=8, hgap=8)
-        self.grid.AddGrowableCol(3, 1)
+        self.grid = wx.GridBagSizer(vgap=8, hgap=8)
         self.scroller.SetSizer(self.grid)
         bookmarks_layout.Add(self.scroller, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         bookmark_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        bookmark_buttons.AddStretchSpacer()
         self.add = wx.Button(self.bookmark_panel, label=tr('generator_add'))
+        self._row_button_width = self.add.GetBestSize().height
         bookmark_buttons.Add(self.add)
         bookmarks_layout.Add(bookmark_buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.bookmark_panel.SetSizer(bookmarks_layout)
@@ -109,10 +114,7 @@ class DocumentGeneratorFrame(wx.Frame):
         self.table_scroller.SetSizer(self.table_list)
         tables_layout.Add(self.table_scroller, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         table_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        self.add_row = wx.Button(self.table_panel, label=tr('generator_add_row'))
         self.add_table = wx.Button(self.table_panel, label=tr('generator_add_table'))
-        table_buttons.Add(self.add_row)
-        table_buttons.AddStretchSpacer()
         table_buttons.Add(self.add_table)
         tables_layout.Add(table_buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.table_panel.SetSizer(tables_layout)
@@ -131,6 +133,10 @@ class DocumentGeneratorFrame(wx.Frame):
         half = area.width // 2
         self.SetPosition((area.x, area.y))
         self._layout_settings = load_settings()
+        self._column_widths_document = os.path.normcase(os.path.abspath(path))
+        stored_widths = self._layout_settings.get(TABLE_COLUMN_WIDTHS, {})
+        document_widths = stored_widths.get(self._column_widths_document, {}) if isinstance(stored_widths, dict) else {}
+        self._table_column_widths = dict(document_widths) if isinstance(document_widths, dict) else {}
         restore_control_geometry(self, 'document_generator', (half, area.height),
                                  (min(620, half), min(420, area.height)), settings=self._layout_settings)
         if wx.Display.GetFromWindow(self) == wx.NOT_FOUND:
@@ -151,7 +157,6 @@ class DocumentGeneratorFrame(wx.Frame):
         self.Bind(wx.EVT_SIZE, self.on_geometry)
         self.add.Bind(wx.EVT_BUTTON, lambda event: self._perform(lambda session: session.add_selection()))
         self.add_table.Bind(wx.EVT_BUTTON, self.on_add_table)
-        self.add_row.Bind(wx.EVT_BUTTON, self.on_add_row)
         self.save.Bind(wx.EVT_BUTTON, self.on_save)
         self.export.Bind(wx.EVT_BUTTON, self.on_export)
         self.exit.Bind(wx.EVT_BUTTON, lambda event: self.Close())
@@ -261,8 +266,14 @@ class DocumentGeneratorFrame(wx.Frame):
         self.busy = busy
         connected = not busy and not self._disconnected
         self.add.Enable(connected)
+        for button in self.bookmark_add_buttons:
+            button.Enable(connected)
         self.add_table.Enable(connected)
-        self.add_row.Enable(connected and bool(self.table_fields))
+        for button in self.table_add_buttons:
+            button.Enable(connected)
+        for _, grid in self.table_fields:
+            for button in grid._generator_row_buttons:
+                button.Enable(connected and grid.GetNumberRows() > 1)
         self.save.Enable(connected)
         self.export.Enable(connected)
         self.exit.Enable(not busy)
@@ -345,39 +356,63 @@ class DocumentGeneratorFrame(wx.Frame):
         self.rows = rows
         self.fields = []
         self.expand_checks = []
+        self.bookmark_add_buttons = []
         self.grid.Clear(delete_windows=True)
         name_width = self.scroller.GetTextExtent('bookmark' + str(max(1, len(rows))))[0] + self.FromDIP(24)
-        for column, label in enumerate(('', '№', tr('generator_bookmark'), tr('generator_value'), '')):
+        for column, label in enumerate(('', '', '№', tr('generator_bookmark'), tr('generator_value'), '')):
             header = wx.StaticText(self.scroller, label=label)
-            if column == 2:
+            if column == 3:
                 header.Wrap(name_width)
                 header.SetMinSize((name_width, -1))
-            self.grid.Add(header, 0, wx.ALIGN_CENTER_VERTICAL)
+            self.grid.Add(header, (0, column), flag=wx.ALIGN_CENTER_VERTICAL)
+        if not self.grid.IsColGrowable(4):
+            self.grid.AddGrowableCol(4, 1)
+        shared_controls = {}
         for index, row in enumerate(rows):
             delete = wx.Button(self.scroller, label='×', style=wx.BU_EXACTFIT)
             delete.SetToolTip(tr('generator_delete_row'))
             delete.Bind(wx.EVT_BUTTON, lambda event, i=index: self._perform(
                 lambda session: session.delete_row(i)))
+            add = wx.Button(self.scroller, label='+', style=wx.BU_EXACTFIT)
+            add.SetToolTip(tr('generator_add_shared_bookmark'))
+            add.SetName(tr('generator_add_shared_bookmark'))
+            add.Bind(wx.EVT_BUTTON, lambda event, i=index: self._perform(
+                lambda session: session.add_selection(i)))
+            self.bookmark_add_buttons.append(add)
             name = wx.TextCtrl(self.scroller, value=row['name'], size=(name_width, -1))
             name.SetMaxLength(40)
-            check = wx.CheckBox(self.scroller, label=tr('generator_expand'))
-            check.SetValue(row['name'] in expanded)
-            check.Bind(wx.EVT_CHECKBOX, lambda event, i=index: self.on_expand(i))
+            group = row.get('group')
+            shared = shared_controls.get(group) if group else None
+            if shared:
+                value, check = shared
+            else:
+                check = wx.CheckBox(self.scroller, label=tr('generator_expand'))
+                check.SetValue(any(item['name'] in expanded for item in rows
+                                   if item['name'] == row['name'] or (group and item.get('group') == group)))
+                check.Bind(wx.EVT_CHECKBOX, lambda event, i=index: self.on_expand(i))
             row_height = max(name.GetBestSize().height, delete.GetBestSize().height,
                              check.GetBestSize().height)
+            self._row_button_width = row_height
             name.SetMinSize((name_width, row_height))
             delete.SetMinSize((row_height, row_height))
             delete.SetSize((row_height, row_height))
-            value = self._create_value(row['value'], check.IsChecked(), row_height)
+            add.SetMinSize((row_height, row_height))
+            add.SetSize((row_height, row_height))
+            if not shared:
+                value = self._create_value(row['value'], check.IsChecked(), row_height)
+                count = sum(item.get('group') == group for item in rows) if group else 1
+                self.grid.Add(value, (index + 1, 4), span=(count, 1), flag=wx.EXPAND)
+                self.grid.Add(check, (index + 1, 5), span=(count, 1), flag=wx.ALIGN_TOP)
+                if group:
+                    shared_controls[group] = (value, check)
             name.Bind(wx.EVT_KILL_FOCUS, self.on_field_blur)
             self.fields.append((name, value))
             self.expand_checks.append(check)
-            self.grid.Add(delete, 0)
-            self.grid.Add(wx.StaticText(self.scroller, label=str(index + 1)), 0,
-                          wx.ALIGN_CENTER_VERTICAL)
-            self.grid.Add(name, 0, wx.ALIGN_TOP)
-            self.grid.Add(value, 1, wx.EXPAND)
-            self.grid.Add(check, 0, wx.ALIGN_TOP)
+            self.grid.Add(delete, (index + 1, 0))
+            self.grid.Add(add, (index + 1, 1))
+            self.grid.Add(wx.StaticText(self.scroller, label=str(index + 1)), (index + 1, 2),
+                          flag=wx.ALIGN_CENTER_VERTICAL)
+            self.grid.Add(name, (index + 1, 3), flag=wx.ALIGN_TOP)
         self.scroller.Layout()
         self.scroller.FitInside()
 
@@ -405,13 +440,15 @@ class DocumentGeneratorFrame(wx.Frame):
         value = self._create_value(self._value_text(old), self.expand_checks[index].IsChecked(),
                                    name.GetMinSize().height)
         self.grid.Replace(old, value)
-        self.fields[index] = (name, value)
+        self.fields = [(field_name, value if field_value is old else field_value)
+                       for field_name, field_value in self.fields]
         old.Destroy()
         self.scroller.Layout()
         self.scroller.FitInside()
 
     def _values(self):
-        return [{'name': name.GetValue(), 'value': self._value_text(value)} for name, value in self.fields]
+        return [dict(row, name=name.GetValue(), value=self._value_text(value))
+                for row, (name, value) in zip(self.rows, self.fields)]
 
     def _table_values(self):
         values = []
@@ -432,8 +469,13 @@ class DocumentGeneratorFrame(wx.Frame):
 
     def _render_tables(self, tables):
         self._finish_table_editing()
+        names = {item['name'] for item in tables}
+        for name, grid in self.table_fields:
+            if name.GetValue() in names:
+                self._rename_table_widths(grid, name.GetValue())
         self.tables = tables
         self.table_fields = []
+        self.table_add_buttons = []
         self.table_list.Clear(delete_windows=True)
         for index, item in enumerate(tables):
             card = wx.Panel(self.table_scroller)
@@ -447,6 +489,7 @@ class DocumentGeneratorFrame(wx.Frame):
             name.Bind(wx.EVT_SET_FOCUS, lambda event, i=index: self._select_table(event, i))
             heading.Add(name, 1)
             remove = wx.Button(card, label='×', style=wx.BU_EXACTFIT)
+            remove.SetMinSize((self._row_button_width, self._row_button_width))
             remove.SetToolTip(tr('generator_delete_table'))
             remove.Bind(wx.EVT_BUTTON, lambda event, i=index: self._perform(
                 lambda session: session.delete_table(i)))
@@ -454,23 +497,48 @@ class DocumentGeneratorFrame(wx.Frame):
             layout.Add(heading, 0, wx.EXPAND | wx.BOTTOM, 6)
             grid = gridlib.Grid(card)
             grid.CreateGrid(len(item['rows']), len(item['widths']))
-            grid.SetRowLabelSize(self.FromDIP(36))
+            grid._generator_name = item['name']
+            grid._generator_row_buttons = []
+            grid._generator_sizing = False
+            stored = self._table_column_widths.get(item['name'], {})
+            grid._generator_manual_widths = {
+                str(col): stored[str(col)] for col in range(grid.GetNumberCols())
+                if isinstance(stored, dict) and type(stored.get(str(col))) is int and
+                0 < stored[str(col)] <= 10000}
+            grid.SetRowLabelSize(self._row_button_width + self.FromDIP(4))
             grid.SetColLabelSize(0)
+            grid.SetSelectionMode(gridlib.Grid.SelectCells)
+            grid.SetColMinimalAcceptableWidth(self.FromDIP(32))
+            grid.EnableDragGridSize()
             grid.SetDefaultEditor(gridlib.GridCellAutoWrapStringEditor())
             grid.SetDefaultRenderer(gridlib.GridCellAutoWrapStringRenderer())
             for row, cells in enumerate(item['rows']):
                 for column, text in enumerate(cells):
                     grid.SetCellValue(row, column, text)
+            self._size_table_columns(grid)
+            self._rebuild_table_row_buttons(grid, index)
             self._size_table_height(grid)
             grid.Bind(gridlib.EVT_GRID_SELECT_CELL, lambda event, i=index: self._select_table(event, i))
-            grid.Bind(gridlib.EVT_GRID_CELL_CHANGED, self.on_field_blur)
-            grid.Bind(wx.EVT_SIZE, lambda event, g=grid, widths=item['widths']: self._size_table_columns(event, g, widths))
+            grid.Bind(gridlib.EVT_GRID_CELL_CHANGED, lambda event, g=grid: self._on_table_cell_changed(event, g))
+            grid.Bind(gridlib.EVT_GRID_EDITOR_CREATED, lambda event, g=grid: self._on_table_editor_created(event, g))
+            grid.Bind(gridlib.EVT_GRID_COL_SIZE, lambda event, g=grid: self._on_table_column_resized(event, g))
+            grid.Bind(gridlib.EVT_GRID_ROW_SIZE, lambda event, g=grid: self._on_table_rows_resized(event, g))
+            grid.Bind(gridlib.EVT_GRID_CELL_RIGHT_CLICK, lambda event, g=grid: self._on_table_context_menu(event, g))
+            grid.Bind(wx.EVT_CHAR_HOOK, lambda event, g=grid: self._on_table_key(event, g))
+            grid.GetGridRowLabelWindow().Bind(wx.EVT_PAINT, lambda event, g=grid: self._on_table_row_labels_paint(event, g))
             layout.Add(grid, 0, wx.EXPAND)
+            add_row = wx.Button(card, label='+', style=wx.BU_EXACTFIT)
+            add_row.SetMinSize((self._row_button_width, self._row_button_width))
+            add_row.SetToolTip(tr('generator_add_row'))
+            add_row.SetName(tr('generator_add_row'))
+            add_row.Bind(wx.EVT_BUTTON, lambda event, i=index: self.on_add_row(event, i))
+            add_row.Enable(not self.busy and not self._disconnected)
+            layout.Add(add_row, 0, wx.TOP, 4)
+            self.table_add_buttons.append(add_row)
             card.SetSizer(layout)
             self.table_list.Add(card, 0, wx.EXPAND | wx.BOTTOM, 12)
             self.table_fields.append((name, grid))
         self.active_table = min(self.active_table or 0, len(tables) - 1) if tables else None
-        self.add_row.Enable(not self.busy and bool(tables))
         self.table_scroller.Layout()
         self.table_scroller.FitInside()
 
@@ -485,13 +553,199 @@ class DocumentGeneratorFrame(wx.Frame):
                      scrollbar_height + self.FromDIP(6))
         grid.SetMinSize((1, height))
 
-    def _size_table_columns(self, event, grid, widths):
-        available = max(1, grid.GetClientSize().width - grid.GetRowLabelSize() - self.FromDIP(20))
-        for column, width in enumerate(widths):
-            target = max(self.FromDIP(50), round(available * width / sum(widths)))
-            if grid.GetColSize(column) != target:
-                grid.SetColSize(column, target)
+    @staticmethod
+    def _selected_table_cells(grid):
+        cells = {(cell.GetRow(), cell.GetCol()) for cell in grid.GetSelectedCells()}
+        for start, end in zip(grid.GetSelectionBlockTopLeft(), grid.GetSelectionBlockBottomRight()):
+            cells.update((row, col) for row in range(start.GetRow(), end.GetRow() + 1)
+                         for col in range(start.GetCol(), end.GetCol() + 1))
+        cells.update((row, col) for row in grid.GetSelectedRows() for col in range(grid.GetNumberCols()))
+        cells.update((row, col) for col in grid.GetSelectedCols() for row in range(grid.GetNumberRows()))
+        if not cells and grid.GetNumberRows() and grid.GetNumberCols():
+            cells.add((grid.GetGridCursorRow(), grid.GetGridCursorCol()))
+        return cells
+
+    def _on_table_context_menu(self, event, grid):
+        cell = (event.GetRow(), event.GetCol())
+        if cell not in self._selected_table_cells(grid):
+            grid.ClearSelection()
+            grid.SetGridCursor(*cell)
+        grid.SetFocus()
+        menu = wx.Menu()
+        try:
+            for action, label, shortcut in (
+                    ('copy', 'context_copy', 'Ctrl+C'), ('cut', 'context_cut', 'Ctrl+X'),
+                    ('paste', 'context_paste', 'Ctrl+V'), ('clear', 'generator_clear_cells', 'Ctrl+D')):
+                item = menu.Append(wx.ID_ANY, tr(label) + '\t' + shortcut)
+                item.Enable(not self.busy and (action == 'copy' or not self._disconnected))
+                menu.Bind(wx.EVT_MENU, lambda event, a=action: self._table_clipboard_action(grid, a), item)
+            grid.PopupMenu(menu)
+        finally:
+            menu.Destroy()
+
+    def _on_table_key(self, event, grid):
+        action = {ord('C'): 'copy', ord('X'): 'cut', ord('V'): 'paste', ord('D'): 'clear'}.get(event.GetKeyCode())
+        if event.ControlDown() and not event.AltDown() and not event.ShiftDown() and action:
+            # Keep normal text selection shortcuts while editing one cell.
+            if not grid.IsCellEditControlShown() or action == 'clear':
+                self._table_clipboard_action(grid, action)
+                return
         event.Skip()
+
+    def _table_clipboard_action(self, grid, action):
+        if self.busy or self.closing or (self._disconnected and action != 'copy'):
+            return
+        self._finish_table_editing()
+        cells = self._selected_table_cells(grid)
+        if not cells:
+            return
+        top, left = min(row for row, _ in cells), min(col for _, col in cells)
+        if action in ('copy', 'cut'):
+            output = io.StringIO(newline='')
+            bottom, right = max(row for row, _ in cells), max(col for _, col in cells)
+            csv.writer(output, delimiter='\t', lineterminator='\r\n').writerows(
+                [grid.GetCellValue(row, col) if (row, col) in cells else ''
+                 for col in range(left, right + 1)]
+                for row in range(top, bottom + 1))
+            if not wx.TheClipboard.Open():
+                return
+            try:
+                if not wx.TheClipboard.SetData(wx.TextDataObject(output.getvalue())):
+                    return
+            finally:
+                wx.TheClipboard.Close()
+            if action == 'copy':
+                return
+        if action == 'paste':
+            if not wx.TheClipboard.Open():
+                return
+            data = wx.TextDataObject()
+            try:
+                if not wx.TheClipboard.GetData(data):
+                    return
+            finally:
+                wx.TheClipboard.Close()
+            try:
+                values = list(csv.reader(io.StringIO(data.GetText(), newline=''), delimiter='\t'))
+            except csv.Error:
+                return
+            if not values:
+                return
+            if len(values) == 1 and len(values[0]) == 1:
+                updates = {cell: values[0][0] for cell in cells}
+            else:
+                # A single cursor anchors a block; a multiple selection limits
+                # writes to selected cells, including disjoint selections.
+                updates = {(top + row, left + col): value
+                           for row, line in enumerate(values) for col, value in enumerate(line)
+                           if top + row < grid.GetNumberRows() and left + col < grid.GetNumberCols()
+                           and (len(cells) == 1 or (top + row, left + col) in cells)}
+        else:
+            updates = {cell: '' for cell in cells}
+        for (row, col), value in updates.items():
+            grid.SetCellValue(row, col, value)
+        self._size_table_columns(grid)
+        grid.ForceRefresh()
+        self._commit_fields()
+
+    def _size_table_columns(self, grid, editing=None):
+        if not grid:
+            return
+        minimum, maximum = self.FromDIP(32), self.FromDIP(300)
+        grid._generator_sizing = True
+        try:
+            for column in range(grid.GetNumberCols()):
+                manual = grid._generator_manual_widths.get(str(column))
+                if manual is not None:
+                    target = max(minimum, self.FromDIP(manual))
+                else:
+                    width = 0
+                    for row in range(grid.GetNumberRows()):
+                        value = (editing[2] if editing and editing[:2] == (row, column)
+                                 else grid.GetCellValue(row, column))
+                        for line in value.splitlines():
+                            width = max(width, grid.GetTextExtent(line)[0])
+                    target = min(maximum, max(minimum, width + self.FromDIP(16)))
+                if grid.GetColSize(column) != target:
+                    grid.SetColSize(column, target)
+        finally:
+            grid._generator_sizing = False
+
+    def _on_table_cell_changed(self, event, grid):
+        self._size_table_columns(grid)
+        self.on_field_blur(event)
+
+    def _on_table_editor_created(self, event, grid):
+        control = event.GetControl()
+        def changed(text_event):
+            text_event.Skip()
+            self._size_table_columns(grid, (grid.GetGridCursorRow(), grid.GetGridCursorCol(), control.GetValue()))
+        control.Bind(wx.EVT_TEXT, changed)
+        event.Skip()
+
+    def _on_table_column_resized(self, event, grid):
+        if not grid._generator_sizing:
+            column = event.GetRowOrCol()
+            wx.CallAfter(self._remember_table_column_width, grid, column)
+        event.Skip()
+
+    def _remember_table_column_width(self, grid, column):
+        if not grid or self.closing:
+            return
+        grid._generator_manual_widths[str(column)] = self.ToDIP(grid.GetColSize(column))
+        self._table_column_widths[grid._generator_name] = dict(grid._generator_manual_widths)
+        self._store_table_column_widths()
+
+    def _rename_table_widths(self, grid, name):
+        if name != grid._generator_name:
+            self._table_column_widths.pop(grid._generator_name, None)
+            grid._generator_name = name
+            if grid._generator_manual_widths:
+                self._table_column_widths[name] = dict(grid._generator_manual_widths)
+                self._store_table_column_widths()
+
+    def _store_table_column_widths(self):
+        stored = load_settings().get(TABLE_COLUMN_WIDTHS, {})
+        stored = dict(stored) if isinstance(stored, dict) else {}
+        stored[self._column_widths_document] = dict(self._table_column_widths)
+        update_settings({TABLE_COLUMN_WIDTHS: stored})
+
+    def _rebuild_table_row_buttons(self, grid, index):
+        for button in grid._generator_row_buttons:
+            button.Destroy()
+        grid._generator_row_buttons = []
+        for row in range(grid.GetNumberRows()):
+            grid.SetRowLabelValue(row, '')
+            button = wx.Button(grid.GetGridRowLabelWindow(), label='x', style=wx.BU_EXACTFIT)
+            button.SetToolTip(tr('generator_remove_row'))
+            button.SetName(tr('generator_remove_row'))
+            button.Enable(grid.GetNumberRows() > 1 and not self.busy and not self._disconnected)
+            button.Bind(wx.EVT_BUTTON, lambda event, i=index, r=row: self.on_remove_table_row(i, r))
+            grid._generator_row_buttons.append(button)
+        self._position_table_row_buttons(grid)
+
+    def _position_table_row_buttons(self, grid):
+        if not grid or self.closing:
+            return
+        height = grid.GetGridRowLabelWindow().GetClientSize().height
+        for row, button in enumerate(grid._generator_row_buttons):
+            rect = grid.CellToRect(row, 0)
+            _, y = grid.CalcScrolledPosition(0, rect.y)
+            bounds = wx.Rect(self.FromDIP(2), y + 1, self._row_button_width, max(1, rect.height - 2))
+            if button.GetRect() != bounds:
+                button.SetSize(bounds)
+            button.Show(y + rect.height > 0 and y < height)
+
+    def _on_table_row_labels_paint(self, event, grid):
+        event.Skip()
+        wx.CallAfter(self._position_table_row_buttons, grid)
+
+    def _on_table_rows_resized(self, event, grid):
+        event.Skip()
+        self._size_table_height(grid)
+        self.table_scroller.Layout()
+        self.table_scroller.FitInside()
+        wx.CallAfter(self._position_table_row_buttons, grid)
 
     def _select_table(self, event, index):
         self.active_table = index
@@ -501,21 +755,39 @@ class DocumentGeneratorFrame(wx.Frame):
         self.active_table = len(self.table_fields)
         self._perform(lambda session: session.add_table_selection())
 
-    def on_add_row(self, event):
-        if self.busy or not self.table_fields:
+    def on_add_row(self, event, index=None):
+        if self.busy or self._disconnected or not self.table_fields:
             return
-        index = min(self.active_table if self.active_table is not None else len(self.table_fields) - 1,
-                    len(self.table_fields) - 1)
+        if index is None:
+            index = min(self.active_table if self.active_table is not None else len(self.table_fields) - 1,
+                        len(self.table_fields) - 1)
         self.active_table = index
         grid = self.table_fields[index][1]
         self._finish_table_editing()
         grid.AppendRows(1)
+        self._rebuild_table_row_buttons(grid, index)
         self._size_table_height(grid)
         self.table_scroller.Layout()
         self.table_scroller.FitInside()
         grid.SetGridCursor(grid.GetNumberRows() - 1, 0)
         grid.MakeCellVisible(grid.GetNumberRows() - 1, 0)
+        self._position_table_row_buttons(grid)
         grid.SetFocus()
+        self._commit_fields()
+
+    def on_remove_table_row(self, index, row):
+        if self.busy or self._disconnected:
+            return
+        grid = self.table_fields[index][1]
+        if grid.GetNumberRows() <= 1:
+            return
+        self._finish_table_editing()
+        grid.DeleteRows(row, 1)
+        self._rebuild_table_row_buttons(grid, index)
+        self._size_table_columns(grid)
+        self._size_table_height(grid)
+        self.table_scroller.Layout()
+        self.table_scroller.FitInside()
         self._commit_fields()
 
     def on_field_blur(self, event):
@@ -542,7 +814,8 @@ class DocumentGeneratorFrame(wx.Frame):
                 self.status.SetStatusText(error)
             else:
                 self.rows = values
-                for table, value in zip(self.tables, tables):
+                for table, value, (_, grid) in zip(self.tables, tables, self.table_fields):
+                    self._rename_table_widths(grid, value['name'])
                     table.update(value)
                 self.status.SetStatusText('')
         self.worker.submit(lambda session: session.update_fields(values, tables), finished)

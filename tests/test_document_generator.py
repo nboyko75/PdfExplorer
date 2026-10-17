@@ -228,6 +228,64 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(self.session.rows, [])
         self.document.Save.assert_not_called()
 
+    def test_add_shared_selection_inserts_link_below_source_and_keeps_value(self):
+        self.session.open()
+        self.session.rows = [{'name': 'First', 'value': 'Shared replacement'},
+                             {'name': 'Other', 'value': 'Independent'}]
+        self.app.ActiveDocument.FullName = str(self.source)
+        area = self.app.Selection.Range.Duplicate
+        area.Start, area.End, area.StoryLength, area.Text = 20, 25, 100, 'other'
+        self.session.add_selection(0)
+        self.assertEqual([row['name'] for row in self.session.rows], ['First', 'bookmark3', 'Other'])
+        group = self.session.rows[0]['group']
+        self.assertEqual(self.session.rows[1], {'name': 'bookmark3', 'value': 'Shared replacement', 'group': group})
+        self.session.add_selection(1)
+        self.assertEqual(self.session.rows[2]['group'], group)
+        self.assertNotIn('group', self.session.rows[3])
+        self.session.delete_row(0)
+        self.assertEqual(self.session.rows[0]['group'], self.session.rows[1]['group'])
+        self.assertEqual(self.session.rows[0]['value'], 'Shared replacement')
+
+    def test_shared_rows_load_and_keep_group_when_renamed(self):
+        rows = [{'name': 'First', 'value': 'Shared', 'group': 'linked'},
+                {'name': 'Second', 'value': 'Shared', 'group': 'linked'}]
+        self.document.Variables.Count = 1
+        variable = self.document.Variables.Item.return_value
+        variable.Name, variable.Value = generator.STATE_VARIABLE, json.dumps(rows)
+        self.assertEqual(self.session.open(), rows)
+        self.document.Bookmarks.Exists.side_effect = lambda name: name in ('First', 'Second')
+        updated = [dict(row, value='Updated') for row in rows]
+        updated[0]['name'] = 'Renamed'
+        self.session.update_rows(updated)
+        self.assertEqual(json.loads(variable.Value), updated)
+
+    def test_conflicting_or_noncontiguous_shared_rows_are_rejected(self):
+        rows = [{'name': 'First', 'value': 'Shared', 'group': 'linked'},
+                {'name': 'Second', 'value': 'Shared', 'group': 'linked'}]
+        invalid = [
+            [rows[0], dict(rows[1], value='Different')],
+            [rows[0], {'name': 'Other', 'value': ''}, rows[1]],
+            [dict(rows[0], group='')], [dict(rows[0], group=123)]]
+        for values in invalid:
+            with self.assertRaises(generator.GeneratorError):
+                self.session._validate_rows(values)
+        self.session.open()
+        self.session.rows = rows
+        with self.assertRaises(generator.GeneratorError):
+            self.session.update_rows([{'name': row['name'], 'value': row['value']} for row in rows])
+        self.document.Bookmarks.Add.assert_not_called()
+
+    def test_invalid_shared_selection_keeps_existing_group_unchanged(self):
+        self.session.open()
+        self.session.rows = [{'name': 'First', 'value': 'Shared'}]
+        self.app.ActiveDocument.FullName = str(self.source)
+        area = self.app.Selection.Range.Duplicate
+        area.Start, area.End, area.StoryLength, area.Text = 1, 1, 100, ''
+        with self.assertRaises(generator.GeneratorError):
+            self.session.add_selection(0)
+        self.assertEqual(self.session.rows, [{'name': 'First', 'value': 'Shared'}])
+        self.document.Bookmarks.Add.assert_not_called()
+
     def test_empty_table_or_other_document_selection_rejected(self):
         self.session.open()
         self.app.ActiveDocument.FullName = str(self.source)
@@ -453,7 +511,7 @@ class AvailabilityTests(unittest.TestCase):
         self.controls = SimpleNamespace(DocumentGeneratorFrame=self.frame,
                                         show_generator_message=self.message)
         self.addCleanup(patch.stopall)
-        patch.dict(sys.modules, {'controls.document_generator': self.controls,
+        patch.dict(sys.modules, {'controls.document_generator_frame': self.controls,
                                  'wx': SimpleNamespace(ID_OK=1)}).start()
 
     def test_retry_checks_again_before_creating_form(self):

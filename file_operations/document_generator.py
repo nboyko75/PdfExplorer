@@ -13,6 +13,7 @@ import re
 import shutil
 import tempfile
 import threading
+import uuid
 
 from localization import tr
 
@@ -152,10 +153,7 @@ class DocumentGenerator:
             return []
         try:
             rows = json.loads(variable.Value)
-            if not isinstance(rows, list) or any(
-                    not isinstance(row, dict) or set(row) != {'name', 'value'} or
-                    not all(isinstance(value, str) for value in row.values()) for row in rows):
-                raise ValueError('Invalid rows')
+            self._validate_rows(rows)
             self._validate_names(rows)
             return rows
         except (ValueError, TypeError, GeneratorError) as error:
@@ -168,6 +166,24 @@ class DocumentGenerator:
             self.document.Variables.Add(STATE_VARIABLE, value)
         else:
             variable.Value = value
+
+    @staticmethod
+    def _validate_rows(rows):
+        if not isinstance(rows, list) or any(
+                not isinstance(row, dict) or set(row) not in ({'name', 'value'}, {'name', 'value', 'group'}) or
+                not all(isinstance(value, str) for value in row.values()) or
+                ('group' in row and not row['group']) for row in rows):
+            raise GeneratorError(tr('generator_invalid_state'))
+        groups = {}
+        previous = None
+        # Linked bookmarks stay adjacent so one value control spans their rows.
+        for row in rows:
+            group = row.get('group')
+            if group is not None:
+                if group in groups and (group != previous or groups[group] != row['value']):
+                    raise GeneratorError(tr('generator_invalid_state'))
+                groups[group] = row['value']
+            previous = group
 
     def snapshot(self):
         return [dict(row) for row in self.rows]
@@ -427,6 +443,9 @@ class DocumentGenerator:
             return
         if len(rows) != len(self.rows):
             raise GeneratorError(tr('generator_invalid_state'))
+        self._validate_rows(rows)
+        if any(old.get('group') != new.get('group') for old, new in zip(self.rows, rows)):
+            raise GeneratorError(tr('generator_invalid_state'))
         self._validate_names(rows + self.tables)
         renames = []
         # Validate every rename before changing the document.
@@ -444,7 +463,9 @@ class DocumentGenerator:
         self.rows = [dict(row) for row in rows]
         self._store_rows()
 
-    def add_selection(self):
+    def add_selection(self, shared_index=None):
+        if shared_index is not None and not 0 <= shared_index < len(self.rows):
+            raise GeneratorError(tr('generator_invalid_state'))
         if not _same_path(self.app.ActiveDocument.FullName, self.document.FullName):
             raise GeneratorError(tr('generator_select_text'))
         area = self.app.Selection.Range.Duplicate
@@ -461,7 +482,12 @@ class DocumentGenerator:
             number += 1
         name = 'bookmark' + str(number)
         self.document.Bookmarks.Add(name, area)
-        self.rows.append({'name': name, 'value': area.Text.replace('\r', '\n')})
+        if shared_index is None:
+            self.rows.append({'name': name, 'value': area.Text.replace('\r', '\n')})
+        else:
+            source = self.rows[shared_index]
+            group = source.setdefault('group', uuid.uuid4().hex)
+            self.rows.insert(shared_index + 1, {'name': name, 'value': source['value'], 'group': group})
         self._store_rows()
 
     def delete_row(self, index):

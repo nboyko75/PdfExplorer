@@ -19,11 +19,11 @@ def run(folder):
     pythoncom.CoInitialize()
     app = session = output = document = None
     try:
-        app = win32com.client.DispatchEx('Word.Application')
-        app.Visible = False
-        app.DisplayAlerts = 0
-        app.AutomationSecurity = 3
         for extension, file_format in (('.docx', 12), ('.doc', 0), ('.docm', 13)):
+            app = win32com.client.DispatchEx('Word.Application')
+            app.Visible = False
+            app.DisplayAlerts = 0
+            app.AutomationSecurity = 3
             source = folder / ('source' + extension)
             document = app.Documents.Add(Visible=False)
             document.Content.Text = 'AlphaBeta again'
@@ -32,6 +32,8 @@ def run(folder):
             document.SaveAs2(FileName=str(source), FileFormat=file_format, AddToRecentFiles=False)
             document.Close(False)
             document = None
+            app.Quit(0)
+            app = None
             original = source.read_bytes()
             session = DocumentGenerator(str(source))
             assert session.open() == []
@@ -75,7 +77,7 @@ def run(folder):
             result = folder / ('result' + extension)
             session.export_document(str(result))
             assert session.document.Content.Text == 'AlphaBeta again\r'
-            output = app.Documents.Open(FileName=str(result), ReadOnly=True, Visible=False)
+            output = session.app.Documents.Open(FileName=str(result), ReadOnly=True, Visible=False)
             assert output.Content.Text == 'Replacement again\r', repr(output.Content.Text)
             assert output.SaveFormat == file_format
             assert output.Bookmarks('First').Range.Text == 'Replacement'
@@ -99,7 +101,7 @@ def run(folder):
                                  {'name': 'Second', 'value': 'Result'}])
             second = folder / ('second' + extension)
             session.export_document(str(second))
-            output = app.Documents.Open(FileName=str(second), ReadOnly=True, Visible=False)
+            output = session.app.Documents.Open(FileName=str(second), ReadOnly=True, Visible=False)
             assert output.Content.Text == 'Україна\r日本Result again\r', repr(output.Content.Text)
             output.Close(False)
             output = None
@@ -107,10 +109,41 @@ def run(folder):
                 for path in (source, result, second):
                     with zipfile.ZipFile(path) as package:
                         assert 'word/vbaProject.bin' not in package.namelist()
+            # A second bookmark shares the first field's value, persists as a
+            # link after reopening, and receives the same text on export.
+            session.document.Range(10, 15).Select()
+            session.add_selection(0)
+            linked = session.snapshot()
+            linked[1]['name'] = 'Linked'
+            session.update_rows(linked)
+            assert linked[0]['group'] == linked[1]['group']
+            assert linked[0]['value'] == linked[1]['value']
+            session.save_document()
+            session.close_document()
+            session = DocumentGenerator(str(source))
+            assert session.open() == linked
+            shared_result = folder / ('shared-result' + extension)
+            session.export_document(str(shared_result))
+            output = session.app.Documents.Open(FileName=str(shared_result), ReadOnly=True, Visible=False)
+            assert output.Bookmarks('First').Range.Text == output.Bookmarks('Linked').Range.Text
+            assert output.Bookmarks('Second').Range.Text == 'Result'
+            output.Close(False)
+            output = None
+            session.delete_row(0)
+            remaining = session.snapshot()
+            remaining[0]['name'] = 'RemainingLink'
+            remaining[0]['value'] = 'After removal'
+            session.update_rows(remaining)
+            session.export_document(str(shared_result))
+            output = session.app.Documents.Open(FileName=str(shared_result), ReadOnly=True, Visible=False)
+            assert output.Bookmarks('RemainingLink').Range.Text == 'After removal'
+            assert output.Content.Text.startswith('AlphaResult ')
+            output.Close(False)
+            output = None
             session.close_document()
             session = None
             print(f'PASS {extension}: original format, Add/Rename/Delete, adjacent and empty fields, '
-                  'formatting, persistence, Unicode, tiling/restoration and document close', flush=True)
+                  'shared values, formatting, persistence, Unicode, tiling/restoration and document close', flush=True)
     finally:
         if session is not None and session.app is not None:
             session.app.Quit(0)
