@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -37,6 +38,8 @@ def _cache_directory(path):
             str(stat.st_mtime_ns),
         )
     )
+    if os.path.splitext(path)[1].lower() in EXCEL_EXTENSIONS:
+        identity += "|excel-hidden-columns-v1"
     digest = hashlib.sha256(identity.encode("utf-8", errors="surrogatepass")).hexdigest()
     return os.path.join(_CACHE_ROOT, digest)
 
@@ -62,6 +65,32 @@ def _export_excel_to_html(source_path, html_path):
             CreateBackup=False,
             AddToMru=False,
         )
+    _fix_excel_hidden_columns(os.path.dirname(os.path.abspath(html_path)))
+
+
+def _fix_excel_hidden_columns(directory):
+    """Make Excel's hidden COL declarations work in Chromium/WebView2."""
+    def fix_style(match):
+        # display:none on COL does not hide its cells in Chromium. Collapsing
+        # the column also handles COL spans and cells spanning hidden columns.
+        style = re.sub(rb'(^|;)(\s*)display\s*:\s*none(\s*(?:!important\s*)?)(?=;|$)',
+                       rb'\1\2visibility:collapse\3', match[3], flags=re.I)
+        return match[1] + match[2] + style + match[2]
+
+    # Excel exports worksheet frames into a companion resource directory.
+    for root, _, names in os.walk(directory):
+        for name in names:
+            if os.path.splitext(name)[1].lower() not in {'.htm', '.html'}:
+                continue
+            path = os.path.join(root, name)
+            with open(path, 'rb') as handle:
+                original = handle.read()
+            repaired = re.sub(rb'(<col\b[^>]*?\bstyle\s*=\s*)([\'\"])(.*?)\2',
+                              fix_style, original, flags=re.I | re.S)
+            if repaired != original:
+                # Byte edits preserve the encoding chosen by Excel.
+                with open(path, 'wb') as handle:
+                    handle.write(repaired)
 
 
 def render_to_html(path):

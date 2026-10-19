@@ -1,6 +1,7 @@
 """Word HTML export must preserve the original document view."""
 from contextlib import contextmanager
 from itertools import product
+import hashlib
 import os
 from pathlib import Path
 import tempfile
@@ -109,6 +110,75 @@ class WordHtmlPreviewTests(unittest.TestCase):
                 self.assertEqual(source.read_bytes(), b'original document')
                 document.Save.assert_not_called()
                 document.Close.assert_called_once_with(False)
+
+
+class ExcelHtmlPreviewTests(unittest.TestCase):
+    def test_repairs_hidden_columns_in_all_sheets_without_reencoding(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            resources = root / 'document.files'
+            resources.mkdir()
+            frames = root / 'document.html'
+            frames.write_bytes(b'<frameset><frame src="document.files/sheet001.htm"></frameset>')
+            original_frames = frames.read_bytes()
+            original = (b"<table><col width=80><col span=2 width=0\r\n"
+                        b" style='display:none;mso-width-source:userset'>"
+                        b'<COL STYLE="width:0; DISPLAY : NONE !important;">'
+                        b"<tr style='display:none'><td colspan=3>\xcf\xf0\xe8\xe2\xe5\xf2</td></tr></table>")
+            sheets = [resources / 'sheet001.htm', resources / 'sheet002.HTML']
+            for path in sheets:
+                path.write_bytes(original)
+            asset = resources / 'image.png'
+            asset.write_bytes(original)
+
+            office_html_preview._fix_excel_hidden_columns(folder)
+
+            expected = original.replace(b'display:none;mso', b'visibility:collapse;mso').replace(
+                b'DISPLAY : NONE !important', b'visibility:collapse !important')
+            for path in sheets:
+                self.assertEqual(path.read_bytes(), expected)
+            self.assertEqual(frames.read_bytes(), original_frames)
+            self.assertEqual(asset.read_bytes(), original)
+            office_html_preview._fix_excel_hidden_columns(folder)
+            self.assertEqual(sheets[0].read_bytes(), expected)
+
+    def test_export_repairs_html_and_closes_source_without_saving(self):
+        with tempfile.TemporaryDirectory() as folder:
+            html = Path(folder) / 'document.html'
+            client, com = mock.MagicMock(), mock.MagicMock()
+            app = client.DispatchEx.return_value
+            document = app.Workbooks.Open.return_value
+            document.SaveAs.side_effect = lambda **kwargs: Path(kwargs['Filename']).write_bytes(
+                b"<table><col style='display:none'><tr><td>hidden</td></tr></table>")
+            with mock.patch.object(office_html_preview, 'win32_client', client), \
+                    mock.patch.object(office_html_preview, 'pythoncom', com):
+                office_html_preview._export_excel_to_html('source.xlsx', str(html))
+            self.assertIn(b"<col style='visibility:collapse'>", html.read_bytes())
+            self.assertTrue(app.Workbooks.Open.call_args.kwargs['ReadOnly'])
+            document.Save.assert_not_called()
+            document.Close.assert_called_once_with(False)
+            app.Quit.assert_called_once_with()
+            com.CoUninitialize.assert_called_once_with()
+
+    def test_old_excel_cache_is_rebuilt_and_repaired_cache_is_reused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'source.xlsx'
+            source.write_bytes(b'workbook')
+            stat = source.stat()
+            identity = '|'.join((os.path.normcase(os.path.abspath(source)),
+                                 str(stat.st_size), str(stat.st_mtime_ns)))
+            old_cache = Path(folder) / hashlib.sha256(identity.encode()).hexdigest()
+            old_cache.mkdir()
+            (old_cache / 'document.html').write_text('old preview')
+            with mock.patch.object(office_html_preview, '_CACHE_ROOT', folder), \
+                    mock.patch.object(office_html_preview, '_require_office_com'), \
+                    mock.patch.object(office_html_preview, '_export_excel_to_html') as export:
+                export.side_effect = lambda source, html: Path(html).write_text('new preview')
+                result = office_html_preview.render_to_html(str(source))
+                self.assertNotEqual(Path(result).parent, old_cache)
+                self.assertEqual(Path(result).read_text(), 'new preview')
+                self.assertEqual(office_html_preview.render_to_html(str(source)), result)
+                export.assert_called_once()
 
 
 if __name__ == '__main__':
