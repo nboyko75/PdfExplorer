@@ -7,6 +7,7 @@ from datetime import datetime
 from xml.etree import ElementTree as ET
 
 import wx
+from controls.form_buttons import form_button
 
 import controls.tree_control as tree_control
 import file_operations.office_preview as office_preview
@@ -856,13 +857,13 @@ class SearchDialog(wx.Dialog):
         folder_label.SetMinSize((130, -1))
         folder_field = wx.TextCtrl(panel, value=self.state["folder"], style=wx.TE_PROCESS_ENTER)
         folder_field.SetMinSize((225, -1))
-        browse_btn = wx.Button(panel, label=tr("search_browse_button"))
+        browse_btn = form_button(panel, label=tr("search_browse_button"))
         browse_btn.SetMinSize((75, -1))
         file_mask_label = wx.StaticText(panel, label=tr("search_file_mask_label"))
         file_mask_label.SetMinSize((80, -1))
         file_mask_field = wx.TextCtrl(panel, value=self.state["file_mask"], style=wx.TE_PROCESS_ENTER)
         file_mask_field.SetMinSize((120, -1))
-        clear_mask_btn = wx.Button(panel, label="x")
+        clear_mask_btn = form_button(panel, label="x")
         clear_mask_btn.SetToolTip(tr("search_clear_mask_tooltip"))
         clear_mask_btn.SetMinSize((28, -1))
 
@@ -943,7 +944,7 @@ class SearchDialog(wx.Dialog):
         date_from_field = wx.TextCtrl(panel, value=str(self.state.get("date_from", "")), style=wx.TE_PROCESS_ENTER)
         date_from_field.SetMinSize((100, -1))
         date_from_picker = None
-        date_from_btn = wx.Button(panel, label="📅")
+        date_from_btn = form_button(panel, label="📅")
         date_from_btn.SetToolTip(tr("search_pick_date_tooltip"))
         date_from_btn.SetMinSize((28, -1))
         date_from_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -958,7 +959,7 @@ class SearchDialog(wx.Dialog):
         date_to_field = wx.TextCtrl(panel, value=str(self.state.get("date_to", "")), style=wx.TE_PROCESS_ENTER)
         date_to_field.SetMinSize((100, -1))
         date_to_picker = None
-        date_to_btn = wx.Button(panel, label="📅")
+        date_to_btn = form_button(panel, label="📅")
         date_to_btn.SetToolTip(tr("search_pick_date_tooltip"))
         date_to_btn.SetMinSize((28, -1))
         date_to_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -986,10 +987,10 @@ class SearchDialog(wx.Dialog):
         filters.Add(size_box, 1, wx.EXPAND)
         main.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 20)
 
-        search_btn = wx.Button(panel, label=tr("search_button"))
-        stop_btn = wx.Button(panel, label=tr("search_stop_button"))
+        search_btn = form_button(panel, label=tr("search_button"))
+        stop_btn = form_button(panel, label=tr("search_stop_button"))
         stop_btn.Enable(False)
-        quit_btn = wx.Button(panel, label=tr("search_cancel_button"))
+        quit_btn = form_button(panel, label=tr("search_cancel_button"))
         result_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SINGLE_SEL)
         result_list.InsertColumn(0, tr("search_result_short_name"), width=300)
         result_list.InsertColumn(1, tr("size_column"), width=60)

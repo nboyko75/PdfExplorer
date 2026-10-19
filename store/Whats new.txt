@@ -74,3 +74,4 @@ Changed the default language to English
 
 Added new menu item and toolbar button “Create a document generator” for Word documents
 Fixed the preview pane: hidden Excel columns now collapse correctly, and older cached previews regenerate automatically
+Updated text buttons with rounded corners, blue borders, and a lighter blue hover state

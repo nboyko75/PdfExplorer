@@ -7,6 +7,7 @@ import io
 import wx
 import wx.adv
 import wx.grid as gridlib
+from controls.form_buttons import form_button
 
 from file_operations.document_generator import GeneratorWorker, WordDisconnected
 from common.window_tools import load_settings, restore_control_geometry, update_settings
@@ -77,9 +78,9 @@ class DocumentGeneratorFrame(wx.Frame):
         layout = wx.BoxSizer(wx.VERTICAL)
         self.toolbar = wx.BoxSizer(wx.HORIZONTAL)
         self.toolbar.AddStretchSpacer()
-        self.save = wx.Button(panel, label=tr('preview_save_button'))
-        self.export = wx.Button(panel, label=tr('generator_export'))
-        self.exit = wx.Button(panel, label=tr('exit_button'))
+        self.save = form_button(panel, label=tr('preview_save_button'))
+        self.export = form_button(panel, label=tr('generator_export'))
+        self.exit = form_button(panel, label=tr('exit_button'))
         for button in (self.save, self.export, self.exit):
             self.toolbar.Add(button, 0, wx.LEFT, 8)
         self.splitter = wx.SplitterWindow(
@@ -100,7 +101,7 @@ class DocumentGeneratorFrame(wx.Frame):
         self.scroller.SetSizer(self.grid)
         bookmarks_layout.Add(self.scroller, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         bookmark_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        self.add = wx.Button(self.bookmark_panel, label=tr('generator_add'))
+        self.add = form_button(self.bookmark_panel, label=tr('generator_add'))
         self._row_button_width = self.add.GetBestSize().height
         bookmark_buttons.Add(self.add)
         bookmarks_layout.Add(bookmark_buttons, 0, wx.EXPAND | wx.ALL, 8)
@@ -116,7 +117,7 @@ class DocumentGeneratorFrame(wx.Frame):
         self.table_scroller.SetSizer(self.table_list)
         tables_layout.Add(self.table_scroller, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         table_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        self.add_table = wx.Button(self.table_panel, label=tr('generator_add_table'))
+        self.add_table = form_button(self.table_panel, label=tr('generator_add_table'))
         table_buttons.Add(self.add_table)
         tables_layout.Add(table_buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.table_panel.SetSizer(tables_layout)
@@ -385,11 +386,11 @@ class DocumentGeneratorFrame(wx.Frame):
             self.grid.AddGrowableCol(4, 1)
         shared_controls = {}
         for index, row in enumerate(rows):
-            delete = wx.Button(self.scroller, label='×', style=wx.BU_EXACTFIT)
+            delete = form_button(self.scroller, label='×', style=wx.BU_EXACTFIT)
             delete.SetToolTip(tr('generator_delete_row'))
             delete.Bind(wx.EVT_BUTTON, lambda event, i=index: self._perform(
                 lambda session: session.delete_row(i)))
-            add = wx.Button(self.scroller, label='+', style=wx.BU_EXACTFIT)
+            add = form_button(self.scroller, label='+', style=wx.BU_EXACTFIT)
             add.SetToolTip(tr('generator_add_shared_bookmark'))
             add.SetName(tr('generator_add_shared_bookmark'))
             add.Bind(wx.EVT_BUTTON, lambda event, i=index: self._perform(
@@ -554,7 +555,7 @@ class DocumentGeneratorFrame(wx.Frame):
             name.Bind(wx.EVT_KILL_FOCUS, self.on_field_blur)
             name.Bind(wx.EVT_SET_FOCUS, lambda event, i=index: self._select_table(event, i))
             heading.Add(name, 1)
-            remove = wx.Button(card, label='×', style=wx.BU_EXACTFIT)
+            remove = form_button(card, label='×', style=wx.BU_EXACTFIT)
             remove.SetMinSize((self._row_button_width, self._row_button_width))
             remove.SetToolTip(tr('generator_delete_table'))
             remove.Bind(wx.EVT_BUTTON, lambda event, i=index: self._perform(
@@ -593,7 +594,7 @@ class DocumentGeneratorFrame(wx.Frame):
             grid.Bind(wx.EVT_CHAR_HOOK, lambda event, g=grid: self._on_table_key(event, g))
             grid.GetGridRowLabelWindow().Bind(wx.EVT_PAINT, lambda event, g=grid: self._on_table_row_labels_paint(event, g))
             layout.Add(grid, 0, wx.EXPAND)
-            add_row = wx.Button(card, label='+', style=wx.BU_EXACTFIT)
+            add_row = form_button(card, label='+', style=wx.BU_EXACTFIT)
             add_row.SetMinSize((self._row_button_width, self._row_button_width))
             add_row.SetToolTip(tr('generator_add_row'))
             add_row.SetName(tr('generator_add_row'))
@@ -782,7 +783,7 @@ class DocumentGeneratorFrame(wx.Frame):
         grid._generator_row_buttons = []
         for row in range(grid.GetNumberRows()):
             grid.SetRowLabelValue(row, '')
-            button = wx.Button(grid.GetGridRowLabelWindow(), label='x', style=wx.BU_EXACTFIT)
+            button = form_button(grid.GetGridRowLabelWindow(), label='x', style=wx.BU_EXACTFIT)
             button.SetToolTip(tr('generator_remove_row'))
             button.SetName(tr('generator_remove_row'))
             button.Enable(grid.GetNumberRows() > 1 and not self.busy and not self._disconnected)

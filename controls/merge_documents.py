@@ -10,6 +10,7 @@ from pathlib import Path
 import wx.html2 as html2
 from concurrent.futures import ThreadPoolExecutor
 import wx
+from controls.form_buttons import form_button
 import wx.grid as gridlib
 from localization import tr
 from file_operations import excel_merge as engine
@@ -201,10 +202,10 @@ class MergeDialog(wx.Dialog):
         self.backup_checkbox.Bind(wx.EVT_CHECKBOX, self.on_backup_checkbox)
         bar.Add(self.backup_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
         bar.AddStretchSpacer()
-        self.search_button = wx.Button(self, label=tr('merge_search'))
-        self.compare_button = wx.Button(self, label=tr('merge_compare'))
-        self.save_button = wx.Button(self, label=tr('merge_save'))
-        self.cancel_button = wx.Button(self, wx.ID_CANCEL, tr('exit_button'))
+        self.search_button = form_button(self, label=tr('merge_search'))
+        self.compare_button = form_button(self, label=tr('merge_compare'))
+        self.save_button = form_button(self, label=tr('merge_save'))
+        self.cancel_button = form_button(self, wx.ID_CANCEL, tr('exit_button'))
         for button in (self.search_button, self.compare_button, self.save_button, self.cancel_button):
             bar.Add(button, 0, wx.LEFT, 7)
         outer.Add(bar, 0, wx.EXPAND | wx.ALL, 10)

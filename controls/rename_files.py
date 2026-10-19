@@ -2,6 +2,7 @@
 import os
 import re
 import wx
+from controls.form_buttons import form_button
 from localization import tr
 from file_operations import batch_rename
 from common.window_tools import load_settings, update_settings, restore_control_geometry, save_control_geometry
@@ -24,7 +25,7 @@ class RenameBlockedDialog(wx.Dialog):
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         buttons.AddStretchSpacer()
         for action in ('retry', 'skip', 'skip_all', 'cancel'):
-            button = wx.Button(self, wx.ID_CANCEL if action == 'cancel' else wx.ID_ANY,
+            button = form_button(self, wx.ID_CANCEL if action == 'cancel' else wx.ID_ANY,
                                tr('rename_blocked_' + action))
             button.Bind(wx.EVT_BUTTON, lambda event, choice=action: self.choose(choice))
             buttons.Add(button, 0, wx.LEFT, 8)
@@ -53,7 +54,7 @@ class RenameFilesDialog(wx.Dialog):
         grid = wx.FlexGridSizer(cols=2, vgap=8, hgap=10)
         grid.AddGrowableCol(1, 1)
         self.folder = wx.TextCtrl(panel, value=folder)
-        browse = wx.Button(panel, label=tr('search_browse_button'))
+        browse = form_button(panel, label=tr('search_browse_button'))
         folder_row = wx.BoxSizer(wx.HORIZONTAL)
         folder_row.Add(self.folder, 1, wx.RIGHT, 6)
         folder_row.Add(browse)
@@ -89,9 +90,9 @@ class RenameFilesDialog(wx.Dialog):
         layout.Add(self.status, 0, wx.EXPAND | wx.ALL, 12)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         buttons.AddStretchSpacer()
-        search = wx.Button(panel, label=tr('search_button'))
-        self.save = wx.Button(panel, label=tr('preview_save_button'))
-        cancel = wx.Button(panel, wx.ID_CANCEL, tr('exit_button'))
+        search = form_button(panel, label=tr('search_button'))
+        self.save = form_button(panel, label=tr('preview_save_button'))
+        cancel = form_button(panel, wx.ID_CANCEL, tr('exit_button'))
         for button in (search, self.save, cancel):
             buttons.Add(button, 0, wx.LEFT, 8)
         layout.Add(buttons, 0, wx.EXPAND | wx.ALL, 12)
