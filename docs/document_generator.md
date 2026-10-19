@@ -23,6 +23,10 @@ is at the bottom left of the bookmark panel, and **Add table** is at the bottom
 left of the table panel. Each table has its own **+** button to add rows.
 Drag the recessed horizontal splitter
 to resize the panels; its position is saved and restored with the form geometry.
+Expanded bookmark editors have a bottom divider you can drag to adjust their
+height. Each bookmark's expanded state and chosen height are saved separately
+for each document and restored when you reopen its generator. Collapsing an
+editor retains its chosen height for the next expansion.
 The Save, Export and Exit buttons are aligned to the right below the recessed
 status bar, which displays progress and messages.
 On first use, the form occupies the left half of the current screen's work area.

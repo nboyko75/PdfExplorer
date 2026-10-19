@@ -259,6 +259,37 @@ class SearchFilesTests(unittest.TestCase):
         self.assertFalse(picker.enabled)
         self.assertFalse(button.enabled)
 
+    def test_date_checkboxes_toggle_their_calendar_buttons_independently(self):
+        app = wx.GetApp() or wx.App(False)
+        owner = wx.Frame(None)
+        dialog = None
+        try:
+            with mock.patch.object(search_form_module, "load_settings", return_value={}):
+                dialog = search_form_module.SearchDialog(owner)
+            controls = dialog.controls
+            expected = {"from": False, "to": False}
+
+            def assert_enabled_states():
+                for bound, enabled in expected.items():
+                    self.assertEqual(controls[f"date_{bound}_field"].IsEnabled(), enabled)
+                    self.assertEqual(controls[f"date_{bound}_btn"].IsEnabled(), enabled)
+                self.assertTrue(controls["browse_btn"].IsEnabled())
+
+            assert_enabled_states()
+            for bound, enabled in (("from", True), ("to", True), ("from", False), ("to", False)):
+                checkbox = controls[f"date_{bound}_enable_chk"]
+                checkbox.SetValue(enabled)
+                event = wx.CommandEvent(wx.EVT_CHECKBOX.typeId, checkbox.GetId())
+                event.SetEventObject(checkbox)
+                event.SetInt(int(enabled))
+                checkbox.GetEventHandler().ProcessEvent(event)
+                expected[bound] = enabled
+                assert_enabled_states()
+        finally:
+            if dialog is not None:
+                dialog.Destroy()
+            owner.Destroy()
+
     def test_restore_state_includes_case_sensitive_and_filter_blocks(self):
         state = _restore_search_form_state({
             "search_form_case_sensitive": False,

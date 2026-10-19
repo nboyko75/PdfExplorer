@@ -211,6 +211,73 @@ def check_table_clipboard(frame):
         assert clipboard.text == 'pending text\r\n'
 
 
+def resize_value(value, height):
+    container = value._generator_container
+    assert container.GetSashVisible(wx.adv.SASH_BOTTOM)
+    x = container.GetSize().width // 2
+    for kind, y, down in ((wx.wxEVT_LEFT_DOWN, container.GetSize().height - 2, True),
+                          (wx.wxEVT_MOTION, height, True), (wx.wxEVT_LEFT_UP, height, False)):
+        event = wx.MouseEvent(kind)
+        event.SetEventObject(container)
+        event.SetPosition((x, y))
+        event.SetLeftDown(down)
+        container.GetEventHandler().ProcessEvent(event)
+    pump()
+
+
+def check_bookmark_layout_persistence(owner, settings):
+    key = 'document_generator_bookmark_editor_layout'
+    frame = DocumentGeneratorFrame(owner, 'bookmark-layout.docx')
+    frame.Show()
+    pump()
+    heights = []
+    for index in range(2):
+        frame.expand_checks[index].SetValue(True)
+        frame.on_expand(index)
+        pump()
+        value = frame.fields[index][1]
+        height = value._generator_container.GetSize().height + frame.FromDIP(40 + 20 * index)
+        resize_value(value, height)
+        heights.append(height)
+    frame.expand_checks[1].SetValue(False)
+    frame.on_expand(1)
+    document = frame._layout_document
+    expected = {
+        'Customer': {'expanded': True, 'height': frame.ToDIP(heights[0])},
+        'Address': {'expanded': False, 'height': frame.ToDIP(heights[1])},
+    }
+    assert settings[key][document] == expected
+    with save_prompt(wx.ID_NO):
+        frame.Close()
+        pump()
+
+    # The same bookmark names in another document have independent settings.
+    other = DocumentGeneratorFrame(owner, 'other-bookmark-layout.docx')
+    other.Show()
+    pump()
+    assert all(not check.IsChecked() for check in other.expand_checks)
+    with save_prompt(wx.ID_NO):
+        other.Close()
+        pump()
+    assert settings[key][document] == expected
+
+    frame = DocumentGeneratorFrame(owner, 'bookmark-layout.docx')
+    frame.Show()
+    pump()
+    assert frame.expand_checks[0].IsChecked()
+    assert frame.fields[0][1].IsMultiLine()
+    assert frame.fields[0][1]._generator_container.GetSize().height == heights[0]
+    assert not frame.expand_checks[1].IsChecked()
+    assert not frame.fields[1][1].IsMultiLine()
+    frame.expand_checks[1].SetValue(True)
+    frame.on_expand(1)
+    pump()
+    assert frame.fields[1][1]._generator_container.GetSize().height == heights[1]
+    with save_prompt(wx.ID_NO):
+        frame.Close()
+        pump()
+
+
 def run():
     app = wx.App(False)
     owner = wx.Frame(None, title='Generator UI probe')
@@ -232,7 +299,7 @@ def run():
                 assert frame.IsShown() and owner.IsEnabled(), 'Form must be modeless'
                 assert frame.ready and len(frame.fields) == 2
                 assert worker.session.rectangle == frame.word_rectangle
-                if settings:
+                if 'document_generator_position' in settings:
                     assert list(frame.GetPosition()) == settings['document_generator_position']
                     assert list(frame.GetSize()) == settings['document_generator_size']
                     minimum = frame.splitter.GetMinimumPaneSize()
@@ -256,17 +323,27 @@ def run():
                 name, value = frame.fields[1]
                 assert value.IsMultiLine() and value.GetValue() == original
                 assert value.GetSize().height > name.GetSize().height
+                resized_height = value._generator_container.GetSize().height + frame.FromDIP(60)
+                resize_value(value, resized_height)
+                assert value._generator_container.GetSize().height == resized_height
+                assert value.GetValue() == original
+                assert value.GetRect().bottom <= value._generator_container.GetClientSize().height - frame.FromDIP(5)
+                resize_value(value, 1)
+                assert value.GetSize().height >= name.GetSize().height * 2
+                resize_value(value, resized_height)
                 value.SetValue('Updated street\nUpdated city\nУкраїна / 日本')
                 expanded_text = value.GetValue()
                 frame.expand_checks[1].SetValue(False)
                 frame.on_expand(1)
                 pump()
                 assert not frame.fields[1][1].IsMultiLine()
+                assert frame.fields[1][1]._generator_container is frame.fields[1][1]
                 assert frame._values()[1]['value'] == expanded_text
                 frame.expand_checks[1].SetValue(True)
                 frame.on_expand(1)
                 pump()
                 assert frame.fields[1][1].GetValue() == expanded_text
+                assert frame.fields[1][1]._generator_container.GetSize().height == resized_height
                 for width in (800, 1000, 640):
                     frame.SetSize((width, 480))
                     pump()
@@ -338,6 +415,7 @@ def run():
                 assert worker.session.rows[0]['value'] == 'Updated value'
                 assert worker.session.rows[1]['value'] == expanded_text
                 assert frame.expand_checks[1].IsChecked()
+                assert frame.fields[1][1]._generator_container.GetSize().height == resized_height
                 frame._perform(lambda session: session.delete_row(1))
                 pump()
                 assert len(frame.fields) == 2
@@ -371,6 +449,7 @@ def run():
                 assert settings['document_generator_size'] == expected_size
                 assert settings['document_generator_sash_position'] == expected_sash
             load_locale('en')
+            check_bookmark_layout_persistence(owner, settings)
             frame = DocumentGeneratorFrame(owner, 'shared.docx')
             frame.Show()
             pump()
@@ -387,11 +466,18 @@ def run():
             frame.on_expand(0)
             pump()
             assert frame.fields[0][1] is frame.fields[1][1] and frame.fields[0][1].IsMultiLine()
+            shared_value = frame.fields[0][1]
+            next_row_y = frame.fields[2][0].GetPosition().y
+            shared_height = shared_value._generator_container.GetSize().height + frame.FromDIP(70)
+            resize_value(shared_value, shared_height)
+            assert shared_value._generator_container.GetSize().height == shared_height
+            assert frame.fields[2][0].GetPosition().y > next_row_y
             frame.fields[1][1].SetValue('Shared\nmultiline')
             click(frame.bookmark_add_buttons[1])
             pump()
             assert len(frame.fields) == 4
             assert all(frame.fields[i][1] is frame.fields[0][1] for i in range(3))
+            assert frame.fields[0][1]._generator_expanded_height == shared_height
             assert all(row['value'] == 'Shared\nmultiline' for row in frame._values()[:3])
             # Renaming and deleting the first bookmark retain the shared value.
             frame.fields[0][0].SetValue('Renamed')
@@ -403,13 +489,14 @@ def run():
             with save_prompt(wx.ID_NO):
                 frame.Close()
                 pump()
-            frame = DocumentGeneratorFrame(owner, 'shared.docx')
+            with patch.object(FakeSession, 'state', return_value={'rows': deepcopy(saved_shared), 'tables': []}):
+                frame = DocumentGeneratorFrame(owner, 'shared.docx')
+            frame.worker.session.rows = saved_shared
             frame.Show()
             pump()
-            frame.worker.session.rows = saved_shared
-            frame._render(deepcopy(saved_shared))
-            pump()
             assert frame.fields[0][1] is frame.fields[1][1]
+            assert frame.expand_checks[0].IsChecked()
+            assert frame.fields[0][1]._generator_expanded_height == shared_height
             assert frame._values() == saved_shared
             frame._perform(lambda session: session.delete_row(1))
             pump()
@@ -457,7 +544,7 @@ def run():
             event = gridlib.GridSizeEvent(grid.GetId(), gridlib.EVT_GRID_COL_SIZE.typeId, grid, 0)
             grid.GetEventHandler().ProcessEvent(event)
             pump()
-            assert settings['document_generator_table_column_widths'][frame._column_widths_document]['Widths']['0'] == 420
+            assert settings['document_generator_table_column_widths'][frame._layout_document]['Widths']['0'] == 420
             frame.SetSize((900, 600))
             pump()
             assert grid.GetColSize(0) == frame.FromDIP(420)
@@ -466,7 +553,7 @@ def run():
             pump()
             grid = frame.table_fields[0][1]
             assert grid.GetColSize(0) == frame.FromDIP(420)
-            stored = settings['document_generator_table_column_widths'][frame._column_widths_document]
+            stored = settings['document_generator_table_column_widths'][frame._layout_document]
             assert 'Widths' not in stored and stored['RenamedWidths']['0'] == 420
             saved_tables = deepcopy(frame.worker.session.tables)
             with save_prompt(wx.ID_NO):

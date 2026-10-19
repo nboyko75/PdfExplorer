@@ -27,6 +27,7 @@ PERSISTED_LAYOUT_KEYS = {
     "document_generator_size",
     "document_generator_sash_position",
     "document_generator_table_column_widths",
+    "document_generator_bookmark_editor_layout",
     "rename_files_position",
     "rename_files_size",
     "rename_files_sash_position",

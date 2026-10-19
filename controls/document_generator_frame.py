@@ -5,6 +5,7 @@ import csv
 import io
 
 import wx
+import wx.adv
 import wx.grid as gridlib
 
 from file_operations.document_generator import GeneratorWorker, WordDisconnected
@@ -12,6 +13,7 @@ from common.window_tools import load_settings, restore_control_geometry, update_
 from localization import tr
 
 TABLE_COLUMN_WIDTHS = 'document_generator_table_column_widths'
+BOOKMARK_EDITOR_LAYOUT = 'document_generator_bookmark_editor_layout'
 
 
 def show_generator_message(owner, message, retry=False):
@@ -94,7 +96,7 @@ class DocumentGeneratorFrame(wx.Frame):
         bookmarks_layout.Add(bookmark_header, 0, wx.EXPAND | wx.ALL, 8)
         self.scroller = wx.ScrolledWindow(self.bookmark_panel, style=wx.VSCROLL)
         self.scroller.SetScrollRate(0, 16)
-        self.grid = wx.GridBagSizer(vgap=8, hgap=8)
+        self.grid = wx.GridBagSizer(vgap=4, hgap=4)
         self.scroller.SetSizer(self.grid)
         bookmarks_layout.Add(self.scroller, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         bookmark_buttons = wx.BoxSizer(wx.HORIZONTAL)
@@ -133,10 +135,21 @@ class DocumentGeneratorFrame(wx.Frame):
         half = area.width // 2
         self.SetPosition((area.x, area.y))
         self._layout_settings = load_settings()
-        self._column_widths_document = os.path.normcase(os.path.abspath(path))
+        self._layout_document = os.path.normcase(os.path.abspath(path))
         stored_widths = self._layout_settings.get(TABLE_COLUMN_WIDTHS, {})
-        document_widths = stored_widths.get(self._column_widths_document, {}) if isinstance(stored_widths, dict) else {}
+        document_widths = stored_widths.get(self._layout_document, {}) if isinstance(stored_widths, dict) else {}
         self._table_column_widths = dict(document_widths) if isinstance(document_widths, dict) else {}
+        stored_editors = self._layout_settings.get(BOOKMARK_EDITOR_LAYOUT, {})
+        document_editors = stored_editors.get(self._layout_document, {}) if isinstance(stored_editors, dict) else {}
+        self._bookmark_editor_layout = {}
+        if isinstance(document_editors, dict):
+            for name, layout in document_editors.items():
+                if isinstance(layout, dict):
+                    height = layout.get('height')
+                    self._bookmark_editor_layout[name] = {
+                        'expanded': layout.get('expanded') is True,
+                        'height': height if type(height) is int and 0 < height <= 10000 else None,
+                    }
         restore_control_geometry(self, 'document_generator', (half, area.height),
                                  (min(620, half), min(420, area.height)), settings=self._layout_settings)
         if wx.Display.GetFromWindow(self) == wx.NOT_FOUND:
@@ -351,8 +364,11 @@ class DocumentGeneratorFrame(wx.Frame):
         popup.Popup()
 
     def _render(self, rows):
-        expanded = {name.GetValue() for (name, value), check in zip(self.fields, self.expand_checks)
-                    if check.IsChecked()}
+        layout = dict(self._bookmark_editor_layout)
+        layout.update(self._bookmark_layout_values())
+        expanded = {name for name, state in layout.items() if state['expanded']}
+        heights = {name: self.FromDIP(state['height']) for name, state in layout.items()
+                   if state['height'] is not None}
         self.rows = rows
         self.fields = []
         self.expand_checks = []
@@ -399,9 +415,12 @@ class DocumentGeneratorFrame(wx.Frame):
             add.SetMinSize((row_height, row_height))
             add.SetSize((row_height, row_height))
             if not shared:
-                value = self._create_value(row['value'], check.IsChecked(), row_height)
+                height = max((heights.get(item['name'], 0) for item in rows
+                              if item['name'] == row['name'] or (group and item.get('group') == group)),
+                             default=0)
+                value = self._create_value(row['value'], check.IsChecked(), row_height, height or None)
                 count = sum(item.get('group') == group for item in rows) if group else 1
-                self.grid.Add(value, (index + 1, 4), span=(count, 1), flag=wx.EXPAND)
+                self.grid.Add(value._generator_container, (index + 1, 4), span=(count, 1), flag=wx.EXPAND)
                 self.grid.Add(check, (index + 1, 5), span=(count, 1), flag=wx.ALIGN_TOP)
                 if group:
                     shared_controls[group] = (value, check)
@@ -411,22 +430,68 @@ class DocumentGeneratorFrame(wx.Frame):
             self.grid.Add(delete, (index + 1, 0))
             self.grid.Add(add, (index + 1, 1))
             self.grid.Add(wx.StaticText(self.scroller, label=str(index + 1)), (index + 1, 2),
-                          flag=wx.ALIGN_CENTER_VERTICAL)
+                          flag=wx.ALIGN_TOP)
             self.grid.Add(name, (index + 1, 3), flag=wx.ALIGN_TOP)
         self.scroller.Layout()
         self.scroller.FitInside()
+        self._store_bookmark_layout()
 
-    def _create_value(self, text, expanded, row_height):
+    def _bookmark_layout_values(self):
+        return {name.GetValue(): {
+                    'expanded': check.IsChecked(),
+                    'height': (self.ToDIP(value._generator_expanded_height)
+                               if value._generator_expanded_height is not None else None),
+                }
+                for (name, value), check in zip(self.fields, self.expand_checks)}
+
+    def _store_bookmark_layout(self):
+        self._bookmark_editor_layout = self._bookmark_layout_values()
+        stored = load_settings().get(BOOKMARK_EDITOR_LAYOUT, {})
+        stored = dict(stored) if isinstance(stored, dict) else {}
+        stored[self._layout_document] = self._bookmark_editor_layout
+        update_settings({BOOKMARK_EDITOR_LAYOUT: stored})
+
+    def _create_value(self, text, expanded, row_height, expanded_height=None):
         # A single-line native control can strip newlines. Keep the original
         # text behind its compact preview until the user actually edits it.
         display = text if expanded else text.replace('\r\n', '\n').replace('\r', '\n').replace('\n', ' ↵ ')
-        value = wx.TextCtrl(self.scroller, value=display,
+        container = None
+        if expanded:
+            container = wx.adv.SashWindow(self.scroller, style=wx.CLIP_CHILDREN | wx.adv.SW_3DSASH)
+            container.SetDefaultBorderSize(self.FromDIP(5))
+            container.SetSashVisible(wx.adv.SASH_BOTTOM, True)
+            sash_height = container.GetEdgeMargin(wx.adv.SASH_BOTTOM)
+            minimum_height = row_height * 2 + sash_height
+            expanded_height = max(minimum_height, expanded_height or row_height * 3 + sash_height)
+            container.SetMinSize((-1, expanded_height))
+        value = wx.TextCtrl(container if expanded else self.scroller, value=display,
                             size=(-1, row_height * (3 if expanded else 1)),
                             style=wx.TE_MULTILINE if expanded else 0)
         value._generator_original = text
         value._generator_display = value.GetValue()
+        value._generator_container = container if expanded else value
+        value._generator_expanded_height = expanded_height
         value.Bind(wx.EVT_KILL_FOCUS, self.on_field_blur)
+        if expanded:
+            # Let the text shrink below its initial three-line height while
+            # reserving the bottom edge for the native resize sash.
+            value.SetMinSize((1, row_height * 2))
+            layout = wx.BoxSizer(wx.VERTICAL)
+            layout.Add(value, 1, wx.EXPAND | wx.BOTTOM, sash_height)
+            container.SetSizer(layout)
+            container.Bind(wx.adv.EVT_SASH_DRAGGED,
+                           lambda event: self._resize_value(event, value, minimum_height))
         return value
+
+    def _resize_value(self, event, value, minimum_height):
+        if event.GetDragStatus() == wx.adv.SASH_STATUS_OUT_OF_RANGE:
+            return
+        height = max(minimum_height, event.GetDragRect().height)
+        value._generator_expanded_height = height
+        value._generator_container.SetMinSize((-1, height))
+        self.scroller.Layout()
+        self.scroller.FitInside()
+        self._store_bookmark_layout()
 
     @staticmethod
     def _value_text(value):
@@ -438,13 +503,14 @@ class DocumentGeneratorFrame(wx.Frame):
     def on_expand(self, index):
         name, old = self.fields[index]
         value = self._create_value(self._value_text(old), self.expand_checks[index].IsChecked(),
-                                   name.GetMinSize().height)
-        self.grid.Replace(old, value)
+                                   name.GetMinSize().height, old._generator_expanded_height)
+        self.grid.Replace(old._generator_container, value._generator_container)
         self.fields = [(field_name, value if field_value is old else field_value)
                        for field_name, field_value in self.fields]
-        old.Destroy()
+        old._generator_container.Destroy()
         self.scroller.Layout()
         self.scroller.FitInside()
+        self._store_bookmark_layout()
 
     def _values(self):
         return [dict(row, name=name.GetValue(), value=self._value_text(value))
@@ -707,7 +773,7 @@ class DocumentGeneratorFrame(wx.Frame):
     def _store_table_column_widths(self):
         stored = load_settings().get(TABLE_COLUMN_WIDTHS, {})
         stored = dict(stored) if isinstance(stored, dict) else {}
-        stored[self._column_widths_document] = dict(self._table_column_widths)
+        stored[self._layout_document] = dict(self._table_column_widths)
         update_settings({TABLE_COLUMN_WIDTHS: stored})
 
     def _rebuild_table_row_buttons(self, grid, index):
@@ -814,6 +880,7 @@ class DocumentGeneratorFrame(wx.Frame):
                 self.status.SetStatusText(error)
             else:
                 self.rows = values
+                self._store_bookmark_layout()
                 for table, value, (_, grid) in zip(self.tables, tables, self.table_fields):
                     self._rename_table_widths(grid, value['name'])
                     table.update(value)
@@ -878,6 +945,8 @@ class DocumentGeneratorFrame(wx.Frame):
                       tr('generator_saved', path=target), saved=True)
 
     def on_close(self, event):
+        if self.ready:
+            self._store_bookmark_layout()
         self._remember_word_geometry()
         self._finish_table_editing()
         if not event.CanVeto():

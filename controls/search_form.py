@@ -1053,8 +1053,10 @@ class SearchDialog(wx.Dialog):
             "whole_word_chk": whole_word_chk,
             "date_from_enable_chk": date_from_enable_chk,
             "date_from_field": date_from_field,
+            "date_from_btn": date_from_btn,
             "date_to_enable_chk": date_to_enable_chk,
             "date_to_field": date_to_field,
+            "date_to_btn": date_to_btn,
             "size_from_field": size_from_field,
             "size_to_field": size_to_field,
             "search_btn": search_btn,
@@ -1309,8 +1311,8 @@ class SearchDialog(wx.Dialog):
         file_mask_field.Bind(wx.EVT_TEXT, lambda _event: self._sync_file_mask_field())
         word_chk.Bind(wx.EVT_CHECKBOX, lambda _event: self._sync_file_mask_field())
         excel_chk.Bind(wx.EVT_CHECKBOX, lambda _event: self._sync_file_mask_field())
-        date_from_enable_chk.Bind(wx.EVT_CHECKBOX, lambda _event: _apply_date_filter_enabled(self.controls["date_from_field"], None, date_from_enable_chk, self.controls["browse_btn"]))
-        date_to_enable_chk.Bind(wx.EVT_CHECKBOX, lambda _event: _apply_date_filter_enabled(self.controls["date_to_field"], None, date_to_enable_chk, self.controls["browse_btn"]))
+        date_from_enable_chk.Bind(wx.EVT_CHECKBOX, lambda _event: _apply_date_filter_enabled(self.controls["date_from_field"], None, date_from_enable_chk, self.controls["date_from_btn"]))
+        date_to_enable_chk.Bind(wx.EVT_CHECKBOX, lambda _event: _apply_date_filter_enabled(self.controls["date_to_field"], None, date_to_enable_chk, self.controls["date_to_btn"]))
         browse_btn.Bind(wx.EVT_BUTTON, lambda _event: self._browse_for_folder())
         search_btn.Bind(wx.EVT_BUTTON, self._run_search)
         stop_btn.Bind(wx.EVT_BUTTON, self._stop_search)
