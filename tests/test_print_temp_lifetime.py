@@ -1,5 +1,6 @@
 """Headless regression tests using real PDFs and a simulated shell handoff."""
 import ast
+from contextlib import ExitStack
 import os
 from pathlib import Path
 import tempfile
@@ -9,10 +10,12 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import fitz
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 source = ast.parse((ROOT / 'controls/print_form.py').read_text())
-functions = {'_get_print_temp_directory', '_create_print_subset', '_print_with_selected_printer'}
+functions = {'_get_print_temp_directory', '_create_print_subset', '_print_with_selected_printer',
+             '_get_document_page_count', '_open_print_document'}
 nodes = [node for node in source.body if isinstance(node, ast.FunctionDef) and node.name in functions]
 
 
@@ -31,6 +34,8 @@ class PrintTempLifetimeTests(unittest.TestCase):
         self.launched = []
         self.env = {
             'os': os, 'tempfile': tempfile, 'time': time, 'fitz': fitz,
+            'ExitStack': ExitStack,
+            'IMAGE_EXTENSIONS': {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif', '.tiff', '.webp', '.jfif'},
             '_PRINT_TEMP_MAX_AGE_SECONDS': 7 * 24 * 3600,
             'win32print': self.printer, 'win32api': object(), 'tr': lambda key: key,
             'office_preview': SimpleNamespace(can_preview_office=lambda path: False),
@@ -79,6 +84,45 @@ class PrintTempLifetimeTests(unittest.TestCase):
         folder = Path(self.env['_get_print_temp_directory']())
         self.assertEqual(list(folder.glob('pdfexplorer_print_*.pdf')), [])
         self.assertEqual(self.launched, [])
+
+    def test_images_print_as_pdf_with_all_or_selected_pages(self):
+        for extension in ('png', 'jpg', 'jpeg', 'bmp', 'gif', 'tif', 'tiff', 'webp', 'jfif'):
+            image_path = Path(self.temp.name) / ('image.' + extension)
+            with Image.new('RGB', (600, 900), 'red') as image:
+                image.save(image_path, dpi=(300, 300))
+            original = image_path.read_bytes()
+            self.assertEqual(self.env['_get_document_page_count'](str(image_path)), 1)
+            for pages in (None, [0]):
+                with self.subTest(extension=extension, pages=pages):
+                    self.env['_print_with_selected_printer'](str(image_path), 'Test printer', page_numbers=pages)
+                    path, verb = self.launched[-1]
+                    self.assertEqual(verb, 'print')
+                    self.assertNotEqual(Path(path), image_path)
+                    with fitz.open(path) as doc:
+                        self.assertTrue(doc.is_pdf)
+                        self.assertEqual(doc.page_count, 1)
+                        self.assertEqual(doc[0].get_images()[0][2:4], (600, 900))
+                        if extension == 'png':
+                            self.assertAlmostEqual(doc[0].rect.width, 144, delta=1)
+                            self.assertAlmostEqual(doc[0].rect.height, 216, delta=1)
+                        pixmap = doc[0].get_pixmap()
+                        red, green, blue = pixmap.pixel(pixmap.width // 2, pixmap.height // 2)
+                        self.assertGreater(red, 240)
+                        self.assertLess(max(green, blue), 15)
+                    self.assertEqual(image_path.read_bytes(), original)
+                    self.printer.SetDefaultPrinter.assert_called_with('Original printer')
+
+    def test_multipage_tiff_prints_all_or_selected_pages_in_order(self):
+        image_path = Path(self.temp.name) / 'scan.tiff'
+        with Image.new('RGB', (600, 900), 'red') as first, Image.new('RGB', (900, 600), 'blue') as second:
+            first.save(image_path, save_all=True, append_images=[second], dpi=(300, 300))
+        self.assertEqual(self.env['_get_document_page_count'](str(image_path)), 2)
+        for pages, sizes in ((None, [(600, 900), (900, 600)]), ([1, 0], [(900, 600), (600, 900)])):
+            with self.subTest(pages=pages):
+                self.env['_print_with_selected_printer'](str(image_path), 'Test printer', page_numbers=pages)
+                with fitz.open(self.launched[-1][0]) as doc:
+                    self.assertEqual(doc.page_count, 2)
+                    self.assertEqual([page.get_images()[0][2:4] for page in doc], sizes)
 
 
 if __name__ == '__main__':

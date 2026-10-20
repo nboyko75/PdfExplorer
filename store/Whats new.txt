@@ -74,4 +74,10 @@ Changed the default language to English
 
 Added new menu item and toolbar button “Create a document generator” for Word documents
 Fixed the preview pane: hidden Excel columns now collapse correctly, and older cached previews regenerate automatically
-Updated text buttons with rounded corners, blue borders, and a lighter blue hover state
+Updated text buttons with rounded corners, blue borders, and a lighter blue hover state.
+
+Remembers the printer, page-selection mode, and page numbers, including after Cancel.
+Falls back to an available printer if needed.
+Preserves entered page numbers when switching to “All pages.”
+
+Fixed image printing: images now convert to a temporary PDF, resolving the “source or target not a PDF” error.

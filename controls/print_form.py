@@ -1,6 +1,7 @@
 import os
 import tempfile
 import time
+from contextlib import ExitStack
 
 import wx
 
@@ -62,6 +63,18 @@ def _get_printer_names():
     return unique_names
 
 
+def _open_print_document(path):
+    if os.path.splitext(path)[1].lower() == ".webp":
+        # MuPDF does not open WebP directly; decode it losslessly with Pillow.
+        from io import BytesIO
+        from PIL import Image
+
+        with Image.open(path) as image, BytesIO() as buffer:
+            image.save(buffer, format="PNG", dpi=image.info.get("dpi", (96, 96)))
+            return fitz.open(stream=buffer.getvalue(), filetype="png")
+    return fitz.open(path)
+
+
 def _get_document_page_count(path):
     if not isinstance(path, str) or not path:
         return 0
@@ -80,6 +93,12 @@ def _get_document_page_count(path):
             return 0
 
     if os.path.splitext(lower_path)[1] in IMAGE_EXTENSIONS:
+        if fitz is not None:
+            try:
+                with _open_print_document(path) as image_doc:
+                    return max(1, image_doc.page_count)
+            except Exception:
+                return 0
         return 1
 
     return 1
@@ -367,14 +386,20 @@ def _get_print_temp_directory():
     return directory
 
 
-def _create_print_subset(document_path, page_numbers):
+def _create_print_subset(document_path, page_numbers=None):
     directory = _get_print_temp_directory()
     fd, temp_path = tempfile.mkstemp(prefix="pdfexplorer_print_", suffix=".pdf", dir=directory)
     os.close(fd)
     try:
-        # Both handles must be closed before launching an external viewer.
-        with fitz.open(document_path) as pdf_doc, fitz.open() as subset_doc:
-            for page_index in page_numbers:
+        # Close every handle before launching an external viewer.
+        with ExitStack() as stack:
+            pdf_doc = stack.enter_context(_open_print_document(document_path))
+            if not pdf_doc.is_pdf:
+                # Direct conversion preserves image resolution and TIFF pages.
+                pdf_doc = stack.enter_context(fitz.open(stream=pdf_doc.convert_to_pdf(), filetype="pdf"))
+            subset_doc = stack.enter_context(fitz.open())
+            pages = range(pdf_doc.page_count) if page_numbers is None else page_numbers
+            for page_index in pages:
                 subset_doc.insert_pdf(pdf_doc, from_page=page_index, to_page=page_index)
             subset_doc.save(temp_path)
     except Exception:
@@ -403,7 +428,7 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
         return selected_printer
 
     print_target = document_path
-    if page_numbers:
+    if page_numbers or os.path.splitext(document_path)[1].lower() in IMAGE_EXTENSIONS:
         if fitz is None:
             raise ValueError(tr("print_error_unavailable"))
 
