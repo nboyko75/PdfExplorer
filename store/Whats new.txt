@@ -81,3 +81,5 @@ Print form: Remembers the printer, page-selection mode, and page numbers, includ
 Fixed image printing: images now convert to a temporary PDF, resolving the “source or target not a PDF” error.
 
 Fixed an error in the filelist pane: invalid literal for int() with base 10.
+
+selected text inside a table bookmark can now become a linked value bookmark without an overlap error

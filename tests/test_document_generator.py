@@ -259,6 +259,48 @@ class GeneratorTests(unittest.TestCase):
         self.session.update_rows(updated)
         self.assertEqual(json.loads(variable.Value), updated)
 
+    def test_add_shared_value_inside_table_bookmark(self):
+        self.session.open()
+        self.session.rows = [{'name': 'Customer', 'value': 'Shared value'}]
+        self.session.tables = [{'name': 'Products'}]
+        self.app.ActiveDocument.FullName = str(self.source)
+        selection = self.app.Selection.Range.Duplicate
+        selection.Start, selection.End, selection.StoryLength, selection.Text = 20, 25, 100, 'value'
+        table_range = self.document.Bookmarks.return_value.Range
+        table_range.Start, table_range.End = 10, 40
+        self.document.Bookmarks.Exists.side_effect = lambda name: name == 'Products'
+
+        self.session.add_selection(0)
+
+        self.assertEqual(self.session.rows[1]['value'], 'Shared value')
+        self.assertEqual(self.session.rows[0]['group'], self.session.rows[1]['group'])
+        self.document.Bookmarks.Add.assert_called_once_with('bookmark2', selection)
+        self.assertEqual(selection.Text, 'value')
+
+    def test_table_overlap_allows_contained_values_but_not_peer_or_partial_overlaps(self):
+        self.session.open()
+        candidate = Mock()
+        candidate.Start, candidate.End = 10, 40
+        self.document.Bookmarks.Exists.return_value = True
+        other = self.document.Bookmarks.return_value.Range
+        for is_table, other_is_table, start, end, allowed in (
+                (False, True, 0, 50, True),
+                (True, False, 15, 25, True),
+                (False, False, 15, 25, False),
+                (True, True, 0, 50, False),
+                (False, True, 20, 50, False),
+                (True, False, 20, 50, False),
+                (False, True, 15, 25, False)):
+            with self.subTest(is_table=is_table, other_is_table=other_is_table, start=start, end=end):
+                self.session.rows = [] if other_is_table else [{'name': 'Other'}]
+                self.session.tables = [{'name': 'Other'}] if other_is_table else []
+                other.Start, other.End = start, end
+                if allowed:
+                    self.session._check_overlap(candidate, is_table=is_table)
+                else:
+                    with self.assertRaises(generator.GeneratorError):
+                        self.session._check_overlap(candidate, is_table=is_table)
+
     def test_conflicting_or_noncontiguous_shared_rows_are_rejected(self):
         rows = [{'name': 'First', 'value': 'Shared', 'group': 'linked'},
                 {'name': 'Second', 'value': 'Shared', 'group': 'linked'}]

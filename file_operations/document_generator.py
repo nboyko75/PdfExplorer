@@ -257,12 +257,20 @@ class DocumentGenerator:
         if changed:
             self._store_tables()
 
-    def _check_overlap(self, area, exclude=None):
+    def _check_overlap(self, area, exclude=None, is_table=False):
+        table_names = {item['name'] for item in self.tables}
         for item in self.rows + self.tables:
             if item['name'] == exclude or not self.document.Bookmarks.Exists(item['name']):
                 continue
             other = self.document.Bookmarks(item['name']).Range
             if area.InStory(other) and area.Start < other.End and other.Start < area.End:
+                # A scalar value may live inside a managed table bookmark.
+                # Partial intersections and overlaps between peers remain invalid.
+                other_is_table = item['name'] in table_names
+                if is_table and not other_is_table and area.Start <= other.Start and other.End <= area.End:
+                    continue
+                if not is_table and other_is_table and other.Start <= area.Start and area.End <= other.End:
+                    continue
                 raise GeneratorError(tr('generator_overlap'))
 
     def _new_name(self, prefix):
@@ -313,7 +321,7 @@ class DocumentGenerator:
         row = selected[-1]
         if area.Start > row.Start or area.End < row.End or not row.Cells.Count:
             raise GeneratorError(tr('generator_select_table_row'))
-        self._check_overlap(row)
+        self._check_overlap(row, is_table=True)
         name = self._new_name('table')
         values = [self._cell_text(row.Cells.Item(i)) for i in range(1, row.Cells.Count + 1)]
         widths = [float(row.Cells.Item(i).Width) for i in range(1, row.Cells.Count + 1)]
@@ -344,7 +352,7 @@ class DocumentGenerator:
                     area.End != rows[-1].End or
                     any(row.Cells.Count != len(item['widths']) for row in rows)):
                 raise ValueError('Managed rows changed')
-            self._check_overlap(area, exclude=item['name'])
+            self._check_overlap(area, exclude=item['name'], is_table=True)
             if self.document.TrackRevisions or table.Range.Revisions.Count:
                 raise GeneratorError(tr('generator_table_tracked'))
             return table, rows
