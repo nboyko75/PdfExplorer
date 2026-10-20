@@ -33,7 +33,8 @@ class PdfDropTests(unittest.TestCase):
             self.order.insert(destination, value)
             return [destination]
         tree = ast.parse(SOURCE.read_text())
-        nodes = [n for n in tree.body if getattr(n, 'name', '') in ('handle_pdf_page_drop', 'PdfPageDropTarget')]
+        nodes = [n for n in tree.body if getattr(n, 'name', '') in
+                 ('handle_pdf_page_drop', 'PdfPageDropTarget', '_parse_pdf_page_drag_payload')]
         self.ns = dict(wx=self.wx, os=os, tr=lambda key:key, is_pdf_file=lambda path:path.endswith('.pdf'),
                        get_pdf_page_count=lambda path:5, move_pdf_pages=move)
         exec(compile(ast.Module(body=nodes, type_ignores=[]), str(SOURCE), 'exec'), self.ns)
@@ -64,11 +65,30 @@ class PdfDropTests(unittest.TestCase):
         self.assertFalse(self.ns['handle_pdf_page_drop'](self.owner,0,'other.pdf\n2'))
         self.assertEqual(self.order,list(range(5)))
 
+    def test_file_drag_and_malformed_text_are_rejected_without_an_error(self):
+        path = r'D:\Reports\Rotated document.pdf'
+        for payload in (f'docexplorer_internal_move\n{path}', f'{path}\n{path}',
+                        path, '', 'test.pdf\nnot-a-page', 'test.pdf\n-1', None):
+            with self.subTest(payload=payload):
+                self.assertFalse(self.ns['handle_pdf_page_drop'](self.owner, 0, payload))
+                self.wx.MessageBox.assert_not_called()
+        self.assertEqual(self.order, list(range(5)))
+        self.preview.show_pdf_feed.assert_not_called()
+
     def test_move_error_is_reported(self):
         self.ns['move_pdf_pages']=Mock(side_effect=RuntimeError('Cannot move'))
         self.assertFalse(self.drop(0,4,False))
         self.wx.MessageBox.assert_called_once()
         self.preview.show_pdf_feed.assert_not_called()
+
+    def test_file_drag_is_rejected_before_scheduling_a_page_move(self):
+        target = object.__new__(self.ns['PdfPageDropTarget'])
+        target.owner = self.owner
+        target.GetData = lambda: True
+        target.data = types.SimpleNamespace(GetText=lambda: 'docexplorer_internal_move\nreport.pdf')
+        self.assertEqual(target.OnData(0, 0, 2), self.wx.DragNone)
+        self.wx.CallAfter.assert_not_called()
+        self.wx.MessageBox.assert_not_called()
 
     def test_leaving_target_keeps_panel_and_drop_is_deferred(self):
         target=object.__new__(self.ns['PdfPageDropTarget'])

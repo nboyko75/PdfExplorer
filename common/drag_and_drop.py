@@ -271,6 +271,20 @@ def on_list_begin_drag(owner, event):
     drag_source.DoDragDrop(wx.Drag_AllowMove)
 
 
+def _parse_pdf_page_drag_payload(payload):
+    """Accept page drags only, never file-list drags or arbitrary text."""
+    if not isinstance(payload, str) or payload.count("\n") != 1:
+        return None
+    source_path, page_text = payload.split("\n", 1)
+    if not is_pdf_file(source_path):
+        return None
+    try:
+        page_index = int(page_text)
+    except ValueError:
+        return None
+    return (source_path, page_index) if page_index >= 0 else None
+
+
 class PdfPageDropTarget(wx.DropTarget):
     def __init__(self, owner, page_index, page_panel, insert_before=None):
         super().__init__(wx.TextDataObject())
@@ -317,13 +331,13 @@ class PdfPageDropTarget(wx.DropTarget):
     def OnData(self, x, y, default):
         if not self.GetData():
             return wx.DragNone
+        payload = self.data.GetText()
+        if not self.owner or _parse_pdf_page_drag_payload(payload) is None:
+            return wx.DragNone
         if self.insert_before is not None:
             insert_before = self.insert_before
         else:
             insert_before = y < (self.page_panel.GetSize().y / 2)
-        payload = self.data.GetText()
-        if not self.owner:
-            return wx.DragNone
         # Rebuilding the preview destroys drop targets. Wait until the native
         # drag/drop callback has returned before changing the document/UI.
         wx.CallAfter(handle_pdf_page_drop, self.owner, self.page_index,
@@ -464,10 +478,12 @@ def start_pdf_page_drag(owner, page_panel):
 
 
 def handle_pdf_page_drop(owner, target_index, payload, insert_before=True):
+    source = _parse_pdf_page_drag_payload(payload)
+    if source is None:
+        return False
+    source_path, source_index = source
     try:
         from controls import file_preview
-        source_path, source_index = payload.rsplit("\n", 1)
-        source_index = int(source_index)
         path = owner.current_pdf_path
         if not is_pdf_file(source_path) or not is_pdf_file(path):
             return False
