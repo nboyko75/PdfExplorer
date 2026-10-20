@@ -507,11 +507,16 @@ def show_print_form(owner, document_path=None):
         wx.MessageBox(tr("print_no_printer"), tr("print_dialog_title"), style=wx.OK | wx.ICON_WARNING)
         return False
 
-    default_printer = win32print.GetDefaultPrinter() if win32print is not None else printer_names[0]
+    settings = load_settings()
+    default_printer = settings.get("print_form_printer")
+    if default_printer not in printer_names:
+        try:
+            default_printer = win32print.GetDefaultPrinter() if win32print is not None else printer_names[0]
+        except Exception:
+            default_printer = printer_names[0]
     if default_printer not in printer_names:
         default_printer = printer_names[0]
 
-    settings = load_settings()
     dialog = wx.Dialog(owner, title=tr("print_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
 
@@ -526,10 +531,11 @@ def show_print_form(owner, document_path=None):
 
     range_label = wx.StaticText(panel, label=tr("print_range_label"))
     range_choice = wx.Choice(panel, choices=[tr("print_range_all"), tr("print_range_selection")])
-    range_choice.SetSelection(0)
+    range_choice.SetSelection(1 if settings.get("print_form_page_range") == "selection" else 0)
 
     pages_label = wx.StaticText(panel, label=tr("print_range_selection"))
-    pages_text = wx.TextCtrl(panel)
+    saved_pages = settings.get("print_form_page_numbers", "")
+    pages_text = wx.TextCtrl(panel, value=saved_pages if isinstance(saved_pages, str) else "")
     pages_text.SetHint("1,3-5")
     pages_text.SetToolTip("Examples: 1, 3-5, 1,3-5")
     pages_label.Hide()
@@ -539,11 +545,9 @@ def show_print_form(owner, document_path=None):
     file_value = wx.StaticText(panel, label=os.path.basename(document_path))
 
     def update_page_range_visibility(_event=None):
-        is_selected_pages = range_choice.GetStringSelection() == tr("print_range_selection")
+        is_selected_pages = range_choice.GetSelection() == 1
         pages_label.Show(is_selected_pages)
         pages_text.Show(is_selected_pages)
-        if not is_selected_pages:
-            pages_text.SetValue("")
         panel.Layout()
         dialog.Layout()
 
@@ -591,6 +595,15 @@ def show_print_form(owner, document_path=None):
 
     try:
         result = dialog.ShowModal()
+        selected_printer = printer_choice.GetStringSelection() or default_printer
+        copies = max(1, int(copies_spin.GetValue()))
+        is_selected_pages = range_choice.GetSelection() == 1
+        page_text = pages_text.GetValue().strip()
+        update_settings({
+            "print_form_printer": selected_printer,
+            "print_form_page_range": "selection" if is_selected_pages else "all",
+            "print_form_page_numbers": page_text,
+        })
     finally:
         _save_print_form_geometry(dialog)
         dialog.Destroy()
@@ -598,11 +611,8 @@ def show_print_form(owner, document_path=None):
     if result != wx.ID_OK:
         return False
 
-    selected_printer = printer_names[printer_choice.GetSelection()] if printer_choice.GetSelection() >= 0 else default_printer
-    copies = max(1, int(copies_spin.GetValue()))
     selected_page_numbers = None
-    if range_choice.GetStringSelection() == tr("print_range_selection"):
-        page_text = pages_text.GetValue().strip()
+    if is_selected_pages:
         if not page_text:
             wx.MessageBox(tr("export_pdf_page_numbers_invalid"), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
             return False
