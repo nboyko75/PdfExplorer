@@ -9,7 +9,7 @@ import wx.adv
 import wx.grid as gridlib
 from controls.form_buttons import form_button
 
-from file_operations.document_generator import GeneratorWorker, WordDisconnected
+from file_operations.document_generator import GeneratorWorker, WordDisconnected, suggested_export_filename
 from common.window_tools import load_settings, restore_control_geometry, update_settings
 from localization import tr
 
@@ -62,6 +62,7 @@ class DocumentGeneratorFrame(wx.Frame):
         self.rows = []
         self.fields = []
         self.expand_checks = []
+        self.uid_checks = []
         self.bookmark_add_buttons = []
         self.tables = []
         self.table_fields = []
@@ -373,10 +374,11 @@ class DocumentGeneratorFrame(wx.Frame):
         self.rows = rows
         self.fields = []
         self.expand_checks = []
+        self.uid_checks = []
         self.bookmark_add_buttons = []
         self.grid.Clear(delete_windows=True)
         name_width = self.scroller.GetTextExtent('bookmark' + str(max(1, len(rows))))[0] + self.FromDIP(24)
-        for column, label in enumerate(('', '', '№', tr('generator_bookmark'), tr('generator_value'), '')):
+        for column, label in enumerate(('', '', '№', tr('generator_bookmark'), tr('generator_value'), '', '')):
             header = wx.StaticText(self.scroller, label=label)
             if column == 3:
                 header.Wrap(name_width)
@@ -401,12 +403,17 @@ class DocumentGeneratorFrame(wx.Frame):
             group = row.get('group')
             shared = shared_controls.get(group) if group else None
             if shared:
-                value, check = shared
+                value, check, uid = shared
             else:
                 check = wx.CheckBox(self.scroller, label=tr('generator_expand'))
                 check.SetValue(any(item['name'] in expanded for item in rows
                                    if item['name'] == row['name'] or (group and item.get('group') == group)))
                 check.Bind(wx.EVT_CHECKBOX, lambda event, i=index: self.on_expand(i))
+                uid = wx.CheckBox(self.scroller, label='UID')
+                uid.SetToolTip(tr('generator_uid_hint'))
+                uid.SetValue(any(item.get('uid', False) for item in rows
+                                 if item['name'] == row['name'] or (group and item.get('group') == group)))
+                uid.Bind(wx.EVT_CHECKBOX, lambda event, control=uid: self.on_uid_changed(control))
             row_height = max(name.GetBestSize().height, delete.GetBestSize().height,
                              check.GetBestSize().height)
             self._row_button_width = row_height
@@ -422,16 +429,22 @@ class DocumentGeneratorFrame(wx.Frame):
                 value = self._create_value(row['value'], check.IsChecked(), row_height, height or None)
                 count = sum(item.get('group') == group for item in rows) if group else 1
                 self.grid.Add(value._generator_container, (index + 1, 4), span=(count, 1), flag=wx.EXPAND)
-                self.grid.Add(check, (index + 1, 5), span=(count, 1), flag=wx.ALIGN_TOP)
+                self.grid.Add(uid, (index + 1, 5), span=(count, 1), flag=wx.ALIGN_TOP)
+                self.grid.Add(check, (index + 1, 6), span=(count, 1), flag=wx.ALIGN_TOP)
                 if group:
-                    shared_controls[group] = (value, check)
+                    shared_controls[group] = (value, check, uid)
             name.Bind(wx.EVT_KILL_FOCUS, self.on_field_blur)
             self.fields.append((name, value))
             self.expand_checks.append(check)
+            self.uid_checks.append(uid)
             self.grid.Add(delete, (index + 1, 0))
             self.grid.Add(add, (index + 1, 1))
-            self.grid.Add(wx.StaticText(self.scroller, label=str(index + 1)), (index + 1, 2),
-                          flag=wx.ALIGN_TOP)
+            number = wx.Panel(self.scroller)
+            number.SetMinSize((-1, row_height))
+            number_layout = wx.BoxSizer(wx.HORIZONTAL)
+            number_layout.Add(wx.StaticText(number, label=str(index + 1)), 0, wx.ALIGN_CENTER_VERTICAL)
+            number.SetSizer(number_layout)
+            self.grid.Add(number, (index + 1, 2), flag=wx.ALIGN_TOP)
             self.grid.Add(name, (index + 1, 3), flag=wx.ALIGN_TOP)
         self.scroller.Layout()
         self.scroller.FitInside()
@@ -513,9 +526,24 @@ class DocumentGeneratorFrame(wx.Frame):
         self.scroller.FitInside()
         self._store_bookmark_layout()
 
+    def on_uid_changed(self, selected):
+        if selected.IsChecked():
+            for check in self.uid_checks:
+                if check is not selected:
+                    check.SetValue(False)
+        self._commit_fields()
+
     def _values(self):
-        return [dict(row, name=name.GetValue(), value=self._value_text(value))
-                for row, (name, value) in zip(self.rows, self.fields)]
+        rows = []
+        marked = False
+        for row, (name, value), uid in zip(self.rows, self.fields, self.uid_checks):
+            item = dict(row, name=name.GetValue(), value=self._value_text(value))
+            item.pop('uid', None)
+            if uid.IsChecked() and not marked:
+                item['uid'] = True
+                marked = True
+            rows.append(item)
+        return rows
 
     def _table_values(self):
         values = []
@@ -936,7 +964,7 @@ class DocumentGeneratorFrame(wx.Frame):
         extension = os.path.splitext(self.path)[1].lower()
         with wx.FileDialog(self, tr('generator_save_title'),
                            defaultDir=os.path.dirname(self.path),
-                           defaultFile=os.path.splitext(os.path.basename(self.path))[0] + '_result' + extension,
+                           defaultFile=suggested_export_filename(self.path, self._values()),
                            wildcard=f'Word (*{extension})|*{extension}',
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal() != wx.ID_OK:

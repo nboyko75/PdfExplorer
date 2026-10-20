@@ -342,6 +342,7 @@ TRANSLATIONS.update({
     'generator_add_row': '行を追加',
     'generator_remove_row': '行を削除',
     'generator_add_shared_bookmark': 'この値に新しいブックマークを追加',
+    'generator_uid_hint': 'この値をエクスポートするファイル名の一意の識別子として使用',
     'generator_clear_cells': '削除',
     'generator_table_instructions': '表の行全体を選択して「表を追加」をクリックすると、編集可能な表を追加できます。',
     'generator_table_bookmark': '表のブックマーク',

@@ -342,6 +342,7 @@ TRANSLATIONS.update({
     'generator_add_row': '행 추가',
     'generator_remove_row': '행 삭제',
     'generator_add_shared_bookmark': '이 값에 새 책갈피 추가',
+    'generator_uid_hint': '내보낸 파일 이름의 고유 식별자로 이 값 사용',
     'generator_clear_cells': '삭제',
     'generator_table_instructions': '표의 행 전체를 선택하고 표 추가를 클릭하면 편집 가능한 표가 추가됩니다.',
     'generator_table_bookmark': '표 책갈피',

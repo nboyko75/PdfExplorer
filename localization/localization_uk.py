@@ -375,6 +375,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Додати рядок',
     'generator_remove_row': 'Видалити рядок',
     'generator_add_shared_bookmark': 'Додати нову закладку для цього значення',
+    'generator_uid_hint': 'Використовувати це значення як унікальний ідентифікатор у назві експортованого файлу',
     'generator_clear_cells': 'Видалити',
     'generator_table_instructions': 'Виділіть увесь рядок таблиці й натисніть «Додати таблицю», щоб додати редаговану таблицю.',
     'generator_table_bookmark': 'Закладка таблиці',

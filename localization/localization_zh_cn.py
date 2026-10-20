@@ -342,6 +342,7 @@ TRANSLATIONS.update({
     'generator_add_row': '添加行',
     'generator_remove_row': '删除行',
     'generator_add_shared_bookmark': '为此值添加新书签',
+    'generator_uid_hint': '将此值用作导出文件名中的唯一标识符',
     'generator_clear_cells': '删除',
     'generator_table_instructions': '选中表格的整行，然后点击“添加表格”以添加可编辑的表格。',
     'generator_table_bookmark': '表格书签',

@@ -259,6 +259,52 @@ class GeneratorTests(unittest.TestCase):
         self.session.update_rows(updated)
         self.assertEqual(json.loads(variable.Value), updated)
 
+    def test_uid_loads_and_can_be_switched_or_cleared(self):
+        rows = [{'name': 'First', 'value': '123', 'uid': True},
+                {'name': 'Second', 'value': '456'}]
+        self.document.Variables.Count = 1
+        variable = self.document.Variables.Item.return_value
+        variable.Name, variable.Value = generator.STATE_VARIABLE, json.dumps(rows)
+        self.assertEqual(self.session.open(), rows)
+        switched = [{'name': 'First', 'value': '123'},
+                    {'name': 'Second', 'value': '456', 'uid': True}]
+        self.session.update_rows(switched)
+        self.assertEqual(json.loads(variable.Value), switched)
+        cleared = [{'name': row['name'], 'value': row['value']} for row in rows]
+        self.session.update_rows(cleared)
+        self.assertEqual(json.loads(variable.Value), cleared)
+
+    def test_multiple_uids_and_invalid_uid_types_are_rejected(self):
+        for rows in (
+                [{'name': 'A', 'value': '1', 'uid': True}, {'name': 'B', 'value': '2', 'uid': True}],
+                [{'name': 'A', 'value': '1', 'uid': 'yes'}],
+                [{'name': 'A', 'value': '1', 'uid': 1}]):
+            with self.subTest(rows=rows), self.assertRaises(generator.GeneratorError):
+                self.session._validate_rows(rows)
+
+    def test_deleting_uid_bookmark_retains_uid_for_remaining_shared_value(self):
+        self.session.open()
+        self.session.rows = [{'name': 'First', 'value': 'Shared', 'group': 'linked', 'uid': True},
+                             {'name': 'Second', 'value': 'Shared', 'group': 'linked'},
+                             {'name': 'Other', 'value': 'Separate'}]
+        self.session.delete_row(0)
+        self.assertTrue(self.session.rows[0]['uid'])
+        self.session._validate_rows(self.session.rows)
+        self.session.delete_row(0)
+        self.assertEqual(self.session.rows, [{'name': 'Other', 'value': 'Separate'}])
+
+    def test_export_filename_uses_uid_value_and_sanitizes_filename_characters(self):
+        for value, suffix in (('ABC123', '_ABC123'), ('  \n ', ''),
+                              ('a/b:c*?"<>|\\d', '_a_b_c_______d'),
+                              ('line one\nline two. ', '_line one line two'),
+                              ('\u0417\u0432\u0456\u0442 42', '_\u0417\u0432\u0456\u0442 42')):
+            with self.subTest(value=value):
+                self.assertEqual(generator.suggested_export_filename('source.DOCX', [
+                    {'name': 'First', 'value': 'ignored'},
+                    {'name': 'Uid', 'value': value, 'uid': True}]),
+                    'source_result' + suffix + '.docx')
+        self.assertEqual(generator.suggested_export_filename('source.doc', []), 'source_result.doc')
+
     def test_add_shared_value_inside_table_bookmark(self):
         self.session.open()
         self.session.rows = [{'name': 'Customer', 'value': 'Shared value'}]

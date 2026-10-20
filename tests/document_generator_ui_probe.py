@@ -99,7 +99,12 @@ class FakeSession:
             self.rows.insert(shared_index + 1, {'name': name, 'value': row['value'], 'group': group})
 
     def delete_row(self, index):
-        del self.rows[index]
+        removed = self.rows.pop(index)
+        if removed.get('uid') and removed.get('group'):
+            for row in self.rows:
+                if row.get('group') == removed['group']:
+                    row['uid'] = True
+                    break
 
 
 class FakeWorker:
@@ -315,6 +320,10 @@ def run():
                     button = frame.grid.FindItemAtPosition((index + 1, 0)).GetWindow()
                     assert button.GetSize().width == button.GetSize().height
                     assert button.GetSize().width < frame.FromDIP(32)
+                    number = frame.grid.FindItemAtPosition((index + 1, 2)).GetWindow()
+                    label = number.GetChildren()[0]
+                    assert number.GetSize().height == frame.fields[index][0].GetSize().height
+                    assert abs(label.GetPosition().y * 2 + label.GetSize().height - number.GetSize().height) <= 1
                 original = frame._values()[1]['value']
                 assert original == 'Example street\nExample city'
                 frame.expand_checks[1].SetValue(True)
@@ -450,15 +459,48 @@ def run():
                 assert settings['document_generator_sash_position'] == expected_sash
             load_locale('en')
             check_bookmark_layout_persistence(owner, settings)
+            frame = DocumentGeneratorFrame(owner, 'uid.docx')
+            frame.Show()
+            pump()
+            frame.uid_checks[0].SetValue(True)
+            frame.on_uid_changed(frame.uid_checks[0])
+            pump()
+            assert frame.worker.session.rows[0]['uid'] is True
+            frame.uid_checks[1].SetValue(True)
+            frame.on_uid_changed(frame.uid_checks[1])
+            pump()
+            assert not frame.uid_checks[0].IsChecked()
+            assert sum(row.get('uid', False) for row in frame._values()) == 1
+            frame.fields[1][1].SetValue('ID/42')
+            with patch('wx.FileDialog') as factory:
+                factory.return_value.__enter__.return_value.ShowModal.return_value = wx.ID_CANCEL
+                frame.on_export(None)
+                assert factory.call_args.kwargs['defaultFile'] == 'uid_result_ID_42.docx'
+            frame.uid_checks[1].SetValue(False)
+            frame.on_uid_changed(frame.uid_checks[1])
+            pump()
+            with patch('wx.FileDialog') as factory:
+                factory.return_value.__enter__.return_value.ShowModal.return_value = wx.ID_CANCEL
+                frame.on_export(None)
+                assert factory.call_args.kwargs['defaultFile'] == 'uid_result.docx'
+            with save_prompt(wx.ID_NO):
+                frame.Close()
+                pump()
             frame = DocumentGeneratorFrame(owner, 'shared.docx')
             frame.Show()
             pump()
             frame.fields[0][1].SetValue('Shared replacement')
+            frame.uid_checks[0].SetValue(True)
+            frame.on_uid_changed(frame.uid_checks[0])
+            pump()
             assert frame.bookmark_add_buttons[0].GetToolTipText() == tr('generator_add_shared_bookmark')
             click(frame.bookmark_add_buttons[0])
             pump()
             assert len(frame.fields) == 3
             assert frame.fields[0][1] is frame.fields[1][1]
+            assert frame.uid_checks[0] is frame.uid_checks[1]
+            assert frame.uid_checks[0].IsChecked()
+            assert sum(row.get('uid', False) for row in frame._values()) == 1
             assert frame.fields[1][1] is not frame.fields[2][1]
             assert frame._values()[0]['value'] == frame._values()[1]['value'] == 'Shared replacement'
             assert frame.grid.FindItemAtPosition((1, 4)).GetSpan() == (2, 1)

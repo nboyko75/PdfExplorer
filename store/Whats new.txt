@@ -83,3 +83,6 @@ Fixed image printing: images now convert to a temporary PDF, resolving the “so
 Fixed an error in the filelist pane: invalid literal for int() with base 10.
 
 selected text inside a table bookmark can now become a linked value bookmark without an overlap error
+
+A UID checkbox beside each value allows one selection, saved with the document.
+Export filenames include the UID

@@ -353,6 +353,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Добавить строку',
     'generator_remove_row': 'Удалить строку',
     'generator_add_shared_bookmark': 'Добавить новую закладку для этого значения',
+    'generator_uid_hint': 'Использовать это значение как уникальный идентификатор в имени экспортированного файла',
     'generator_clear_cells': 'Удалить',
     'generator_table_instructions': 'Выделите всю строку таблицы и нажмите «Добавить таблицу», чтобы добавить редактируемую таблицу.',
     'generator_table_bookmark': 'Закладка таблицы',

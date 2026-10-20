@@ -353,6 +353,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Ajouter une ligne',
     'generator_remove_row': 'Supprimer la ligne',
     'generator_add_shared_bookmark': 'Ajouter un nouveau signet pour cette valeur',
+    'generator_uid_hint': 'Utiliser cette valeur comme identifiant unique dans le nom du fichier exporté',
     'generator_clear_cells': 'Supprimer',
     'generator_table_instructions': 'Sélectionnez une ligne entière du tableau et cliquez sur Ajouter un tableau pour ajouter un tableau modifiable.',
     'generator_table_bookmark': 'Signet du tableau',

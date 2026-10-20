@@ -353,6 +353,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Añadir fila',
     'generator_remove_row': 'Eliminar fila',
     'generator_add_shared_bookmark': 'Añadir un nuevo marcador para este valor',
+    'generator_uid_hint': 'Usar este valor como identificador único en el nombre del archivo exportado',
     'generator_clear_cells': 'Borrar',
     'generator_table_instructions': 'Seleccione una fila completa de la tabla y haga clic en Añadir tabla para añadir una tabla editable.',
     'generator_table_bookmark': 'Marcador de tabla',

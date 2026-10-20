@@ -281,6 +281,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Add row',
     'generator_remove_row': 'Remove row',
     'generator_add_shared_bookmark': 'Add new bookmark for this value',
+    'generator_uid_hint': 'Use this value as the unique identifier in the exported file name',
     'generator_clear_cells': 'Del',
     'generator_table_instructions': 'Select a whole table row and click Add table to add an editable table.',
     'generator_table_bookmark': 'Table bookmark',

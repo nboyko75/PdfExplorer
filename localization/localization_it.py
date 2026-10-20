@@ -353,6 +353,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Aggiungi riga',
     'generator_remove_row': 'Rimuovi riga',
     'generator_add_shared_bookmark': 'Aggiungi un nuovo segnalibro per questo valore',
+    'generator_uid_hint': 'Usa questo valore come identificatore univoco nel nome del file esportato',
     'generator_clear_cells': 'Cancella',
     'generator_table_instructions': 'Seleziona un’intera riga della tabella e fai clic su Aggiungi tabella per aggiungere una tabella modificabile.',
     'generator_table_bookmark': 'Segnalibro della tabella',

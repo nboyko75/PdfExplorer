@@ -22,6 +22,14 @@ STATE_VARIABLE = 'DEXGeneratorFields'
 TABLE_STATE_VARIABLE = 'DEXGeneratorTables'
 
 
+def suggested_export_filename(path, rows):
+    stem, extension = os.path.splitext(os.path.basename(path))
+    uid = next((row['value'] for row in rows if row.get('uid')), '')
+    uid = ' '.join(uid.split())
+    uid = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', uid).strip(' .')
+    return stem + '_result' + ('_' + uid if uid else '') + extension.lower()
+
+
 class GeneratorError(RuntimeError):
     pass
 
@@ -170,9 +178,13 @@ class DocumentGenerator:
     @staticmethod
     def _validate_rows(rows):
         if not isinstance(rows, list) or any(
-                not isinstance(row, dict) or set(row) not in ({'name', 'value'}, {'name', 'value', 'group'}) or
-                not all(isinstance(value, str) for value in row.values()) or
-                ('group' in row and not row['group']) for row in rows):
+                not isinstance(row, dict) or not {'name', 'value'} <= set(row) or
+                set(row) - {'name', 'value', 'group', 'uid'} or
+                not all(isinstance(row[key], str) for key in ('name', 'value')) or
+                ('group' in row and (not isinstance(row['group'], str) or not row['group'])) or
+                ('uid' in row and type(row['uid']) is not bool) for row in rows):
+            raise GeneratorError(tr('generator_invalid_state'))
+        if sum(row.get('uid', False) for row in rows) > 1:
             raise GeneratorError(tr('generator_invalid_state'))
         groups = {}
         previous = None
@@ -499,10 +511,16 @@ class DocumentGenerator:
         self._store_rows()
 
     def delete_row(self, index):
-        name = self.rows[index]['name']
+        removed = self.rows[index]
+        name = removed['name']
         if self.document.Bookmarks.Exists(name):
             self.document.Bookmarks(name).Delete()
         del self.rows[index]
+        if removed.get('uid') and removed.get('group'):
+            for row in self.rows:
+                if row.get('group') == removed['group']:
+                    row['uid'] = True
+                    break
         self._store_rows()
 
     def _validate_bookmarks(self):

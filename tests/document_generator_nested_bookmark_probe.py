@@ -35,7 +35,7 @@ def run(folder):
                 document.Activate()
                 document.Range(0, 8).Select()
                 session.add_selection()
-                session.update_rows([dict(session.rows[0], value='Shared\nvalue')])
+                session.update_rows([dict(session.rows[0], value='Shared\nvalue', uid=True)])
                 table.Rows(1).Range.Select()
                 session.add_table_selection()
                 start = table.Cell(1, 1).Range.Start + len('Before ')
@@ -68,6 +68,7 @@ def run(folder):
                 session.document = document
                 session.rows, session.tables = session._load_rows(), session._load_tables()
                 assert session.state() == expected
+                assert sum(row.get('uid', False) for row in session.rows) == 1
                 output_path = folder / ('output' + extension)
                 session.export_document(str(output_path))
                 output = app.Documents.Open(FileName=str(output_path), ReadOnly=True, Visible=False,

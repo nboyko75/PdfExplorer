@@ -353,6 +353,7 @@ TRANSLATIONS.update({
     'generator_add_row': 'Zeile hinzufügen',
     'generator_remove_row': 'Zeile entfernen',
     'generator_add_shared_bookmark': 'Neues Lesezeichen für diesen Wert hinzufügen',
+    'generator_uid_hint': 'Diesen Wert als eindeutige Kennung im exportierten Dateinamen verwenden',
     'generator_clear_cells': 'Löschen',
     'generator_table_instructions': 'Markieren Sie eine ganze Tabellenzeile und klicken Sie auf „Tabelle hinzufügen“, um eine bearbeitbare Tabelle hinzuzufügen.',
     'generator_table_bookmark': 'Tabellentextmarke',
