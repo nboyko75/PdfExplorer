@@ -76,7 +76,9 @@ Added new menu item and toolbar button “Create a document generator” for Wor
 Fixed the preview pane: hidden Excel columns now collapse correctly, and older cached previews regenerate automatically
 Updated text buttons with rounded corners, blue borders, and a lighter blue hover state.
 
-Print form: Remembers the printer, page-selection mode, and page numbers, including after Cancel.
+Print form: 
+ - Remembers the printer, page-selection mode, and page numbers, including after Cancel.
+ - Added Print side selector
 
 Fixed image printing: images now convert to a temporary PDF, resolving the “source or target not a PDF” error.
 

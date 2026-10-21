@@ -1171,13 +1171,14 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
         fake_printer = mock.MagicMock()
         fake_devmode = mock.MagicMock()
         fake_win32print = mock.MagicMock()
-        fake_win32con = types.SimpleNamespace(DM_IN_PROMPT=4, DM_OUT_BUFFER=2)
+        fake_win32con = types.SimpleNamespace(DM_IN_PROMPT=4, DM_OUT_BUFFER=2, DM_IN_BUFFER=8, IDOK=1, IDCANCEL=2)
         fake_win32print.OpenPrinter.return_value = fake_printer
-        fake_win32print.GetPrinter.return_value = (None, None, None, fake_devmode)
+        fake_win32print.GetPrinter.return_value = {"pDevMode": fake_devmode}
+        fake_win32print.DocumentProperties.return_value = fake_win32con.IDOK
 
         with mock.patch.object(print_form, "win32print", fake_win32print), \
              mock.patch.object(print_form, "win32con", fake_win32con):
-            print_form._show_printer_properties("Printer One")
+            self.assertTrue(print_form._show_printer_properties("Printer One"))
 
         fake_win32print.OpenPrinter.assert_called_once_with("Printer One")
         fake_win32print.DocumentProperties.assert_called_once_with(
@@ -1186,8 +1187,10 @@ class HiddenCheckboxToggleTests(unittest.TestCase):
             "Printer One",
             fake_devmode,
             fake_devmode,
-            fake_win32con.DM_IN_PROMPT | fake_win32con.DM_OUT_BUFFER,
+            fake_win32con.DM_IN_PROMPT | fake_win32con.DM_IN_BUFFER | fake_win32con.DM_OUT_BUFFER,
         )
+        fake_win32print.SetPrinter.assert_called_once_with(fake_printer, 9, {"pDevMode": fake_devmode}, 0)
+        fake_win32print.ClosePrinter.assert_called_once_with(fake_printer)
 
     def test_print_with_selected_printer_supports_office_subset_pages(self):
         import controls.print_form as print_form

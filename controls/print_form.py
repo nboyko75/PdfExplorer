@@ -412,7 +412,63 @@ def _create_print_subset(document_path, page_numbers=None):
     return temp_path
 
 
-def _print_with_selected_printer(document_path, printer_name, copies=1, page_numbers=None):
+def _get_printer_devmode(printer_handle):
+    try:
+        devmode = win32print.GetPrinter(printer_handle, 9).get("pDevMode")
+    except Exception:
+        devmode = None
+    if devmode is None:
+        devmode = win32print.GetPrinter(printer_handle, 2).get("pDevMode")
+    return devmode
+
+
+def _get_printer_duplex(printer_name):
+    if win32print is None or win32con is None:
+        return 1
+    try:
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            devmode = _get_printer_devmode(handle)
+            if (devmode is not None and devmode.Fields & win32con.DM_DUPLEX
+                    and devmode.Duplex in (1, 2, 3)):
+                return devmode.Duplex
+        finally:
+            win32print.ClosePrinter(handle)
+    except Exception:
+        pass
+    return 1
+
+
+def _set_printer_duplex(printer_name, duplex):
+    if win32print is None or win32con is None:
+        raise RuntimeError(tr("print_parameters_error"))
+    if duplex not in (win32con.DMDUP_SIMPLEX, win32con.DMDUP_VERTICAL, win32con.DMDUP_HORIZONTAL):
+        raise ValueError(tr("print_duplex_unsupported"))
+    handle = win32print.OpenPrinter(printer_name)
+    try:
+        devmode = _get_printer_devmode(handle)
+        if devmode is None:
+            raise RuntimeError(tr("print_parameters_error"))
+        if not devmode.Fields & win32con.DM_DUPLEX:
+            if duplex == win32con.DMDUP_SIMPLEX:
+                return  # Simplex-only drivers need no duplex setting.
+            raise ValueError(tr("print_duplex_unsupported"))
+        devmode.Duplex = duplex
+        devmode.Fields |= win32con.DM_DUPLEX
+        result = win32print.DocumentProperties(
+            0, handle, printer_name, devmode, devmode,
+            win32con.DM_IN_BUFFER | win32con.DM_OUT_BUFFER,
+        )
+        if result != win32con.IDOK:
+            raise RuntimeError(tr("print_parameters_error"))
+        if devmode.Duplex != duplex or not devmode.Fields & win32con.DM_DUPLEX:
+            raise ValueError(tr("print_duplex_unsupported"))
+        win32print.SetPrinter(handle, 9, {"pDevMode": devmode}, 0)
+    finally:
+        win32print.ClosePrinter(handle)
+
+
+def _print_with_selected_printer(document_path, printer_name, copies=1, page_numbers=None, duplex=None):
     if not isinstance(document_path, str) or not document_path or not os.path.exists(document_path):
         raise FileNotFoundError(document_path)
 
@@ -422,6 +478,9 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
     selected_printer = str(printer_name or "").strip()
     if not selected_printer:
         raise ValueError(tr("print_no_printer"))
+
+    if duplex is not None:
+        _set_printer_duplex(selected_printer, duplex)
 
     if page_numbers and office_preview.can_preview_office(document_path):
         _print_office_document_pages(document_path, selected_printer, copies=copies, page_numbers=page_numbers)
@@ -437,13 +496,14 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
     original_default = win32print.GetDefaultPrinter()
     try:
         win32print.SetDefaultPrinter(selected_printer)
-        if copies > 1:
+        if copies > 1 or duplex is not None:
             current_printer = win32print.OpenPrinter(selected_printer)
             try:
-                devmode = win32print.GetPrinter(current_printer, 2)[3]
+                devmode = _get_printer_devmode(current_printer)
                 if devmode is not None:
                     devmode.Copies = int(copies)
-                    win32print.SetPrinter(current_printer, 2, devmode, 0)
+                    devmode.Fields |= win32con.DM_COPIES
+                    win32print.SetPrinter(current_printer, 9, {"pDevMode": devmode}, 0)
             finally:
                 win32print.ClosePrinter(current_printer)
         os.startfile(print_target, "print")
@@ -470,31 +530,26 @@ def _show_printer_properties(printer_name):
         return False
 
     try:
-        try:
-            printer_info = win32print.GetPrinter(printer_handle, 2)
-            devmode = printer_info[3] if isinstance(printer_info, (tuple, list)) and len(printer_info) > 3 else None
-        except Exception:
-            devmode = None
-
+        devmode = _get_printer_devmode(printer_handle)
         if devmode is None:
-            win32print.DocumentProperties(
-                0,
-                printer_handle,
-                selected_printer,
-                None,
-                None,
-                win32con.DM_IN_PROMPT,
-            )
-            return True
+            return False
 
-        win32print.DocumentProperties(
+        result = win32print.DocumentProperties(
             0,
             printer_handle,
             selected_printer,
             devmode,
             devmode,
-            win32con.DM_IN_PROMPT | win32con.DM_OUT_BUFFER,
+            win32con.DM_IN_PROMPT | win32con.DM_IN_BUFFER | win32con.DM_OUT_BUFFER,
         )
+        if result == win32con.IDCANCEL:
+            return True
+        if result != win32con.IDOK:
+            return False
+
+        # Shell/Office printing reads Windows preferences. Persist the complete
+        # driver DEVMODE for this user, including driver-specific parameters.
+        win32print.SetPrinter(printer_handle, 9, {"pDevMode": devmode}, 0)
         return True
     except Exception:
         return False
@@ -513,8 +568,8 @@ def _apply_print_form_geometry(dialog, settings=None):
     restore_control_geometry(
         dialog,
         "print_form",
-        default_size=(420, 220),
-        min_size=(320, 200),
+        default_size=(540, 380),
+        min_size=(420, 340),
         settings=settings,
     )
 
@@ -554,6 +609,28 @@ def show_print_form(owner, document_path=None):
     copies_label = wx.StaticText(panel, label=tr("print_copies_label"))
     copies_spin = wx.SpinCtrl(panel, value="1", min=1, max=99)
 
+    duplex_label = wx.StaticText(panel, label=tr("print_duplex_label"))
+    # Choice indices correspond to Windows DMDUP_SIMPLEX/VERTICAL/HORIZONTAL.
+    duplex_choice = wx.Choice(panel, choices=[
+        tr("print_duplex_simplex"), tr("print_duplex_long_edge"), tr("print_duplex_short_edge"),
+    ])
+
+    def refresh_duplex(_event=None):
+        selected_printer = printer_choice.GetStringSelection() or default_printer
+        duplex_choice.SetSelection(_get_printer_duplex(selected_printer) - 1)
+
+    def on_duplex_changed(_event=None):
+        selected_printer = printer_choice.GetStringSelection() or default_printer
+        try:
+            _set_printer_duplex(selected_printer, duplex_choice.GetSelection() + 1)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
+        refresh_duplex()
+
+    printer_choice.Bind(wx.EVT_CHOICE, refresh_duplex)
+    duplex_choice.Bind(wx.EVT_CHOICE, on_duplex_changed)
+    refresh_duplex()
+
     range_label = wx.StaticText(panel, label=tr("print_range_label"))
     range_choice = wx.Choice(panel, choices=[tr("print_range_all"), tr("print_range_selection")])
     range_choice.SetSelection(1 if settings.get("print_form_page_range") == "selection" else 0)
@@ -585,7 +662,9 @@ def show_print_form(owner, document_path=None):
 
     def on_printer_parameters(_event=None):
         selected_printer = printer_names[printer_choice.GetSelection()] if printer_choice.GetSelection() >= 0 else default_printer
-        _show_printer_properties(selected_printer)
+        if not _show_printer_properties(selected_printer):
+            wx.MessageBox(tr("print_parameters_error"), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
+        refresh_duplex()
 
     button_parameters.Bind(wx.EVT_BUTTON, on_printer_parameters)
 
@@ -597,6 +676,8 @@ def show_print_form(owner, document_path=None):
     fields.Add(printer_choice, 1, wx.EXPAND)
     fields.Add(copies_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(copies_spin, 1, wx.EXPAND)
+    fields.Add(duplex_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    fields.Add(duplex_choice, 1, wx.EXPAND)
     fields.Add(range_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(range_choice, 1, wx.EXPAND)
     fields.Add(pages_label, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -615,13 +696,21 @@ def show_print_form(owner, document_path=None):
     root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     panel.SetSizer(root_sizer)
 
-    dialog.SetClientSize((420, 320))
+    dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+    dialog_sizer.Add(panel, 1, wx.EXPAND)
+    dialog.SetSizer(dialog_sizer)
     _apply_print_form_geometry(dialog, settings)
+    # Include the optional page-range row when calculating the minimum size.
+    pages_label.Show()
+    pages_text.Show()
+    dialog.SetMinSize(dialog.GetBestSize())
+    update_page_range_visibility()
 
     try:
         result = dialog.ShowModal()
         selected_printer = printer_choice.GetStringSelection() or default_printer
         copies = max(1, int(copies_spin.GetValue()))
+        duplex = duplex_choice.GetSelection() + 1
         is_selected_pages = range_choice.GetSelection() == 1
         page_text = pages_text.GetValue().strip()
         update_settings({
@@ -647,7 +736,7 @@ def show_print_form(owner, document_path=None):
             wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
             return False
     try:
-        printer_name = _print_with_selected_printer(document_path, selected_printer, copies=copies, page_numbers=selected_page_numbers)
+        printer_name = _print_with_selected_printer(document_path, selected_printer, copies=copies, page_numbers=selected_page_numbers, duplex=duplex)
         wx.MessageBox(tr("print_status_success", printer=printer_name), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
         return True
     except Exception as exc:
