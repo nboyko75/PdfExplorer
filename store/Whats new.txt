@@ -88,3 +88,5 @@ selected text inside a table bookmark can now become a linked value bookmark wit
 
 A UID checkbox beside each value allows one selection, saved with the document.
 Export filenames include the UID
+
+Fixed: cutting and pasting a file into another workspace now closes its preview in the source workspace

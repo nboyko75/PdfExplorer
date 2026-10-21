@@ -313,6 +313,20 @@ def _get_update_toolbar_callback(owner):
     return callback if callable(callback) else None
 
 
+def _prune_moved_file_previews(owner):
+    """A move can invalidate previews in inactive explorer workspaces too."""
+    host = getattr(owner, "host", None)
+    workspaces = [owner, *getattr(host, "workspaces", [])]
+    visited = set()
+    for workspace in workspaces:
+        if id(workspace) in visited:
+            continue
+        visited.add(id(workspace))
+        if isinstance(getattr(workspace, "preview_tabs", None), list):
+            from controls.file_preview import _prune_deleted_preview_tabs
+            _prune_deleted_preview_tabs(workspace)
+
+
 def on_list_copy(owner, _):
     try:
         from controls.filelist import get_selected_list_paths
@@ -415,6 +429,7 @@ def paste_into_path(
         moved_preview_target = None
         pending_cut_paths = []
         operation_aborted = False
+        files_moved = False
 
         if clipboard_mode == CLIPBOARD_MODE_CUT:
             for source_path in source_paths:
@@ -467,6 +482,7 @@ def paste_into_path(
                         else:
                             os.remove(destination_path)
                     shutil.move(normalized_source, destination_path)
+                    files_moved = True
 
                 current_preview_path = getattr(owner, "current_preview_path", None)
                 if clipboard_mode == CLIPBOARD_MODE_CUT and current_preview_path:
@@ -480,6 +496,10 @@ def paste_into_path(
         if clipboard_mode == CLIPBOARD_MODE_CUT:
             owner.file_clipboard_paths = pending_cut_paths
             owner.file_clipboard_mode = CLIPBOARD_MODE_CUT if pending_cut_paths else None
+
+        # Also reconcile completed moves when a later overwrite was cancelled.
+        if files_moved:
+            _prune_moved_file_previews(owner)
 
         if refresh_callback is not None and not operation_aborted:
             refresh_callback(owner, affected_dirs=affected_dirs, preferred_preview_path=moved_preview_target)

@@ -473,6 +473,10 @@ def _prune_deleted_preview_tabs(owner):
     _ensure_preview_tab_state(owner)
 
     old_tabs = list(owner.preview_tabs)
+    old_active_index = owner.preview_active_tab_index
+    active_tab = (old_tabs[old_active_index]
+                  if old_active_index is not None and 0 <= old_active_index < len(old_tabs)
+                  else None)
     valid_tabs = []
     removed_displayed_tab = False
 
@@ -515,7 +519,8 @@ def _prune_deleted_preview_tabs(owner):
     if not owner.preview_tabs:
         owner.preview_active_tab_index = None
     else:
-        active_index = getattr(owner, "preview_active_tab_index", 0)
+        active_index = next((index for index, tab in enumerate(valid_tabs) if tab is active_tab),
+                            old_active_index)
         if active_index is None or active_index < 0:
             active_index = 0
 
