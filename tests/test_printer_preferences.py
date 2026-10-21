@@ -142,7 +142,7 @@ class PrinterPreferencesTests(unittest.TestCase):
                 self.assertEqual(shell.call_count, 2)
                 office.assert_called_once()
 
-    def test_form_restores_choices_and_syncs_printer_and_parameters(self):
+    def test_form_preserves_manual_duplex_independently_of_driver_parameters(self):
         app = wx.App.Get() or wx.App(False)
         self.saved["Printer One"] = deepcopy(self.defaults)
         self.saved["Printer One"].Duplex = 2
@@ -166,7 +166,8 @@ class PrinterPreferencesTests(unittest.TestCase):
                     self.assertLessEqual(child.GetRect().bottom, panel.GetClientSize().height)
             self.assertEqual(duplex.GetSelection(), 1)
             select(duplex, 2)
-            self.assertEqual(self.saved["Printer One"].Duplex, 3)
+            self.assertEqual(save_settings.call_args.args[0]["print_form_duplex_modes"]["Printer One"], 3)
+            self.assertEqual(self.saved["Printer One"].Duplex, 2)
             select(printer, 1)
             self.assertEqual(duplex.GetSelection(), 0)
             select(printer, 0)
@@ -175,7 +176,7 @@ class PrinterPreferencesTests(unittest.TestCase):
             button = next(child for child in dialog.GetChildren()[0].GetChildren()
                           if isinstance(child, wx.Button) and child.GetLabel() == localization.tr("print_parameters_button"))
             button.ProcessWindowEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId, button.GetId()))
-            self.assertEqual(duplex.GetSelection(), 0)
+            self.assertEqual(duplex.GetSelection(), 2)
             return wx.ID_CANCEL
 
         with tempfile.TemporaryDirectory() as folder:
@@ -183,7 +184,7 @@ class PrinterPreferencesTests(unittest.TestCase):
             path.touch()
             with patch.object(print_form, "_get_printer_names", return_value=["Printer One", "Printer Two"]), \
                     patch.object(print_form, "load_settings", return_value={"print_form_printer": "Printer One"}), \
-                    patch.object(print_form, "update_settings"), \
+                    patch.object(print_form, "update_settings") as save_settings, \
                     patch.object(print_form, "_save_print_form_geometry"), \
                     patch.object(print_form, "_show_printer_properties", return_value=True), \
                     patch.object(wx.Dialog, "ShowModal", modal):
@@ -200,7 +201,8 @@ class PrinterPreferencesTests(unittest.TestCase):
 
     def test_print_side_labels_are_translated_in_every_locale(self):
         keys = ("print_duplex_label", "print_duplex_simplex", "print_duplex_long_edge",
-                "print_duplex_short_edge", "print_duplex_unsupported", "print_parameters_error")
+                "print_duplex_short_edge", "print_duplex_unsupported", "print_parameters_error",
+                "print_manual_title", "print_manual_reload", "print_manual_reload_long", "print_manual_reload_short")
         for locale in localization.available_locales():
             translations = (localization.DEFAULT_TRANSLATIONS if locale == "en" else
                             importlib.import_module("localization.localization_" + locale).TRANSLATIONS)

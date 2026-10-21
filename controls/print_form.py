@@ -422,6 +422,75 @@ def _get_printer_devmode(printer_handle):
     return devmode
 
 
+def _create_manual_duplex_passes(document_path, page_numbers=None, copies=1):
+    """Pair consecutive pages in the requested print order, preserving copies."""
+    if fitz is None:
+        raise RuntimeError(tr("print_error_unavailable"))
+    if office_preview.can_preview_office(document_path):
+        # Explicitly export every page, regardless of the preview page limit.
+        page_count = office_preview.get_office_document_page_count(document_path)
+        if page_count < 1:
+            raise ValueError(tr("export_pdf_page_numbers_invalid"))
+        document_path = office_preview.convert_office_to_preview_pdf(document_path, max_pages=page_count)
+
+    paths = []
+    try:
+        with ExitStack() as stack:
+            source = stack.enter_context(_open_print_document(document_path))
+            if not source.is_pdf:
+                source = stack.enter_context(fitz.open(stream=source.convert_to_pdf(), filetype="pdf"))
+            pages = list(range(source.page_count) if page_numbers is None else page_numbers)
+            if not pages or any(page < 0 or page >= source.page_count for page in pages):
+                raise ValueError(tr("export_pdf_page_numbers_invalid"))
+            fronts = stack.enter_context(fitz.open())
+            backs = stack.enter_context(fitz.open())
+            for _ in range(max(1, int(copies))):
+                for index in range(0, len(pages), 2):
+                    front = pages[index]
+                    fronts.insert_pdf(source, from_page=front, to_page=front)
+                    if index + 1 < len(pages):
+                        back = pages[index + 1]
+                        backs.insert_pdf(source, from_page=back, to_page=back)
+                    elif len(pages) > 1:
+                        # Keep the last sheet and the next copy aligned.
+                        rect = source[front].rect
+                        backs.new_page(width=rect.width, height=rect.height)
+            for document in (fronts, backs):
+                if not document.page_count:
+                    continue
+                fd, path = tempfile.mkstemp(prefix="pdfexplorer_print_", suffix=".pdf",
+                                            dir=_get_print_temp_directory())
+                os.close(fd)
+                paths.append(path)
+                document.save(path)
+        return paths[0], paths[1] if len(paths) > 1 else None
+    except Exception:
+        # No files have been handed to a viewer yet.
+        for path in paths:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        raise
+
+
+def _print_manual_duplex(document_path, printer_name, copies=1, page_numbers=None, duplex=2):
+    fronts, backs = _create_manual_duplex_passes(document_path, page_numbers, copies)
+    # Keep both jobs simplex. Restoring automatic duplex immediately after a
+    # shell handoff would race the asynchronous PDF viewer.
+    _print_with_selected_printer(fronts, printer_name, copies=1, duplex=1)
+    if backs is not None:
+        instruction = tr("print_manual_reload_long" if duplex == 2 else "print_manual_reload_short")
+        result = wx.MessageBox(
+            tr("print_manual_reload", binding=instruction), tr("print_manual_title"),
+            style=wx.OK | wx.CANCEL | wx.ICON_INFORMATION,
+        )
+        if result != wx.OK:
+            return None
+        _print_with_selected_printer(backs, printer_name, copies=1, duplex=1)
+    return printer_name
+
+
 def _get_printer_duplex(printer_name):
     if win32print is None or win32con is None:
         return 1
@@ -588,6 +657,8 @@ def show_print_form(owner, document_path=None):
         return False
 
     settings = load_settings()
+    saved_duplex = settings.get("print_form_duplex_modes", {})
+    duplex_modes = dict(saved_duplex) if isinstance(saved_duplex, dict) else {}
     default_printer = settings.get("print_form_printer")
     if default_printer not in printer_names:
         try:
@@ -610,22 +681,22 @@ def show_print_form(owner, document_path=None):
     copies_spin = wx.SpinCtrl(panel, value="1", min=1, max=99)
 
     duplex_label = wx.StaticText(panel, label=tr("print_duplex_label"))
-    # Choice indices correspond to Windows DMDUP_SIMPLEX/VERTICAL/HORIZONTAL.
+    # Manual duplex is saved separately from the driver's simplex job setting.
     duplex_choice = wx.Choice(panel, choices=[
         tr("print_duplex_simplex"), tr("print_duplex_long_edge"), tr("print_duplex_short_edge"),
     ])
 
     def refresh_duplex(_event=None):
         selected_printer = printer_choice.GetStringSelection() or default_printer
-        duplex_choice.SetSelection(_get_printer_duplex(selected_printer) - 1)
+        mode = duplex_modes.get(selected_printer)
+        if mode not in (1, 2, 3):
+            mode = _get_printer_duplex(selected_printer)
+        duplex_choice.SetSelection(mode - 1)
 
     def on_duplex_changed(_event=None):
         selected_printer = printer_choice.GetStringSelection() or default_printer
-        try:
-            _set_printer_duplex(selected_printer, duplex_choice.GetSelection() + 1)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
-        refresh_duplex()
+        duplex_modes[selected_printer] = duplex_choice.GetSelection() + 1
+        update_settings({"print_form_duplex_modes": duplex_modes})
 
     printer_choice.Bind(wx.EVT_CHOICE, refresh_duplex)
     duplex_choice.Bind(wx.EVT_CHOICE, on_duplex_changed)
@@ -711,10 +782,12 @@ def show_print_form(owner, document_path=None):
         selected_printer = printer_choice.GetStringSelection() or default_printer
         copies = max(1, int(copies_spin.GetValue()))
         duplex = duplex_choice.GetSelection() + 1
+        duplex_modes[selected_printer] = duplex
         is_selected_pages = range_choice.GetSelection() == 1
         page_text = pages_text.GetValue().strip()
         update_settings({
             "print_form_printer": selected_printer,
+            "print_form_duplex_modes": duplex_modes,
             "print_form_page_range": "selection" if is_selected_pages else "all",
             "print_form_page_numbers": page_text,
         })
@@ -736,7 +809,14 @@ def show_print_form(owner, document_path=None):
             wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
             return False
     try:
-        printer_name = _print_with_selected_printer(document_path, selected_printer, copies=copies, page_numbers=selected_page_numbers, duplex=duplex)
+        if duplex in (2, 3):
+            printer_name = _print_manual_duplex(document_path, selected_printer, copies=copies,
+                                               page_numbers=selected_page_numbers, duplex=duplex)
+            if printer_name is None:
+                return False
+        else:
+            printer_name = _print_with_selected_printer(document_path, selected_printer, copies=copies,
+                                                       page_numbers=selected_page_numbers, duplex=1)
         wx.MessageBox(tr("print_status_success", printer=printer_name), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
         return True
     except Exception as exc:
