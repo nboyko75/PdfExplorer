@@ -155,7 +155,7 @@ class PrinterPreferencesTests(unittest.TestCase):
 
         def modal(dialog):
             choices = [child for child in dialog.GetChildren()[0].GetChildren() if isinstance(child, wx.Choice)]
-            printer, duplex, page_range = choices
+            printer, duplex, multiple_pages, page_range = choices
             select(page_range, 1)
             panel = dialog.GetChildren()[0]
             for child in panel.GetChildren():
@@ -165,18 +165,27 @@ class PrinterPreferencesTests(unittest.TestCase):
                     self.assertLessEqual(child.GetRect().right, panel.GetClientSize().width)
                     self.assertLessEqual(child.GetRect().bottom, panel.GetClientSize().height)
             self.assertEqual(duplex.GetSelection(), 1)
+            self.assertTrue(multiple_pages.IsEnabled())
+            select(multiple_pages, 1)
+            select(duplex, 0)
+            self.assertFalse(multiple_pages.IsEnabled())
             select(duplex, 2)
+            self.assertTrue(multiple_pages.IsEnabled())
+            self.assertEqual(multiple_pages.GetSelection(), 1)
             self.assertEqual(save_settings.call_args.args[0]["print_form_duplex_modes"]["Printer One"], 3)
             self.assertEqual(self.saved["Printer One"].Duplex, 2)
             select(printer, 1)
             self.assertEqual(duplex.GetSelection(), 0)
+            self.assertFalse(multiple_pages.IsEnabled())
             select(printer, 0)
             self.assertEqual(duplex.GetSelection(), 2)
+            self.assertTrue(multiple_pages.IsEnabled())
             self.saved["Printer One"].Duplex = 1
             button = next(child for child in dialog.GetChildren()[0].GetChildren()
                           if isinstance(child, wx.Button) and child.GetLabel() == localization.tr("print_parameters_button"))
             button.ProcessWindowEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId, button.GetId()))
             self.assertEqual(duplex.GetSelection(), 2)
+            self.assertTrue(multiple_pages.IsEnabled())
             return wx.ID_CANCEL
 
         with tempfile.TemporaryDirectory() as folder:

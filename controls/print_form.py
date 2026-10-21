@@ -128,7 +128,7 @@ def _parse_page_numbers_input(text, page_count):
 
         for page_number in page_numbers:
             if not 1 <= page_number <= page_count:
-                raise ValueError(tr("export_pdf_page_numbers_invalid"))
+                raise ValueError(tr("print_page_out_of_range", page=page_number, count=page_count))
             page_index = page_number - 1
             if page_index in seen:
                 continue
@@ -422,6 +422,87 @@ def _get_printer_devmode(printer_handle):
     return devmode
 
 
+def _create_mirrored_print_document(document_path, page_numbers=None):
+    """Swap common horizontal margins on even pages in the requested print order.
+
+    Fixed-layout documents have no margin settings. Estimate their margins from
+    visible content, using common bounds for pages of the same size so short
+    paragraphs do not receive different offsets. Render only for measurement;
+    the output retains the original text, vectors and image resolution.
+    """
+    from PIL import Image, ImageChops
+
+    if fitz is None:
+        raise RuntimeError(tr("print_error_unavailable"))
+    if office_preview.can_preview_office(document_path):
+        page_count = office_preview.get_office_document_page_count(document_path)
+        if page_count < 1:
+            raise ValueError(tr("export_pdf_page_numbers_invalid"))
+        document_path = office_preview.convert_office_to_preview_pdf(document_path, max_pages=page_count)
+
+    # This intermediate file has not been handed to a viewer and can be removed.
+    subset_path = _create_print_subset(document_path, page_numbers)
+    output_path = None
+    try:
+        with fitz.open(subset_path) as source, fitz.open() as output:
+            source.bake()  # Retain visible annotations and form values in print.
+            bounds_by_size = {}
+            sizes = []
+            for page in source:
+                rect = page.rect
+                size = (rect.width, rect.height)
+                sizes.append(size)
+                # Cap the measurement bitmap for unusually large page formats.
+                scale = min(2.0, 2000 / max(rect.width, rect.height))
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale),
+                                         colorspace=fitz.csRGB, alpha=False)
+                with Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples) as bitmap:
+                    with Image.new("RGB", bitmap.size, "white") as white:
+                        with ImageChops.difference(bitmap, white) as ink:
+                            bounds = ink.getbbox()
+                if bounds is not None:
+                    left = bounds[0] / scale
+                    right = min(rect.width, bounds[2] / scale)
+                    previous = bounds_by_size.get(size, (rect.width, 0))
+                    bounds_by_size[size] = (min(previous[0], left), max(previous[1], right))
+
+            for index, page in enumerate(source):
+                width, height = sizes[index]
+                bounds = bounds_by_size.get(sizes[index])
+                offset = width - bounds[1] - bounds[0] if bounds and index % 2 else 0
+                if abs(offset) < 0.01 or not page.get_contents():
+                    output.insert_pdf(source, from_page=index, to_page=index)
+                else:
+                    target = output.new_page(width=width, height=height)
+                    rotation = page.rotation
+                    # Import the crop in unrotated coordinates, then reproduce
+                    # its display rotation within the translated destination.
+                    page.set_rotation(0)
+                    try:
+                        target.show_pdf_page(fitz.Rect(offset, 0, width + offset, height),
+                                             source, index, rotate=-rotation)
+                    finally:
+                        page.set_rotation(rotation)
+
+            fd, output_path = tempfile.mkstemp(prefix="pdfexplorer_print_", suffix=".pdf",
+                                               dir=_get_print_temp_directory())
+            os.close(fd)
+            output.save(output_path)
+        return output_path
+    except Exception:
+        if output_path is not None:
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+        raise
+    finally:
+        try:
+            os.remove(subset_path)
+        except OSError:
+            pass
+
+
 def _create_manual_duplex_passes(document_path, page_numbers=None, copies=1):
     """Pair consecutive pages in the requested print order, preserving copies."""
     if fitz is None:
@@ -686,16 +767,31 @@ def show_print_form(owner, document_path=None):
         tr("print_duplex_simplex"), tr("print_duplex_long_edge"), tr("print_duplex_short_edge"),
     ])
 
+    multiple_pages_label = wx.StaticText(panel, label=tr("print_multiple_pages_label"))
+    multiple_pages_choice = wx.Choice(panel, choices=[
+        tr("print_multiple_pages_usual"), tr("print_multiple_pages_mirrored"),
+    ])
+    multiple_pages_choice.SetSelection(
+        1 if settings.get("print_form_multiple_pages") == "mirrored_margins" else 0
+    )
+
+    def update_multiple_pages_enabled():
+        enabled = duplex_choice.GetSelection() in (1, 2)
+        multiple_pages_label.Enable(enabled)
+        multiple_pages_choice.Enable(enabled)
+
     def refresh_duplex(_event=None):
         selected_printer = printer_choice.GetStringSelection() or default_printer
         mode = duplex_modes.get(selected_printer)
         if mode not in (1, 2, 3):
             mode = _get_printer_duplex(selected_printer)
         duplex_choice.SetSelection(mode - 1)
+        update_multiple_pages_enabled()
 
     def on_duplex_changed(_event=None):
         selected_printer = printer_choice.GetStringSelection() or default_printer
         duplex_modes[selected_printer] = duplex_choice.GetSelection() + 1
+        update_multiple_pages_enabled()
         update_settings({"print_form_duplex_modes": duplex_modes})
 
     printer_choice.Bind(wx.EVT_CHOICE, refresh_duplex)
@@ -749,6 +845,8 @@ def show_print_form(owner, document_path=None):
     fields.Add(copies_spin, 1, wx.EXPAND)
     fields.Add(duplex_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(duplex_choice, 1, wx.EXPAND)
+    fields.Add(multiple_pages_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    fields.Add(multiple_pages_choice, 1, wx.EXPAND)
     fields.Add(range_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(range_choice, 1, wx.EXPAND)
     fields.Add(pages_label, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -783,11 +881,15 @@ def show_print_form(owner, document_path=None):
         copies = max(1, int(copies_spin.GetValue()))
         duplex = duplex_choice.GetSelection() + 1
         duplex_modes[selected_printer] = duplex
+        mirrored_margins = multiple_pages_choice.GetSelection() == 1
         is_selected_pages = range_choice.GetSelection() == 1
         page_text = pages_text.GetValue().strip()
         update_settings({
             "print_form_printer": selected_printer,
             "print_form_duplex_modes": duplex_modes,
+            "print_form_multiple_pages": (
+                "mirrored_margins" if mirrored_margins else "usual"
+            ),
             "print_form_page_range": "selection" if is_selected_pages else "all",
             "print_form_page_numbers": page_text,
         })
@@ -809,6 +911,9 @@ def show_print_form(owner, document_path=None):
             wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
             return False
     try:
+        if mirrored_margins and duplex in (2, 3):
+            document_path = _create_mirrored_print_document(document_path, selected_page_numbers)
+            selected_page_numbers = None  # Selection and parity are already applied.
         if duplex in (2, 3):
             printer_name = _print_manual_duplex(document_path, selected_printer, copies=copies,
                                                page_numbers=selected_page_numbers, duplex=duplex)
