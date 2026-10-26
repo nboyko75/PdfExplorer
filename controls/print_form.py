@@ -967,6 +967,7 @@ def show_print_form(owner, document_path=None):
     update_page_range_visibility()
 
     button_ok = wx.Button(panel, wx.ID_OK, tr("print_button"))
+    button_ok.SetDefault()
     button_parameters = wx.Button(panel, wx.ID_ANY, tr("print_parameters_button"))
     button_cancel = wx.Button(panel, wx.ID_CANCEL, tr("print_cancel_button"))
 
