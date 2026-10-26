@@ -89,6 +89,19 @@ class PreviewOrientationTests(unittest.TestCase):
         self.owner.filePreview = self.frame
         self.owner.busy_cursor = nullcontext
         self.owner.current_preview_path = None
+        render = self.preview.get_pdf_page_previews
+        layout = self.preview._layout_pdf_pages
+
+        def render_while_frozen(*args, **kwargs):
+            self.assertTrue(self.frame.IsFrozen())
+            self.assertTrue(self.owner.pdf_pages_panel.IsFrozen())
+            return render(*args, **kwargs)
+
+        def layout_while_frozen(owner):
+            self.assertTrue(self.frame.IsFrozen())
+            self.assertTrue(all(page.IsFrozen() for page in owner.pdf_page_panels.values()))
+            return layout(owner)
+
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "pages.pdf")
             with fitz.open() as document:
@@ -100,7 +113,11 @@ class PreviewOrientationTests(unittest.TestCase):
                  mock.patch.object(self.preview, "update_page_buttons_state"):
                 for vertical in (False, True):
                     self.preview._set_preview_orientation(self.owner, vertical)
-                    self.preview.show_pdf_feed(self.owner, path, force_all_pages=True)
+                    with mock.patch.object(self.preview, "get_pdf_page_previews", side_effect=render_while_frozen), \
+                         mock.patch.object(self.preview, "_layout_pdf_pages", side_effect=layout_while_frozen):
+                        self.preview.show_pdf_feed(self.owner, path, force_all_pages=True)
+                    self.assertFalse(self.frame.IsFrozen())
+                    self.assertFalse(self.owner.pdf_pages_panel.IsFrozen())
                     self.assertEqual(len(self.owner.pdf_page_panels), 3)
                     self.assertEqual(self.owner.current_preview_mode, "pages")
                     first, second = (self.owner.pdf_page_panels[i] for i in (0, 1))
@@ -112,6 +129,19 @@ class PreviewOrientationTests(unittest.TestCase):
                         self.assertEqual(first.GetPosition().y, second.GetPosition().y)
                     self.assertTrue(self.owner.preview_horizontal_view_btn.IsEnabled())
                     self.assertTrue(self.owner.preview_vertical_view_btn.IsEnabled())
+
+    def test_failed_pdf_render_releases_repaint_lock(self):
+        self.owner.filePreview = self.frame
+        self.owner.busy_cursor = nullcontext
+        self.owner.current_preview_path = None
+        with mock.patch.object(self.preview, "update_preview_toolbar_visibility"), \
+             mock.patch.object(self.preview, "sync_pdf_page_view_mode_controls"), \
+             mock.patch.object(self.preview, "update_page_buttons_state"), \
+             mock.patch.object(self.preview, "get_pdf_page_previews", side_effect=RuntimeError("Unreadable PDF")) as render:
+            self.preview.show_pdf_feed(self.owner, "unreadable.pdf")
+        render.assert_called_once()
+        self.assertFalse(self.frame.IsFrozen())
+        self.assertFalse(self.owner.pdf_pages_panel.IsFrozen())
 
 
 if __name__ == "__main__":

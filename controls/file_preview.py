@@ -32,6 +32,28 @@ import controls.video_preview as video_preview
 
 from file_operations.document_types import OFFICE_EXTENSIONS, POWERPOINT_EXTENSIONS
 
+
+@contextmanager
+def _preview_update(owner):
+    """Paint a preview change only after its children and layout are ready."""
+    panel = getattr(owner, "preview_content_panel", None)
+    if panel is None:
+        panel = getattr(owner, "filePreview", None)
+    freeze = getattr(panel, "Freeze", None)
+    thaw = getattr(panel, "Thaw", None)
+    if not callable(freeze) or not callable(thaw):
+        yield
+        return
+
+    # Freeze/Thaw are nestable: PDF redraws also use this scope directly for
+    # zoom and resize, or inside the larger file/tab transition below.
+    freeze()
+    try:
+        yield
+    finally:
+        thaw()
+
+
 def set_preview_mode(owner, mode):
     """Show the requested panel and release inactive animation/video resources."""
     if owner is None:
@@ -1831,6 +1853,11 @@ def on_preview_load_all_pages(event):
 
 
 def show_pdf_feed(owner, path, force_all_pages=False):
+    with _preview_update(owner):
+        _show_pdf_feed(owner, path, force_all_pages=force_all_pages)
+
+
+def _show_pdf_feed(owner, path, force_all_pages=False):
     if (getattr(owner, "current_preview_mode", None) == "pages"
             and _normalize_preview_path(getattr(owner, "current_pdf_path", None)) == _normalize_preview_path(path)):
         _save_pinned_preview_position(owner)
@@ -2044,6 +2071,11 @@ def show_file_preview(owner, path, *, force_refresh=False):
         if not confirm_preview_change(owner, path):
             return
 
+    with _preview_update(owner):
+        _show_file_preview(owner, path, force_refresh=force_refresh)
+
+
+def _show_file_preview(owner, path, *, force_refresh=False):
     _save_pinned_preview_position(owner)
     _prune_deleted_preview_tabs(owner)
 

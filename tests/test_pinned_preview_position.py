@@ -52,6 +52,31 @@ class PinnedPreviewPositionTests(unittest.TestCase):
         point = scroller.CalcUnscrolledPosition(panel.GetPosition())
         scroller.Scroll(point.x // 10, point.y // 10)
 
+    def test_file_switch_keeps_tabs_and_content_frozen_until_ready(self):
+        self.owner.preview_content_panel = self.frame
+        render = self.preview.get_pdf_page_previews
+        stages = []
+
+        def check_tabs(owner):
+            self.assertTrue(owner.preview_content_panel.IsFrozen())
+            stages.append("tabs")
+
+        def check_render(*args, **kwargs):
+            self.assertTrue(self.frame.IsFrozen())
+            stages.append("pages")
+            return render(*args, **kwargs)
+
+        with mock.patch.object(self.preview, "_render_preview_tab_bar", side_effect=check_tabs), \
+             mock.patch.object(self.preview, "get_pdf_page_previews", side_effect=check_render):
+            for path in self.paths:
+                self.preview.show_file_preview(self.owner, path)
+                self.assertFalse(self.frame.IsFrozen())
+                self.assertFalse(self.owner.pdf_pages_panel.IsFrozen())
+                self.assertEqual(self.owner.current_preview_mode, "pages")
+                self.assertEqual(len(self.owner.pdf_page_panels), 5)
+        self.assertIn("tabs", stages)
+        self.assertEqual(stages.count("pages"), 2)
+
     def test_round_trip_restores_each_documents_visible_page_in_both_orientations(self):
         for vertical in (False, True):
             with self.subTest(vertical=vertical):
