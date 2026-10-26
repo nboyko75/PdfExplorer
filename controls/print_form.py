@@ -444,17 +444,24 @@ def _export_excel_active_sheet(document_path):
             stack.callback(ole32.CoUninitialize)
             _, workbook = _get_running_print_office_document(
                 document_path, "Excel.Application", "Workbooks")
+            owned_workbook = workbook is None
             if workbook is None:
                 workbook = stack.enter_context(office_preview.preview_document(
                     win32_client, None, "Excel", document_path))
             # Workbook.ActiveSheet also works when another workbook has focus.
             sheet = workbook.ActiveSheet
+            if owned_workbook and not sheet.PageSetup.PrintArea:
+                # Some Excel installations load the saved defined name without
+                # applying it to PageSetup in a hidden automation session.
+                for name in sheet.Names:
+                    if name.Name.rsplit("!", 1)[-1].lower() == "print_area":
+                        sheet.PageSetup.PrintArea = name.RefersToRange.Address
+                        break
             layout = {"orientation": int(sheet.PageSetup.Orientation),
                       "paper_size": int(sheet.PageSetup.PaperSize)}
-            sheet.ExportAsFixedFormat(
-                Type=0, Filename=output, Quality=0, IncludeDocProperties=False,
-                IgnorePrintAreas=False, OpenAfterPublish=False,
-            )
+            # Omit page limits: export the complete active sheet, respecting its
+            # print area. Positional arguments work with dynamic COM dispatch.
+            sheet.ExportAsFixedFormat(0, output, 0, False, False)
         return output, layout
     except Exception:
         try:
@@ -891,7 +898,11 @@ def show_print_form(owner, document_path=None):
     printer_choice.SetStringSelection(default_printer)
 
     copies_label = wx.StaticText(panel, label=tr("print_copies_label"))
-    copies_spin = wx.SpinCtrl(panel, value="1", min=1, max=99)
+    try:
+        saved_copies = max(1, min(99, int(settings.get("print_form_copies", 1))))
+    except (TypeError, ValueError, OverflowError):
+        saved_copies = 1
+    copies_spin = wx.SpinCtrl(panel, value=str(saved_copies), min=1, max=99)
 
     duplex_label = wx.StaticText(panel, label=tr("print_duplex_label"))
     # Manual duplex is saved separately from the driver's simplex job setting.
@@ -1018,6 +1029,7 @@ def show_print_form(owner, document_path=None):
         page_text = pages_text.GetValue().strip()
         update_settings({
             "print_form_printer": selected_printer,
+            "print_form_copies": copies,
             "print_form_duplex_modes": duplex_modes,
             "print_form_multiple_pages": (
                 "mirrored_margins" if mirrored_margins else "usual"

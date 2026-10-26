@@ -22,7 +22,7 @@ class ExcelPrintTests(unittest.TestCase):
         self.pdf = Path(self.temp.name) / "sheet.pdf"
         self.layout = {"orientation": 2, "paper_size": 9}
         self.sheet = Mock()
-        self.sheet.PageSetup = SimpleNamespace(Orientation=2, PaperSize=9, LeftMargin=36,
+        self.sheet.PageSetup = SimpleNamespace(Orientation=2, PaperSize=9, LeftMargin=36, PrintArea="$A$1:$D$12",
                                                Zoom=False, FitToPagesWide=1, FitToPagesTall=0)
         self.workbook = Mock(ActiveSheet=self.sheet)
         self.app = Mock(Visible=True, DisplayAlerts=True)
@@ -41,12 +41,10 @@ class ExcelPrintTests(unittest.TestCase):
             document.save(path)
 
     def test_open_workbook_exports_only_its_active_sheet_and_preserves_user_state(self):
-        self.sheet.ExportAsFixedFormat.side_effect = lambda **kw: self.create_pdf(kw["Filename"])
+        self.sheet.ExportAsFixedFormat.side_effect = lambda *args: self.create_pdf(args[1])
         output, layout = print_form._export_excel_active_sheet(str(self.path))
         self.assertEqual(layout, self.layout)
-        self.sheet.ExportAsFixedFormat.assert_called_once_with(
-            Type=0, Filename=output, Quality=0, IncludeDocProperties=False,
-            IgnorePrintAreas=False, OpenAfterPublish=False)
+        self.sheet.ExportAsFixedFormat.assert_called_once_with(0, output, 0, False, False)
         self.workbook.ExportAsFixedFormat.assert_not_called()
         self.owned.assert_not_called()
         self.workbook.Close.assert_not_called()
@@ -73,7 +71,7 @@ class ExcelPrintTests(unittest.TestCase):
                 closed.append(True)
 
         self.owned.side_effect = session
-        self.sheet.ExportAsFixedFormat.side_effect = lambda **kw: self.create_pdf(kw["Filename"])
+        self.sheet.ExportAsFixedFormat.side_effect = lambda *args: self.create_pdf(args[1])
         print_form._export_excel_active_sheet(str(self.path))
         self.assertEqual(closed, [True])
         self.sheet.ExportAsFixedFormat.assert_called_once()
@@ -87,6 +85,15 @@ class ExcelPrintTests(unittest.TestCase):
         self.workbook.Close.assert_not_called()
         self.app.Quit.assert_not_called()
         self.com.CoUninitialize.assert_called_once()
+
+    def test_owned_sheet_restores_saved_print_area_if_excel_does_not_apply_it(self):
+        self.running.return_value = (None, None)
+        self.owned.return_value.__enter__.return_value = self.workbook
+        self.sheet.PageSetup.PrintArea = ""
+        self.sheet.Names = [SimpleNamespace(Name="'Active report'!Print_Area",
+                                            RefersToRange=SimpleNamespace(Address="$B$2:$F$20"))]
+        print_form._export_excel_active_sheet(str(self.path))
+        self.assertEqual(self.sheet.PageSetup.PrintArea, "$B$2:$F$20")
 
     def test_selected_pages_come_from_active_sheet_and_keep_layout(self):
         self.create_pdf(self.pdf)

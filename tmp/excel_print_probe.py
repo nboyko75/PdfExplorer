@@ -1,3 +1,4 @@
+"""Manual Excel/Windows integration check; prints only to a temporary PDF."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -32,11 +33,12 @@ try:
             app.Visible = False
             app.DisplayAlerts = False
             book = app.Workbooks.Add()
+            book.Worksheets.Add()
             first = book.Worksheets(1)
             first.Name = 'First sheet'
             first.Range('A1').Value = 'FIRST SHEET ONLY'
             first.PageSetup.Orientation = 1
-            second = book.Worksheets.Add(After=first)
+            second = book.Worksheets(2)
             second.Name = 'Active report'
             second.Activate()
             second.Range('A1').Value = 'ACTIVE SHEET REPORT'
@@ -55,13 +57,8 @@ try:
             setup.Zoom = 75
             second.Activate()
             book.SaveAs(str(source), FileFormat=51)
-            print('Sheets:', [(s.Name, s.Index, s.PageSetup.PrintArea) for s in book.Worksheets], flush=True)
-            from zipfile import ZipFile
-            from xml.etree import ElementTree as ET
-            with ZipFile(source) as archive:
-                xml = ET.fromstring(archive.read('xl/workbook.xml'))
-                print('Stored sheets:', [s.attrib for s in xml.findall('.//{*}sheet')], flush=True)
-                print('Stored names:', [(n.attrib, n.text) for n in xml.findall('.//{*}definedName')], flush=True)
+            assert second.Index == 2, second.Index
+            saved_bytes = source.read_bytes()
 
             # Unsaved selection in an open workbook takes priority over saved tab.
             first.Activate()
@@ -82,6 +79,7 @@ try:
             app.Quit()
 
         # Closed workbook uses the saved active second sheet and page setup.
+        assert source.read_bytes() == saved_bytes, 'Workbook changed during live export'
         with patch.object(print_form, '_get_print_temp_directory', return_value=str(root)):
             exported, layout = print_form._export_excel_active_sheet(str(source))
         with fitz.open(exported) as doc:

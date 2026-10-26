@@ -222,6 +222,28 @@ class PrinterPreferencesTests(unittest.TestCase):
                 with self.subTest(locale=locale, key=key):
                     self.assertTrue(translations[key])
 
+    def test_form_restores_copy_count_and_saves_edits_on_cancel(self):
+        app = wx.App.Get() or wx.App(False)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "document.pdf"
+            path.touch()
+            for saved, expected in ((7, 7), (None, 1), ("bad", 1), (0, 1), (200, 99)):
+                def modal(dialog):
+                    copies = next(child for child in dialog.GetChildren()[0].GetChildren()
+                                  if isinstance(child, wx.SpinCtrl))
+                    self.assertEqual(copies.GetValue(), expected)
+                    copies.SetValue(4)
+                    return wx.ID_CANCEL
+
+                with self.subTest(saved=saved), \
+                        patch.object(print_form, "load_settings", return_value={"print_form_copies": saved}), \
+                        patch.object(print_form, "_get_printer_names", return_value=["Printer One"]), \
+                        patch.object(print_form, "update_settings") as save, \
+                        patch.object(print_form, "_save_print_form_geometry"), \
+                        patch.object(wx.Dialog, "ShowModal", modal):
+                    self.assertFalse(print_form.show_print_form(None, str(path)))
+                    self.assertEqual(save.call_args.args[0]["print_form_copies"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()
