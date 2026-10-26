@@ -1,4 +1,4 @@
-"""Headless regression tests using real PDFs and a simulated shell handoff."""
+"""Headless regression tests using real PDFs and a simulated print backend."""
 import ast
 from contextlib import ExitStack
 import os
@@ -39,6 +39,8 @@ class PrintTempLifetimeTests(unittest.TestCase):
             '_PRINT_TEMP_MAX_AGE_SECONDS': 7 * 24 * 3600,
             'win32print': self.printer, 'win32api': object(), 'tr': lambda key: key,
             'office_preview': SimpleNamespace(can_preview_office=lambda path: False),
+            'pdf_utils': SimpleNamespace(EXCEL_OFFICE_EXTENSIONS={'.xls', '.xlsx', '.xlsm'}),
+            '_print_pdf_document': lambda path, printer, copies=1: self.launched.append((path, 'print')),
         }
         exec(compile(ast.Module(body=nodes, type_ignores=[]), 'print_form.py', 'exec'), self.env)
         self.addCleanup(patch.stopall)
@@ -56,7 +58,7 @@ class PrintTempLifetimeTests(unittest.TestCase):
             self.assertIn('Page three', doc[0].get_text())
             self.assertIn('Page one', doc[1].get_text())
         self.assertEqual(self.source.read_bytes(), self.original_bytes)
-        self.printer.SetDefaultPrinter.assert_called_with('Original printer')
+        self.printer.SetDefaultPrinter.assert_not_called()
 
     def test_cleanup_only_removes_old_owned_print_files(self):
         folder = Path(self.env['_get_print_temp_directory']())
@@ -110,7 +112,7 @@ class PrintTempLifetimeTests(unittest.TestCase):
                         self.assertGreater(red, 240)
                         self.assertLess(max(green, blue), 15)
                     self.assertEqual(image_path.read_bytes(), original)
-                    self.printer.SetDefaultPrinter.assert_called_with('Original printer')
+                    self.printer.SetDefaultPrinter.assert_not_called()
 
     def test_multipage_tiff_prints_all_or_selected_pages_in_order(self):
         image_path = Path(self.temp.name) / 'scan.tiff'

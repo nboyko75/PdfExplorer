@@ -191,6 +191,48 @@ class GeneratorTests(unittest.TestCase):
         variable.Value = json.dumps(rows)
         self.assertEqual(self.session.open(), rows)
 
+    def test_bookmark_edits_and_saves_stay_with_their_document(self):
+        documents = [self.document, Mock()]
+        sessions = []
+        for index, document in enumerate(documents):
+            source = Path(self.folder.name) / str(index) / 'same-name.docx'
+            source.parent.mkdir()
+            source.write_bytes(b'original document')
+            document.FullName = str(source)
+            document.ReadOnly = False
+            document.ProtectionType = -1
+            document.Variables.Count = 1
+            variable = document.Variables.Item.return_value
+            variable.Name = generator.STATE_VARIABLE
+            variable.Value = json.dumps([{'name': 'Customer', 'value': str(index)}])
+            document.Bookmarks.Exists.side_effect = lambda name: name == 'Customer'
+            self.app.Documents.Open.return_value = document
+            session = generator.DocumentGenerator(str(source))
+            self.assertEqual(session.open(), [{'name': 'Customer', 'value': str(index)}])
+            sessions.append(session)
+
+        # Editing the first form must still target its document when another
+        # document is active in Word, even with the same filename/bookmark.
+        self.app.ActiveDocument = documents[1]
+        edited = [{'name': 'Client', 'value': 'First file only', 'uid': True}]
+        sessions[0].update_rows(edited)
+        sessions[0].save_document()
+        documents[0].Bookmarks.Add.assert_called_once_with(
+            'Client', documents[0].Bookmarks.return_value.Range.Duplicate)
+        documents[1].Bookmarks.Add.assert_not_called()
+        documents[1].Bookmarks.return_value.Delete.assert_not_called()
+        documents[1].Save.assert_not_called()
+        self.assertEqual(sessions[1].snapshot(), [{'name': 'Customer', 'value': '1'}])
+
+        second = [{'name': 'Customer', 'value': 'Second file only'}]
+        sessions[1].update_rows(second)
+        sessions[1].save_document()
+        for session, document, expected in zip(sessions, documents, (edited, second)):
+            self.app.Documents.Open.return_value = document
+            reopened = generator.DocumentGenerator(session.source)
+            self.assertEqual(reopened.open(), expected)
+            document.Save.assert_called_once_with()
+
     def test_malformed_saved_fields_are_not_silently_discarded(self):
         self.document.Variables.Count = 1
         variable = self.document.Variables.Item.return_value

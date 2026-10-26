@@ -73,20 +73,20 @@ Changed the default language to English
 1.0.9.0
 
 Added new menu item and toolbar button “Create a document generator” for Word documents
-Fixed the preview pane: hidden Excel columns now collapse correctly, and older cached previews regenerate automatically
+
 Updated text buttons with rounded corners, blue borders, and a lighter blue hover state.
 
 Print form: 
  - Remembers the printer, page-selection mode, and page numbers, including after Cancel.
  - Added Print side selector
 
+Fixed the preview pane: hidden Excel columns now collapse correctly, and older cached previews regenerate automatically
 Fixed image printing: images now convert to a temporary PDF, resolving the “source or target not a PDF” error.
-
 Fixed an error in the filelist pane: invalid literal for int() with base 10.
-
-selected text inside a table bookmark can now become a linked value bookmark without an overlap error
-
-A UID checkbox beside each value allows one selection, saved with the document.
-Export filenames include the UID
-
 Fixed: cutting and pasting a file into another workspace now closes its preview in the source workspace
+
+1.0.10.0
+
+Print function:
+ - fixed printing
+ - printing active Worksheet with Excel print settings 

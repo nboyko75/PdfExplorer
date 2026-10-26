@@ -1,4 +1,6 @@
 import os
+import ctypes
+import subprocess
 import tempfile
 import time
 from contextlib import ExitStack
@@ -13,10 +15,12 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 try:
     import win32api  # type: ignore[import-not-found]
     import win32con  # type: ignore[import-not-found]
+    import win32gui  # type: ignore[import-not-found]
     import win32print  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - optional runtime dependency
     win32api = None
     win32con = None
+    win32gui = None
     win32print = None
 
 try:
@@ -422,6 +426,44 @@ def _get_printer_devmode(printer_handle):
     return devmode
 
 
+def _export_excel_active_sheet(document_path):
+    """Capture the active sheet and its layout without changing the workbook."""
+    if win32_client is None:
+        raise RuntimeError(tr("print_error_unavailable"))
+    fd, output = tempfile.mkstemp(prefix="pdfexplorer_print_", suffix=".pdf",
+                                  dir=_get_print_temp_directory())
+    os.close(fd)
+    try:
+        with ExitStack() as stack:
+            # Use Windows' reference-counted initialization directly. pywin32
+            # skips repeated initialization on its main thread, so pairing its
+            # calls here could disconnect an existing workbook's COM objects.
+            ole32 = ctypes.OleDLL("ole32")
+            ole32.CoUninitialize.restype = None
+            ole32.CoInitializeEx(None, 2)  # COINIT_APARTMENTTHREADED
+            stack.callback(ole32.CoUninitialize)
+            _, workbook = _get_running_print_office_document(
+                document_path, "Excel.Application", "Workbooks")
+            if workbook is None:
+                workbook = stack.enter_context(office_preview.preview_document(
+                    win32_client, None, "Excel", document_path))
+            # Workbook.ActiveSheet also works when another workbook has focus.
+            sheet = workbook.ActiveSheet
+            layout = {"orientation": int(sheet.PageSetup.Orientation),
+                      "paper_size": int(sheet.PageSetup.PaperSize)}
+            sheet.ExportAsFixedFormat(
+                Type=0, Filename=output, Quality=0, IncludeDocProperties=False,
+                IgnorePrintAreas=False, OpenAfterPublish=False,
+            )
+        return output, layout
+    except Exception:
+        try:
+            os.remove(output)
+        except OSError:
+            pass
+        raise
+
+
 def _create_mirrored_print_document(document_path, page_numbers=None):
     """Swap common horizontal margins on even pages in the requested print order.
 
@@ -555,11 +597,15 @@ def _create_manual_duplex_passes(document_path, page_numbers=None, copies=1):
         raise
 
 
-def _print_manual_duplex(document_path, printer_name, copies=1, page_numbers=None, duplex=2):
+def _print_manual_duplex(document_path, printer_name, copies=1, page_numbers=None, duplex=2,
+                         page_setup=None):
+    if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
+        document_path, page_setup = _export_excel_active_sheet(document_path)
+    layout_options = {"page_setup": page_setup} if page_setup is not None else {}
     fronts, backs = _create_manual_duplex_passes(document_path, page_numbers, copies)
     # Keep both jobs simplex. Restoring automatic duplex immediately after a
     # shell handoff would race the asynchronous PDF viewer.
-    _print_with_selected_printer(fronts, printer_name, copies=1, duplex=1)
+    _print_with_selected_printer(fronts, printer_name, copies=1, duplex=1, **layout_options)
     if backs is not None:
         instruction = tr("print_manual_reload_long" if duplex == 2 else "print_manual_reload_short")
         result = wx.MessageBox(
@@ -568,7 +614,7 @@ def _print_manual_duplex(document_path, printer_name, copies=1, page_numbers=Non
         )
         if result != wx.OK:
             return None
-        _print_with_selected_printer(backs, printer_name, copies=1, duplex=1)
+        _print_with_selected_printer(backs, printer_name, copies=1, duplex=1, **layout_options)
     return printer_name
 
 
@@ -618,7 +664,88 @@ def _set_printer_duplex(printer_name, duplex):
         win32print.ClosePrinter(handle)
 
 
-def _print_with_selected_printer(document_path, printer_name, copies=1, page_numbers=None, duplex=None):
+def _print_pdf_document(document_path, printer_name, copies=1, page_setup=None):
+    """Render pages into a Windows print job without an external PDF viewer."""
+    from PIL import Image, ImageWin
+
+    if fitz is None or win32gui is None:
+        raise RuntimeError(tr("print_error_unavailable"))
+
+    with fitz.open(document_path) as document:
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            devmode = _get_printer_devmode(handle)
+            if devmode is None:
+                raise RuntimeError(tr("print_parameters_error"))
+            # Repeat pages ourselves so copies also work with simplex drivers.
+            devmode.Copies = 1
+            devmode.Fields |= win32con.DM_COPIES
+            if page_setup is not None:
+                devmode.Orientation = page_setup["orientation"]
+                devmode.PaperSize = page_setup["paper_size"]
+                # A saved custom paper length/width must not override Excel's size.
+                devmode.Fields &= ~(win32con.DM_PAPERLENGTH | win32con.DM_PAPERWIDTH)
+                devmode.Fields |= win32con.DM_ORIENTATION | win32con.DM_PAPERSIZE
+                result = win32print.DocumentProperties(
+                    0, handle, printer_name, devmode, devmode,
+                    win32con.DM_IN_BUFFER | win32con.DM_OUT_BUFFER,
+                )
+                if (result != win32con.IDOK or devmode.Orientation != page_setup["orientation"]
+                        or devmode.PaperSize != page_setup["paper_size"]):
+                    raise RuntimeError(tr("print_parameters_error"))
+            dc = win32gui.CreateDC("WINSPOOL", printer_name, devmode)
+        finally:
+            win32print.ClosePrinter(handle)
+
+        started = False
+        try:
+            width = win32print.GetDeviceCaps(dc, win32con.HORZRES)
+            height = win32print.GetDeviceCaps(dc, win32con.VERTRES)
+            dpi_x = win32print.GetDeviceCaps(dc, win32con.LOGPIXELSX)
+            dpi_y = win32print.GetDeviceCaps(dc, win32con.LOGPIXELSY)
+            if min(width, height, dpi_x, dpi_y) <= 0:
+                raise RuntimeError(tr("print_parameters_error"))
+            win32print.StartDoc(dc, (os.path.basename(document_path), None, None, 0))
+            started = True
+            for _ in range(max(1, int(copies))):
+                for page in document:
+                    scale = min(1.0, width * 72 / (page.rect.width * dpi_x),
+                                height * 72 / (page.rect.height * dpi_y))
+                    target_width = max(1, round(page.rect.width * dpi_x / 72 * scale))
+                    target_height = max(1, round(page.rect.height * dpi_y / 72 * scale))
+                    left = (width - target_width) // 2
+                    top = (height - target_height) // 2
+                    if page_setup is not None:
+                        # Excel has already applied margins and Zoom/FitToPages.
+                        # Preserve its physical layout, including hardware offsets,
+                        # instead of shrinking it a second time to the printable area.
+                        target_width = max(1, round(page.rect.width * dpi_x / 72))
+                        target_height = max(1, round(page.rect.height * dpi_y / 72))
+                        left = -win32print.GetDeviceCaps(dc, win32con.PHYSICALOFFSETX)
+                        top = -win32print.GetDeviceCaps(dc, win32con.PHYSICALOFFSETY)
+                    # Bound raster memory while retaining print-quality detail.
+                    render_scale = min(300 / 72, 4096 / max(page.rect.width, page.rect.height))
+                    pixmap = page.get_pixmap(matrix=fitz.Matrix(render_scale, render_scale),
+                                             colorspace=fitz.csRGB, alpha=False)
+                    with Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples) as bitmap:
+                        win32print.StartPage(dc)
+                        ImageWin.Dib(bitmap).draw(dc, (left, top, left + target_width, top + target_height))
+                        win32print.EndPage(dc)
+            win32print.EndDoc(dc)
+            started = False
+        except Exception:
+            if started:
+                try:
+                    win32print.AbortDoc(dc)
+                except Exception:
+                    pass  # Preserve the original submission/rendering error.
+            raise
+        finally:
+            win32gui.DeleteDC(dc)
+
+
+def _print_with_selected_printer(document_path, printer_name, copies=1, page_numbers=None, duplex=None,
+                                 page_setup=None):
     if not isinstance(document_path, str) or not document_path or not os.path.exists(document_path):
         raise FileNotFoundError(document_path)
 
@@ -632,20 +759,27 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
     if duplex is not None:
         _set_printer_duplex(selected_printer, duplex)
 
-    if page_numbers and office_preview.can_preview_office(document_path):
-        _print_office_document_pages(document_path, selected_printer, copies=copies, page_numbers=page_numbers)
-        return selected_printer
+    if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
+        document_path, page_setup = _export_excel_active_sheet(document_path)
+    elif office_preview.can_preview_office(document_path):
+        page_count = office_preview.get_office_document_page_count(document_path)
+        if page_count < 1:
+            raise ValueError(tr("export_pdf_page_numbers_invalid"))
+        # Use the same complete export as manual duplex, avoiding Office's
+        # application-specific ActivePrinter names and asynchronous shell verbs.
+        document_path = office_preview.convert_office_to_preview_pdf(document_path, max_pages=page_count)
 
     print_target = document_path
-    if page_numbers or os.path.splitext(document_path)[1].lower() in IMAGE_EXTENSIONS:
+    if page_numbers is not None or os.path.splitext(document_path)[1].lower() in IMAGE_EXTENSIONS:
         if fitz is None:
             raise ValueError(tr("print_error_unavailable"))
 
         print_target = _create_print_subset(document_path, page_numbers)
 
-    original_default = win32print.GetDefaultPrinter()
-    try:
-        win32print.SetDefaultPrinter(selected_printer)
+    if os.path.splitext(print_target)[1].lower() == ".pdf":
+        layout_options = {"page_setup": page_setup} if page_setup is not None else {}
+        _print_pdf_document(print_target, selected_printer, copies=copies, **layout_options)
+    else:
         if copies > 1 or duplex is not None:
             current_printer = win32print.OpenPrinter(selected_printer)
             try:
@@ -656,12 +790,10 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
                     win32print.SetPrinter(current_printer, 9, {"pDevMode": devmode}, 0)
             finally:
                 win32print.ClosePrinter(current_printer)
-        os.startfile(print_target, "print")
-    finally:
-        try:
-            win32print.SetDefaultPrinter(original_default)
-        except Exception:
-            pass
+        # Pass the printer explicitly; changing the default around an asynchronous
+        # shell launch races the receiving application.
+        win32api.ShellExecute(0, "printto", print_target,
+                              subprocess.list2cmdline([selected_printer]), ".", 0)
 
     return selected_printer
 
@@ -900,28 +1032,25 @@ def show_print_form(owner, document_path=None):
     if result != wx.ID_OK:
         return False
 
-    selected_page_numbers = None
-    if is_selected_pages:
-        if not page_text:
-            wx.MessageBox(tr("export_pdf_page_numbers_invalid"), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
-            return False
-        try:
-            selected_page_numbers = _parse_page_numbers_input(page_text, _get_document_page_count(document_path))
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
-            return False
     try:
+        layout_options = {}
+        if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
+            document_path, page_setup = _export_excel_active_sheet(document_path)
+            layout_options["page_setup"] = page_setup
+        selected_page_numbers = None
+        if is_selected_pages:
+            selected_page_numbers = _parse_page_numbers_input(page_text, _get_document_page_count(document_path))
         if mirrored_margins and duplex in (2, 3):
             document_path = _create_mirrored_print_document(document_path, selected_page_numbers)
             selected_page_numbers = None  # Selection and parity are already applied.
         if duplex in (2, 3):
             printer_name = _print_manual_duplex(document_path, selected_printer, copies=copies,
-                                               page_numbers=selected_page_numbers, duplex=duplex)
+                                               page_numbers=selected_page_numbers, duplex=duplex, **layout_options)
             if printer_name is None:
                 return False
         else:
             printer_name = _print_with_selected_printer(document_path, selected_printer, copies=copies,
-                                                       page_numbers=selected_page_numbers, duplex=1)
+                                                       page_numbers=selected_page_numbers, duplex=1, **layout_options)
         wx.MessageBox(tr("print_status_success", printer=printer_name), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
         return True
     except Exception as exc:

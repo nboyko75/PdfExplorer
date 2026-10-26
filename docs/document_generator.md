@@ -75,7 +75,10 @@ the user's Word security settings are restored afterwards.
    generator open without creating an output file.
 
 Rows and values are stored in Word document variables, including in legacy
-`.doc` files. Word's normal Save command persists applied fields. To reopen the
+`.doc` files. Each file keeps its own bookmark names, replacement values, links
+and UID selection. Editing or saving one generator does not change another
+document, even when both use the same bookmark names.
+Word's normal Save command persists applied fields. To reopen the
 form, run the generator command again in DocExplorer. Other documents opened in
 the same Word instance remain open when the generator exits.
 

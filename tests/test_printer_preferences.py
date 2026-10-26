@@ -123,7 +123,7 @@ class PrinterPreferencesTests(unittest.TestCase):
         self.printer.SetPrinter.assert_not_called()
         self.printer.ClosePrinter.assert_called_once_with("Printer One")
 
-    def test_duplex_applied_before_shell_and_office_handoff(self):
+    def test_duplex_applied_before_pdf_and_office_handoff(self):
         def check_preferences(*args, **kwargs):
             self.assertEqual(self.saved["Printer One"].Duplex, 3)
 
@@ -131,16 +131,19 @@ class PrinterPreferencesTests(unittest.TestCase):
             path = Path(folder) / "document.pdf"
             path.touch()
             with patch.object(print_form, "win32api", object()), \
-                    patch.object(print_form.os, "startfile", side_effect=check_preferences) as shell, \
-                    patch.object(print_form.office_preview, "can_preview_office", return_value=True), \
-                    patch.object(print_form, "_print_office_document_pages", side_effect=check_preferences) as office:
+                    patch.object(print_form, "_print_pdf_document", side_effect=check_preferences) as pdf, \
+                    patch.object(print_form.office_preview, "can_preview_office", return_value=False) as is_office, \
+                    patch.object(print_form.office_preview, "get_office_document_page_count", return_value=1), \
+                    patch.object(print_form.office_preview, "convert_office_to_preview_pdf", return_value=str(path)) as office, \
+                    patch.object(print_form, "_create_print_subset", return_value=str(path)):
                 for copies in (2, 1):
                     print_form._print_with_selected_printer(str(path), "Printer One", copies=copies, duplex=3)
-                    self.assertEqual(self.saved["Printer One"].Copies, copies)
+                    self.assertEqual(pdf.call_args.kwargs["copies"], copies)
                 self.saved.clear()
+                is_office.return_value = True
                 print_form._print_with_selected_printer(str(path), "Printer One", page_numbers=[0], duplex=3)
-                self.assertEqual(shell.call_count, 2)
-                office.assert_called_once()
+                self.assertEqual(pdf.call_count, 3)
+                office.assert_called_once_with(str(path), max_pages=1)
 
     def test_form_preserves_manual_duplex_independently_of_driver_parameters(self):
         app = wx.App.Get() or wx.App(False)

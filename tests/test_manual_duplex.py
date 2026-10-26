@@ -95,8 +95,8 @@ class ManualDuplexTests(unittest.TestCase):
         with patch.object(print_form.office_preview, "can_preview_office", return_value=True), \
                 patch.object(print_form.office_preview, "get_office_document_page_count", return_value=5), \
                 patch.object(print_form.office_preview, "convert_office_to_preview_pdf", return_value=str(self.path)) as convert:
-            print_form._print_manual_duplex("document.xlsx", "Printer One")
-            convert.assert_called_once_with("document.xlsx", max_pages=5)
+            print_form._print_manual_duplex("document.docx", "Printer One")
+            convert.assert_called_once_with("document.docx", max_pages=5)
         self.assertEqual(self.jobs, [["1", "3", "5"], ["2", "4", ""]])
 
     def test_multipage_image_is_split_into_pdf_passes(self):
