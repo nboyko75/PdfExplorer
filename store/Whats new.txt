@@ -90,14 +90,19 @@ Fixed: cutting and pasting a file into another workspace now closes its preview 
 Print function:
  - fixed printing
  - printing active Worksheet with Excel print settings 
+ - The print form is now modeless, with printing handled in the background. 
+ - Users can keep working in the app, including during manual duplex reload waits.
+ - Print success now appears in the file list pane for 3 seconds
+ - Print form closes after all pages are submitted.
+ - Page-turning instructions appear in a separate OK/Cancel window.
  
-Implemented “Selected N files” at the bottom of the file list for 3 seconds after multiselection
+Implemented “Selected N files” message at the bottom of the file list for 3 seconds after multiselection
 
 Import from files:
  - Browse supports multiple files.
  - Files import sequentially, including mixed PDFs and images.
  - An editable list lets you adjust import order 
  
-The print form is now modeless, with printing handled in the background. 
-Users can keep working in the app, including during manual duplex reload waits.
-Print success now appears in the file list pane for 3 seconds
+
+
+

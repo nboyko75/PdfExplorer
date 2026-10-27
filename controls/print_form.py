@@ -1118,6 +1118,7 @@ def show_print_form(owner, document_path=None):
     update_page_range_visibility()
 
     job = None
+    reload_dialog = None
     closed = False
     timer = wx.Timer(dialog)
     inputs = (printer_choice, copies_spin, duplex_choice, multiple_pages_choice,
@@ -1152,9 +1153,51 @@ def show_print_form(owner, document_path=None):
                     copies=copies, duplex=duplex, mirrored_margins=mirrored_margins,
                     is_selected_pages=is_selected_pages, page_text=page_text)
 
+    def close_reload_dialog():
+        nonlocal reload_dialog
+        if reload_dialog:
+            reload_dialog.Destroy()
+        reload_dialog = None
+
+    def show_reload_dialog(message):
+        nonlocal reload_dialog
+        if reload_dialog:
+            reload_dialog.Raise()
+            return
+        reload_dialog = wx.Dialog(dialog, title=tr("print_manual_title"))
+        message_label = wx.StaticText(reload_dialog, label=message)
+        message_label.Wrap(reload_dialog.FromDIP(480))
+        icon = wx.StaticBitmap(reload_dialog, bitmap=wx.ArtProvider.GetBitmap(
+            wx.ART_INFORMATION, wx.ART_MESSAGE_BOX))
+        message_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        message_sizer.Add(icon, 0, wx.RIGHT, 12)
+        message_sizer.Add(message_label, 1)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(message_sizer, 1, wx.EXPAND | wx.ALL, 16)
+        sizer.Add(reload_dialog.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL),
+                  0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
+        reload_dialog.SetSizerAndFit(sizer)
+        reload_dialog.FindWindow(wx.ID_OK).SetDefault()
+        reload_dialog.CentreOnParent()
+
+        def on_resume(_event):
+            if closed or job is None or reload_dialog is None:
+                return
+            close_reload_dialog()
+            try:
+                job.resume()
+            except OSError as exc:
+                finish(tr("print_error_title") + ": " + str(exc))
+
+        reload_dialog.Bind(wx.EVT_BUTTON, on_resume, id=wx.ID_OK)
+        reload_dialog.Bind(wx.EVT_BUTTON, on_close, id=wx.ID_CANCEL)
+        reload_dialog.Bind(wx.EVT_CLOSE, on_close)
+        reload_dialog.Show()
+
     def finish(message):
         nonlocal job
         timer.Stop()
+        close_reload_dialog()
         job.close()
         job = None
         for control in inputs:
@@ -1170,23 +1213,7 @@ def show_print_form(owner, document_path=None):
             return
         for kind, message in job.poll():
             if kind == "reload":
-                # The message box runs a nested event loop; pause polling until
-                # the user confirms that the sheets have been turned over.
-                timer.Stop()
-                result = wx.MessageBox(message, tr("print_manual_title"),
-                                       style=wx.OK | wx.CANCEL | wx.ICON_INFORMATION,
-                                       parent=dialog)
-                if closed or job is None:
-                    return
-                if result != wx.OK:
-                    on_close(None)
-                    return
-                try:
-                    job.resume()
-                except OSError as exc:
-                    finish(tr("print_error_title") + ": " + str(exc))
-                    return
-                timer.Start(100)
+                show_reload_dialog(message)
             elif kind == "error":
                 finish(tr("print_error_title") + ": " + message)
                 return
@@ -1220,6 +1247,7 @@ def show_print_form(owner, document_path=None):
             return
         closed = True
         timer.Stop()
+        close_reload_dialog()
         if job is not None:
             job.close()
             job = None

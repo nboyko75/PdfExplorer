@@ -117,37 +117,65 @@ class ModelessPrintTests(unittest.TestCase):
         self.assertEqual(self.start_job.call_count, 2)
         self.assertEqual(self.job.close.call_count, 2)
 
-    def test_manual_reload_message_window_resumes_only_after_ok(self):
+    def open_reload_window(self):
         click(self.dialog, wx.ID_OK)
+        self.job.poll.return_value = [("reload", "Reload the sheets")]
+        self.wait_until(lambda: any(isinstance(child, wx.Dialog)
+                                   for child in self.dialog.GetChildren()))
+        self.job.poll.return_value = []
+        return next(child for child in self.dialog.GetChildren() if isinstance(child, wx.Dialog))
 
-        def confirm(message, title, style, parent):
-            self.assertEqual(message, "Reload the sheets")
-            self.assertEqual(title, tr("print_manual_title"))
-            self.assertTrue(style & wx.CANCEL)
-            self.assertIs(parent, self.dialog)
-            self.job.resume.assert_not_called()
-            self.assertTrue(self.dialog)
-            self.assertFalse(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
-            return wx.OK
-
-        self.job.poll.side_effect = [[("reload", "Reload the sheets")], [], [("done", "Printer")]]
-        with patch.object(wx, "MessageBox", side_effect=confirm) as message_box:
-            self.wait_until(lambda: self.job.resume.called)
-        message_box.assert_called_once()
+    def test_manual_reload_message_window_resumes_only_after_ok(self):
+        prompt = self.open_reload_window()
+        self.assertFalse(prompt.IsModal())
+        self.assertTrue(prompt.IsShown())
+        self.assertEqual(prompt.GetTitle(), tr("print_manual_title"))
+        self.assertTrue(any(isinstance(child, wx.StaticText) and child.GetLabel() == "Reload the sheets"
+                            for child in prompt.GetChildren()))
+        self.assertTrue(self.owner.IsEnabled())
+        self.assertTrue(self.dialog.IsEnabled())
+        received = []
+        wx.CallAfter(received.append, "app remains responsive")
+        self.wait_until(lambda: bool(received))
+        self.job.resume.assert_not_called()
+        click(prompt, wx.ID_OK)
+        self.wait_until(lambda: not prompt)
         self.job.resume.assert_called_once()
         self.assertTrue(self.owner.IsEnabled())
         self.assertFalse(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
+        self.job.poll.return_value = [("done", "Printer")]
         self.wait_until(lambda: not self.dialog)
         self.job.close.assert_called_once()
 
     def test_cancelling_reload_message_closes_form_without_printing_backs(self):
-        click(self.dialog, wx.ID_OK)
-        self.job.poll.return_value = [("reload", "Reload the sheets")]
-        with patch.object(wx, "MessageBox", return_value=wx.CANCEL):
-            self.wait_until(lambda: not self.dialog)
+        prompt = self.open_reload_window()
+        click(prompt, wx.ID_CANCEL)
+        self.wait_until(lambda: not self.dialog and not prompt)
         self.job.resume.assert_not_called()
         self.job.close.assert_called_once()
         self.assertFalse(self.owner.list_selection_hint.IsShown())
+
+    def test_closing_reload_window_cancels_remaining_printing(self):
+        prompt = self.open_reload_window()
+        prompt.Close()
+        self.wait_until(lambda: not self.dialog and not prompt)
+        self.job.resume.assert_not_called()
+        self.job.close.assert_called_once()
+
+    def test_closing_print_form_also_closes_reload_window(self):
+        prompt = self.open_reload_window()
+        self.dialog.Close()
+        self.wait_until(lambda: not self.dialog and not prompt)
+        self.job.resume.assert_not_called()
+        self.job.close.assert_called_once()
+
+    def test_worker_error_closes_reload_window_and_allows_retry(self):
+        prompt = self.open_reload_window()
+        self.job.poll.return_value = [("error", "Printer offline")]
+        self.wait_until(lambda: not prompt)
+        self.assertTrue(self.has_status("Printer offline"))
+        self.assertTrue(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
+        self.job.resume.assert_not_called()
 
     def test_cancel_command_detaches_job_and_destroys_modeless_dialog(self):
         click(self.dialog, wx.ID_OK)
@@ -158,9 +186,10 @@ class ModelessPrintTests(unittest.TestCase):
         self.job.resume.assert_not_called()
 
     def test_owner_destruction_detaches_job(self):
-        click(self.dialog, wx.ID_OK)
+        prompt = self.open_reload_window()
         self.dialog.Destroy()  # Child dialogs also receive this on owner shutdown.
         self.pump_events()
+        self.assertFalse(prompt)
         self.job.close.assert_called_once()
 
 
