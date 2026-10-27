@@ -65,6 +65,7 @@ TRANSLATIONS = {
     "folder_up_button": "上のフォルダー",
     "exit_button": "終了",
     "search_hint": "検索...",
+    "selected_files_hint": "{count} 個のファイルを選択しました",
     "filter_label": "フィルター",
     "search_in_files_button": "ファイル内検索",
     "search_in_files_dialog_title": "ファイル内検索",

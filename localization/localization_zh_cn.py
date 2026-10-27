@@ -65,6 +65,7 @@ TRANSLATIONS = {
     "folder_up_button": "上级文件夹",
     "exit_button": "退出",
     "search_hint": "搜索...",
+    "selected_files_hint": "已选择 {count} 个文件",
     "filter_label": "筛选",
     "search_in_files_button": "搜索文件",
     "search_in_files_dialog_title": "搜索文件",

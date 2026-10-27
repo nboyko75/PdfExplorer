@@ -789,6 +789,9 @@ class ExplorerWorkspace(wx.Panel):
             self.search_box.SetHint(tr("search_hint"))
         if hasattr(self, "filter_label"):
             self.filter_label.SetLabel(tr("filter_label"))
+        selection_hint = getattr(self, "list_selection_hint", None)
+        if selection_hint and selection_hint.IsShown():
+            filelist.update_list_selection_hint(self)
         self.hidden_chk.SetLabel(tr("show_hidden_checkbox"))
         if hasattr(self, "menu_bar") and self.menu_bar is not None:
             for index, key in enumerate(("menu_file", "menu_navigation", "menu_document", "menu_help")):

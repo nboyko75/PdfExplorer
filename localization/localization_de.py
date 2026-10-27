@@ -76,6 +76,7 @@ TRANSLATIONS = {
     "folder_up_button": "Ordner hoch",
     "exit_button": "Beenden",
     "search_hint": "Suchen...",
+    "selected_files_hint": "{count} Dateien ausgewählt",
     "filter_label": "Filter",
     "search_in_files_button": "In Dateien suchen",
     "search_in_files_dialog_title": "In Dateien suchen",

@@ -65,6 +65,7 @@ TRANSLATIONS = {
     "folder_up_button": "상위 폴더",
     "exit_button": "종료",
     "search_hint": "검색...",
+    "selected_files_hint": "파일 {count}개 선택됨",
     "filter_label": "필터",
     "search_in_files_button": "파일 검색",
     "search_in_files_dialog_title": "파일 검색",

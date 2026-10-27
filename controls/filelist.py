@@ -232,9 +232,13 @@ def build_list_panel(owner, parent_splitter):
     owner.list.InsertColumn(3, tr("modified_column"), width=180)
     image_utils.init_list_images(owner)
 
+    owner.list_selection_hint = wx.StaticText(owner.list_host_panel, label="")
+    owner.list_selection_hint.Hide()
+
     list_host_sizer = wx.BoxSizer(wx.VERTICAL)
     list_host_sizer.Add(owner.list_toolbar, 0, wx.EXPAND | wx.ALL, 4)
     list_host_sizer.Add(owner.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+    list_host_sizer.Add(owner.list_selection_hint, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
     owner.list_host_panel.SetSizer(list_host_sizer)
 
     update_list_toolbar_buttons(owner)
@@ -257,6 +261,8 @@ def bind_list_events(owner):
     owner.list.Bind(wx.EVT_RIGHT_DOWN, owner.on_right_click)
     owner.list.Bind(wx.EVT_LIST_COL_CLICK, owner.on_list_column_click)
     owner.list.Bind(wx.EVT_LIST_BEGIN_DRAG, owner.on_list_begin_drag)
+    owner.list.Bind(wx.EVT_LIST_DELETE_ALL_ITEMS, lambda event: _on_list_cleared(owner, event))
+    owner.list.Bind(wx.EVT_WINDOW_DESTROY, lambda event: _on_list_destroy(owner, event))
 
     context_factory = lambda: build_list_command_context(owner, source="toolbar")
     bind_command(owner.list_scan_btn, owner, FILE_COMMANDS["scan"], wx.EVT_BUTTON, context_factory)
@@ -433,6 +439,49 @@ def select_list_item_by_path(owner, path):
     return False
 
 
+def hide_list_selection_hint(owner):
+    pending = getattr(owner, "_list_selection_hint_timer", None)
+    if pending is not None:
+        pending.Stop()
+        owner._list_selection_hint_timer = None
+    hint = getattr(owner, "list_selection_hint", None)
+    if hint and hint.IsShown():
+        hint.Hide()
+        owner.list_host_panel.Layout()
+
+
+def update_list_selection_hint(owner):
+    hint = getattr(owner, "list_selection_hint", None)
+    if not hint:
+        return
+    count = owner.list.GetSelectedItemCount()
+    if count <= 1:
+        hide_list_selection_hint(owner)
+        return
+    pending = getattr(owner, "_list_selection_hint_timer", None)
+    if pending is not None:
+        pending.Stop()
+    hint.SetLabel(tr("selected_files_hint", count=count))
+    hint.Show()
+    owner.list_host_panel.Layout()
+    owner._list_selection_hint_timer = wx.CallLater(3000, hide_list_selection_hint, owner)
+
+
+def _on_list_cleared(owner, event):
+    hide_list_selection_hint(owner)
+    event.Skip()
+
+
+def _on_list_destroy(owner, event):
+    if event.GetEventObject() is owner.list:
+        for name in ("_list_selection_state_update", "_list_selection_hint_timer"):
+            pending = getattr(owner, name, None)
+            if pending is not None:
+                pending.Stop()
+                setattr(owner, name, None)
+    event.Skip()
+
+
 def _schedule_list_selection_state_update(owner, delay_ms=40):
     """Coalesce the event burst produced by Ctrl/Shift range selection."""
     pending = getattr(owner, "_list_selection_state_update", None)
@@ -448,6 +497,7 @@ def _schedule_list_selection_state_update(owner, delay_ms=40):
         update_main_menu = getattr(owner, "_update_main_menu_state", None)
         if callable(update_main_menu):
             update_main_menu()
+        update_list_selection_hint(owner)
 
     owner._list_selection_state_update = wx.CallLater(
         max(1, int(delay_ms)),

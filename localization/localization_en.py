@@ -20,6 +20,7 @@ TRANSLATIONS = {
     "folder_up_button": "Folder up",
     "exit_button": "Exit",
     "search_hint": "Search...",
+    "selected_files_hint": "Selected {count} files",
     "filter_label": "Filter",
     "search_in_files_button": "Search in files",
     "search_in_files_dialog_title": "Search in files",

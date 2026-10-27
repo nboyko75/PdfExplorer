@@ -76,6 +76,7 @@ TRANSLATIONS = {
     "folder_up_button": "Dossier parent",
     "exit_button": "Quitter",
     "search_hint": "Rechercher...",
+    "selected_files_hint": "Fichiers sélectionnés : {count}",
     "filter_label": "Filtrer",
     "search_in_files_button": "Rechercher dans les fichiers",
     "search_in_files_dialog_title": "Rechercher dans les fichiers",

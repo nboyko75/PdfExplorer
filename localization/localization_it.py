@@ -76,6 +76,7 @@ TRANSLATIONS = {
     "folder_up_button": "Cartella superiore",
     "exit_button": "Esci",
     "search_hint": "Cerca...",
+    "selected_files_hint": "File selezionati: {count}",
     "filter_label": "Filtra",
     "search_in_files_button": "Cerca nei file",
     "search_in_files_dialog_title": "Cerca nei file",

@@ -76,6 +76,7 @@ TRANSLATIONS = {
     "folder_up_button": "На уровень вверх",
     "exit_button": "Выход",
     "search_hint": "Поиск...",
+    "selected_files_hint": "Выбрано файлов: {count}",
     "filter_label": "Фильтр",
     "search_in_files_button": "Поиск в файлах",
     "search_in_files_dialog_title": "Поиск в файлах",
