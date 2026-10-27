@@ -1118,7 +1118,6 @@ def show_print_form(owner, document_path=None):
     update_page_range_visibility()
 
     job = None
-    waiting_for_reload = False
     closed = False
     timer = wx.Timer(dialog)
     inputs = (printer_choice, copies_spin, duplex_choice, multiple_pages_choice,
@@ -1154,11 +1153,10 @@ def show_print_form(owner, document_path=None):
                     is_selected_pages=is_selected_pages, page_text=page_text)
 
     def finish(message):
-        nonlocal job, waiting_for_reload
+        nonlocal job
         timer.Stop()
         job.close()
         job = None
-        waiting_for_reload = False
         for control in inputs:
             control.Enable()
         update_multiple_pages_enabled()
@@ -1168,36 +1166,40 @@ def show_print_form(owner, document_path=None):
         set_status(message)
 
     def poll_job(_event):
-        nonlocal waiting_for_reload
         if closed or job is None:
             return
         for kind, message in job.poll():
             if kind == "reload":
-                waiting_for_reload = True
-                set_status(message)
-                button_ok.SetLabel(tr("ok_button"))
-                button_ok.Enable()
-                button_cancel.SetLabel(tr("print_cancel_button"))
-            elif kind == "error":
-                finish(tr("print_error_title") + ": " + message)
-            elif kind == "done":
-                finish("")
-                if message:
-                    from controls.filelist import show_list_hint
-                    show_list_hint(owner, tr("print_status_success", printer=message))
-
-    def on_print(_event):
-        nonlocal job, waiting_for_reload
-        if job is not None:
-            if waiting_for_reload:
-                waiting_for_reload = False
-                button_ok.Disable()
-                button_cancel.SetLabel(tr("print_close_button"))
-                set_status(tr("print_status_submitting"))
+                # The message box runs a nested event loop; pause polling until
+                # the user confirms that the sheets have been turned over.
+                timer.Stop()
+                result = wx.MessageBox(message, tr("print_manual_title"),
+                                       style=wx.OK | wx.CANCEL | wx.ICON_INFORMATION,
+                                       parent=dialog)
+                if closed or job is None:
+                    return
+                if result != wx.OK:
+                    on_close(None)
+                    return
                 try:
                     job.resume()
                 except OSError as exc:
                     finish(tr("print_error_title") + ": " + str(exc))
+                    return
+                timer.Start(100)
+            elif kind == "error":
+                finish(tr("print_error_title") + ": " + message)
+                return
+            elif kind == "done":
+                if message:
+                    from controls.filelist import show_list_hint
+                    show_list_hint(owner, tr("print_status_success", printer=message))
+                on_close(None)
+                return
+
+    def on_print(_event):
+        nonlocal job
+        if job is not None:
             return
         try:
             request = save_options()

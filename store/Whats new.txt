@@ -100,3 +100,4 @@ Import from files:
  
 The print form is now modeless, with printing handled in the background. 
 Users can keep working in the app, including during manual duplex reload waits.
+Print success now appears in the file list pane for 3 seconds

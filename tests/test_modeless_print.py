@@ -106,27 +106,48 @@ class ModelessPrintTests(unittest.TestCase):
             if kind == "error":
                 self.wait_until(lambda: self.has_status(expected))
                 self.assertFalse(self.owner.list_selection_hint.IsShown())
+                self.assertTrue(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
             else:
                 hint = self.owner.list_selection_hint
                 self.wait_until(lambda: hint.IsShown() and hint.GetLabel() == expected)
-                self.assertFalse(self.has_status(expected))
+                self.wait_until(lambda: not self.dialog)
                 self.assertEqual(self.owner._list_selection_hint_timer.GetInterval(), 3000)
                 self.wait_until(lambda: not hint.IsShown(), timeout=5)
-            self.assertTrue(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
             self.assertTrue(self.owner.IsEnabled())
         self.assertEqual(self.start_job.call_count, 2)
         self.assertEqual(self.job.close.call_count, 2)
 
-    def test_manual_reload_waits_for_explicit_ok_without_blocking_app(self):
+    def test_manual_reload_message_window_resumes_only_after_ok(self):
         click(self.dialog, wx.ID_OK)
-        self.job.poll.side_effect = [[("reload", "Reload the sheets")], []]
-        self.wait_until(lambda: self.has_status("Reload the sheets"))
-        self.job.resume.assert_not_called()
-        self.assertTrue(self.owner.IsEnabled())
-        self.assertEqual(self.dialog.FindWindow(wx.ID_OK).GetLabel(), tr("ok_button"))
-        click(self.dialog, wx.ID_OK)
+
+        def confirm(message, title, style, parent):
+            self.assertEqual(message, "Reload the sheets")
+            self.assertEqual(title, tr("print_manual_title"))
+            self.assertTrue(style & wx.CANCEL)
+            self.assertIs(parent, self.dialog)
+            self.job.resume.assert_not_called()
+            self.assertTrue(self.dialog)
+            self.assertFalse(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
+            return wx.OK
+
+        self.job.poll.side_effect = [[("reload", "Reload the sheets")], [], [("done", "Printer")]]
+        with patch.object(wx, "MessageBox", side_effect=confirm) as message_box:
+            self.wait_until(lambda: self.job.resume.called)
+        message_box.assert_called_once()
         self.job.resume.assert_called_once()
+        self.assertTrue(self.owner.IsEnabled())
         self.assertFalse(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
+        self.wait_until(lambda: not self.dialog)
+        self.job.close.assert_called_once()
+
+    def test_cancelling_reload_message_closes_form_without_printing_backs(self):
+        click(self.dialog, wx.ID_OK)
+        self.job.poll.return_value = [("reload", "Reload the sheets")]
+        with patch.object(wx, "MessageBox", return_value=wx.CANCEL):
+            self.wait_until(lambda: not self.dialog)
+        self.job.resume.assert_not_called()
+        self.job.close.assert_called_once()
+        self.assertFalse(self.owner.list_selection_hint.IsShown())
 
     def test_cancel_command_detaches_job_and_destroys_modeless_dialog(self):
         click(self.dialog, wx.ID_OK)

@@ -2523,7 +2523,9 @@ def _show_import_pdf_dialog(owner, page_count):
     panel = wx.Panel(dialog)
 
     source_label = wx.StaticText(panel, label=tr("import_pdf_source_label"))
-    source_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(420, 90))
+    source_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
+    border_height = source_text.GetSize().height - source_text.GetClientSize().height
+    source_text.SetMinSize((420, source_text.GetCharHeight() * 3 + border_height))
     browse_btn = wx.Button(panel, label=tr("import_pdf_browse_button"))
 
     def browse_for_pdf(_):
