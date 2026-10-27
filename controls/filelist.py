@@ -450,6 +450,20 @@ def hide_list_selection_hint(owner):
         owner.list_host_panel.Layout()
 
 
+def show_list_hint(owner, message):
+    """Show a temporary message below the file list for three seconds."""
+    hint = getattr(owner, "list_selection_hint", None)
+    if not hint:
+        return
+    pending = getattr(owner, "_list_selection_hint_timer", None)
+    if pending is not None:
+        pending.Stop()
+    hint.SetLabel(message)
+    hint.Show()
+    owner.list_host_panel.Layout()
+    owner._list_selection_hint_timer = wx.CallLater(3000, hide_list_selection_hint, owner)
+
+
 def update_list_selection_hint(owner):
     hint = getattr(owner, "list_selection_hint", None)
     if not hint:
@@ -458,13 +472,7 @@ def update_list_selection_hint(owner):
     if count <= 1:
         hide_list_selection_hint(owner)
         return
-    pending = getattr(owner, "_list_selection_hint_timer", None)
-    if pending is not None:
-        pending.Stop()
-    hint.SetLabel(tr("selected_files_hint", count=count))
-    hint.Show()
-    owner.list_host_panel.Layout()
-    owner._list_selection_hint_timer = wx.CallLater(3000, hide_list_selection_hint, owner)
+    show_list_hint(owner, tr("selected_files_hint", count=count))
 
 
 def _on_list_cleared(owner, event):

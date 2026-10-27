@@ -47,12 +47,16 @@ class ModelessPrintTests(unittest.TestCase):
         Path(self.path).touch()
         self.owner = wx.Frame(None)
         self.addCleanup(self.owner.Destroy)
+        self.owner.list_host_panel = wx.Panel(self.owner)
+        self.owner.list_selection_hint = wx.StaticText(self.owner.list_host_panel, label="")
+        self.owner.list_selection_hint.Hide()
         self.stack.enter_context(patch.object(print_form, "_get_printer_names", return_value=["Printer"]))
         self.stack.enter_context(patch.object(print_form, "_get_printer_duplex", return_value=1))
         self.stack.enter_context(patch.object(print_form, "load_settings", return_value={}))
         self.stack.enter_context(patch.object(print_form, "update_settings"))
         self.stack.enter_context(patch.object(print_form, "_save_print_form_geometry"))
         self.stack.enter_context(patch.object(wx.Dialog, "ShowModal", side_effect=AssertionError("Modal UI")))
+        self.stack.enter_context(patch.object(wx, "MessageBox", side_effect=AssertionError("Message box")))
         self.job = Mock()
         self.job.poll.return_value = []
         self.start_job = self.stack.enter_context(patch.object(print_form, "_PrintJob", return_value=self.job))
@@ -60,6 +64,8 @@ class ModelessPrintTests(unittest.TestCase):
         self.addCleanup(self.close_dialog)
 
     def close_dialog(self):
+        from controls.filelist import hide_list_selection_hint
+        hide_list_selection_hint(self.owner)
         if self.dialog:
             self.dialog.Close()
             self.pump_events()
@@ -68,8 +74,8 @@ class ModelessPrintTests(unittest.TestCase):
         wx.CallLater(20, self.app.ExitMainLoop)
         self.app.MainLoop()
 
-    def wait_until(self, predicate):
-        deadline = time.monotonic() + 3
+    def wait_until(self, predicate, timeout=3):
+        deadline = time.monotonic() + timeout
         while not predicate() and time.monotonic() < deadline:
             self.pump_events()
         self.assertTrue(predicate())
@@ -92,12 +98,20 @@ class ModelessPrintTests(unittest.TestCase):
         wx.CallAfter(received.append, "app remains responsive")
         self.wait_until(lambda: bool(received))
 
-    def test_success_and_errors_are_reported_in_form_and_allow_retry(self):
+    def test_success_uses_three_second_list_hint_and_errors_stay_in_form(self):
         for kind, message in (("error", "Spooler failed"), ("done", "Printer")):
             click(self.dialog, wx.ID_OK)
             self.job.poll.return_value = [(kind, message)]
             expected = message if kind == "error" else tr("print_status_success", printer=message)
-            self.wait_until(lambda: self.has_status(expected))
+            if kind == "error":
+                self.wait_until(lambda: self.has_status(expected))
+                self.assertFalse(self.owner.list_selection_hint.IsShown())
+            else:
+                hint = self.owner.list_selection_hint
+                self.wait_until(lambda: hint.IsShown() and hint.GetLabel() == expected)
+                self.assertFalse(self.has_status(expected))
+                self.assertEqual(self.owner._list_selection_hint_timer.GetInterval(), 3000)
+                self.wait_until(lambda: not hint.IsShown(), timeout=5)
             self.assertTrue(self.dialog.FindWindow(wx.ID_OK).IsEnabled())
             self.assertTrue(self.owner.IsEnabled())
         self.assertEqual(self.start_job.call_count, 2)

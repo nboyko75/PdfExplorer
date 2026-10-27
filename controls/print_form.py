@@ -1181,7 +1181,10 @@ def show_print_form(owner, document_path=None):
             elif kind == "error":
                 finish(tr("print_error_title") + ": " + message)
             elif kind == "done":
-                finish(tr("print_status_success", printer=message) if message else "")
+                finish("")
+                if message:
+                    from controls.filelist import show_list_hint
+                    show_list_hint(owner, tr("print_status_success", printer=message))
 
     def on_print(_event):
         nonlocal job, waiting_for_reload
