@@ -1,3 +1,9 @@
+import multiprocessing
+
+if __name__ == "__main__":
+    # Dispatch frozen print workers before creating UI or checking the license.
+    multiprocessing.freeze_support()
+
 import ntpath
 import os
 import sys

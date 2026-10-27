@@ -129,9 +129,15 @@ class ManualDuplexTests(unittest.TestCase):
                         patch.object(print_form, "_save_print_form_geometry"), \
                         patch.object(print_form, "_print_manual_duplex", return_value=None) as manual, \
                         patch.object(print_form, "_print_with_selected_printer", return_value="Printer One") as direct, \
-                        patch.object(wx.Dialog, "ShowModal", modal), \
+                        patch.object(print_form, "_PrintJob") as job, \
                         patch.object(wx, "MessageBox") as message:
-                    result = print_form.show_print_form(None, str(self.path))
+                    dialog = print_form.show_print_form(None, str(self.path))
+                    try:
+                        modal(dialog)
+                        dialog.ProcessWindowEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId, wx.ID_OK))
+                        result = print_form._execute_print_request(**job.call_args.args[0])
+                    finally:
+                        dialog.Close()
                     self.assertEqual(save.call_args.args[0]["print_form_duplex_modes"]["Printer One"], mode)
                     if mode == 1:
                         self.assertTrue(result)
@@ -142,7 +148,7 @@ class ManualDuplexTests(unittest.TestCase):
                         # Cancellation between passes must not report success.
                         self.assertFalse(result)
                         manual.assert_called_once_with(str(self.path), "Printer One", copies=1,
-                                                       page_numbers=None, duplex=mode)
+                                                       page_numbers=None, duplex=mode, confirm_reload=None)
                         direct.assert_not_called()
                         message.assert_not_called()
 

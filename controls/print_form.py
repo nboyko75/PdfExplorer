@@ -1,7 +1,9 @@
 import os
 import ctypes
+import multiprocessing
 import subprocess
 import tempfile
+import threading
 import time
 from contextlib import ExitStack
 
@@ -34,7 +36,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     win32_client = None
 
 from file_operations.image_utils import IMAGE_EXTENSIONS
-from localization import tr
+from localization import tr, TRANSLATIONS
 from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 import file_operations.office_preview as office_preview
 import file_operations.pdf_utils as pdf_utils
@@ -605,7 +607,7 @@ def _create_manual_duplex_passes(document_path, page_numbers=None, copies=1):
 
 
 def _print_manual_duplex(document_path, printer_name, copies=1, page_numbers=None, duplex=2,
-                         page_setup=None):
+                         page_setup=None, confirm_reload=None):
     if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
         document_path, page_setup = _export_excel_active_sheet(document_path)
     layout_options = {"page_setup": page_setup} if page_setup is not None else {}
@@ -615,11 +617,11 @@ def _print_manual_duplex(document_path, printer_name, copies=1, page_numbers=Non
     _print_with_selected_printer(fronts, printer_name, copies=1, duplex=1, **layout_options)
     if backs is not None:
         instruction = tr("print_manual_reload_long" if duplex == 2 else "print_manual_reload_short")
-        result = wx.MessageBox(
-            tr("print_manual_reload", binding=instruction), tr("print_manual_title"),
-            style=wx.OK | wx.CANCEL | wx.ICON_INFORMATION,
-        )
-        if result != wx.OK:
+        message = tr("print_manual_reload", binding=instruction)
+        confirmed = (confirm_reload(message) if confirm_reload is not None else
+                     wx.MessageBox(message, tr("print_manual_title"),
+                                   style=wx.OK | wx.CANCEL | wx.ICON_INFORMATION) == wx.OK)
+        if not confirmed:
             return None
         _print_with_selected_printer(backs, printer_name, copies=1, duplex=1, **layout_options)
     return printer_name
@@ -863,6 +865,100 @@ def _apply_print_form_geometry(dialog, settings=None):
     )
 
 
+def _execute_print_request(document_path, selected_printer, copies=1, duplex=1,
+                           mirrored_margins=False, is_selected_pages=False, page_text="",
+                           confirm_reload=None):
+    """Prepare and submit one immutable set of form options without accessing UI."""
+    layout_options = {}
+    if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
+        document_path, page_setup = _export_excel_active_sheet(document_path)
+        layout_options["page_setup"] = page_setup
+    selected_page_numbers = None
+    if is_selected_pages:
+        selected_page_numbers = _parse_page_numbers_input(page_text, _get_document_page_count(document_path))
+    if mirrored_margins and duplex in (2, 3):
+        document_path = _create_mirrored_print_document(document_path, selected_page_numbers)
+        selected_page_numbers = None
+    if duplex in (2, 3):
+        return _print_manual_duplex(document_path, selected_printer, copies=copies,
+                                    page_numbers=selected_page_numbers, duplex=duplex,
+                                    confirm_reload=confirm_reload, **layout_options)
+    return _print_with_selected_printer(document_path, selected_printer, copies=copies,
+                                        page_numbers=selected_page_numbers, duplex=1, **layout_options)
+
+
+def _print_worker(connection, request, translations):
+    """Each process owns its PDF/COM objects; only plain data crosses the pipe."""
+    TRANSLATIONS.update(translations)
+
+    def confirm_reload(message):
+        try:
+            connection.send(("reload", message))
+            return connection.recv() is True
+        except (EOFError, OSError):
+            return False  # Closing the form cancels the remaining duplex pass.
+
+    try:
+        result = _execute_print_request(**request, confirm_reload=confirm_reload)
+        connection.send(("done", result))
+    except Exception as exc:
+        try:
+            connection.send(("error", str(exc)))
+        except OSError:
+            pass  # The form may have closed while the job was being submitted.
+    finally:
+        connection.close()
+
+
+class _PrintJob:
+    def __init__(self, request):
+        context = multiprocessing.get_context("spawn")
+        self.connection, child_connection = context.Pipe()
+        self.process = context.Process(target=_print_worker,
+                                       args=(child_connection, request, dict(TRANSLATIONS)))
+        self.finished = False
+        try:
+            self.process.start()
+        except Exception:
+            self.connection.close()
+            self.process.close()
+            raise
+        finally:
+            child_connection.close()
+
+    def poll(self):
+        messages = []
+        try:
+            while self.connection.poll():
+                message = self.connection.recv()
+                messages.append(message)
+                if message[0] in ("done", "error"):
+                    self.finished = True
+        except (EOFError, OSError):
+            if not self.finished:
+                messages.append(("error", tr("print_worker_stopped")))
+                self.finished = True
+        if not messages and not self.finished and not self.process.is_alive():
+            messages.append(("error", tr("print_worker_stopped")))
+            self.finished = True
+        return messages
+
+    def resume(self):
+        self.connection.send(True)
+
+    def close(self):
+        self.connection.close()
+        # Do not terminate a process submitting a printer job, or wait in wx's
+        # event loop. EOF also releases a worker waiting for duplex confirmation.
+        process = self.process
+
+        def reap():
+            process.join()
+            process.close()
+
+        threading.Thread(target=reap, name="print-job-cleanup", daemon=True).start()
+
+
 def show_print_form(owner, document_path=None):
     if document_path is None:
         document_path = getattr(owner, "current_preview_path", None)
@@ -970,6 +1066,7 @@ def show_print_form(owner, document_path=None):
     button_ok.SetDefault()
     button_parameters = wx.Button(panel, wx.ID_ANY, tr("print_parameters_button"))
     button_cancel = wx.Button(panel, wx.ID_CANCEL, tr("print_cancel_button"))
+    status = wx.StaticText(panel, label="")
 
     def on_printer_parameters(_event=None):
         selected_printer = printer_names[printer_choice.GetSelection()] if printer_choice.GetSelection() >= 0 else default_printer
@@ -1006,6 +1103,7 @@ def show_print_form(owner, document_path=None):
 
     root_sizer = wx.BoxSizer(wx.VERTICAL)
     root_sizer.Add(fields, 1, wx.EXPAND | wx.ALL, 12)
+    root_sizer.Add(status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     panel.SetSizer(root_sizer)
 
@@ -1019,8 +1117,21 @@ def show_print_form(owner, document_path=None):
     dialog.SetMinSize(dialog.GetBestSize())
     update_page_range_visibility()
 
-    try:
-        result = dialog.ShowModal()
+    job = None
+    waiting_for_reload = False
+    closed = False
+    timer = wx.Timer(dialog)
+    inputs = (printer_choice, copies_spin, duplex_choice, multiple_pages_choice,
+              range_choice, pages_text, button_parameters)
+
+    def set_status(message):
+        status.SetLabel(message)
+        status.Wrap(max(200, panel.GetClientSize().width - 24))
+        dialog.SetMinSize(dialog.GetBestSize())
+        panel.Layout()
+        dialog.Layout()
+
+    def save_options():
         selected_printer = printer_choice.GetStringSelection() or default_printer
         copies = max(1, int(copies_spin.GetValue()))
         duplex = duplex_choice.GetSelection() + 1
@@ -1038,34 +1149,93 @@ def show_print_form(owner, document_path=None):
             "print_form_page_range": "selection" if is_selected_pages else "all",
             "print_form_page_numbers": page_text,
         })
-    finally:
+        return dict(document_path=document_path, selected_printer=selected_printer,
+                    copies=copies, duplex=duplex, mirrored_margins=mirrored_margins,
+                    is_selected_pages=is_selected_pages, page_text=page_text)
+
+    def finish(message):
+        nonlocal job, waiting_for_reload
+        timer.Stop()
+        job.close()
+        job = None
+        waiting_for_reload = False
+        for control in inputs:
+            control.Enable()
+        update_multiple_pages_enabled()
+        button_ok.SetLabel(tr("print_button"))
+        button_ok.Enable()
+        button_cancel.SetLabel(tr("print_close_button"))
+        set_status(message)
+
+    def poll_job(_event):
+        nonlocal waiting_for_reload
+        if closed or job is None:
+            return
+        for kind, message in job.poll():
+            if kind == "reload":
+                waiting_for_reload = True
+                set_status(message)
+                button_ok.SetLabel(tr("ok_button"))
+                button_ok.Enable()
+                button_cancel.SetLabel(tr("print_cancel_button"))
+            elif kind == "error":
+                finish(tr("print_error_title") + ": " + message)
+            elif kind == "done":
+                finish(tr("print_status_success", printer=message) if message else "")
+
+    def on_print(_event):
+        nonlocal job, waiting_for_reload
+        if job is not None:
+            if waiting_for_reload:
+                waiting_for_reload = False
+                button_ok.Disable()
+                button_cancel.SetLabel(tr("print_close_button"))
+                set_status(tr("print_status_submitting"))
+                try:
+                    job.resume()
+                except OSError as exc:
+                    finish(tr("print_error_title") + ": " + str(exc))
+            return
+        try:
+            request = save_options()
+            job = _PrintJob(request)
+        except Exception as exc:
+            set_status(tr("print_error_title") + ": " + str(exc))
+            return
+        for control in inputs:
+            control.Disable()
+        button_ok.Disable()
+        button_cancel.SetLabel(tr("print_close_button"))
+        set_status(tr("print_status_submitting"))
+        timer.Start(100)
+
+    def cleanup():
+        nonlocal closed, job
+        if closed:
+            return
+        closed = True
+        timer.Stop()
+        if job is not None:
+            job.close()
+            job = None
+
+    def on_close(_event):
+        save_options()
         _save_print_form_geometry(dialog)
+        cleanup()
         dialog.Destroy()
 
-    if result != wx.ID_OK:
-        return False
+    dialog_id = dialog.GetId()
 
-    try:
-        layout_options = {}
-        if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
-            document_path, page_setup = _export_excel_active_sheet(document_path)
-            layout_options["page_setup"] = page_setup
-        selected_page_numbers = None
-        if is_selected_pages:
-            selected_page_numbers = _parse_page_numbers_input(page_text, _get_document_page_count(document_path))
-        if mirrored_margins and duplex in (2, 3):
-            document_path = _create_mirrored_print_document(document_path, selected_page_numbers)
-            selected_page_numbers = None  # Selection and parity are already applied.
-        if duplex in (2, 3):
-            printer_name = _print_manual_duplex(document_path, selected_printer, copies=copies,
-                                               page_numbers=selected_page_numbers, duplex=duplex, **layout_options)
-            if printer_name is None:
-                return False
-        else:
-            printer_name = _print_with_selected_printer(document_path, selected_printer, copies=copies,
-                                                       page_numbers=selected_page_numbers, duplex=1, **layout_options)
-        wx.MessageBox(tr("print_status_success", printer=printer_name), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
-        return True
-    except Exception as exc:
-        wx.MessageBox(str(exc), tr("print_error_title"), style=wx.OK | wx.ICON_ERROR)
-        return False
+    def on_destroy(event):
+        if event.GetId() == dialog_id:
+            cleanup()
+        event.Skip()
+
+    dialog.Bind(wx.EVT_BUTTON, on_print, id=wx.ID_OK)
+    dialog.Bind(wx.EVT_BUTTON, on_close, id=wx.ID_CANCEL)
+    dialog.Bind(wx.EVT_CLOSE, on_close)
+    dialog.Bind(wx.EVT_WINDOW_DESTROY, on_destroy)
+    dialog.Bind(wx.EVT_TIMER, poll_job, timer)
+    dialog.Show()
+    return dialog

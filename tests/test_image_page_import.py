@@ -3,6 +3,9 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from contextlib import nullcontext
+from types import SimpleNamespace
+from unittest import mock
 
 import fitz
 from PIL import Image, ImageDraw
@@ -83,6 +86,41 @@ class ImagePageImportTests(unittest.TestCase):
                 with Image.open(io.BytesIO(extracted["image"])) as image:
                     with image.convert("RGB") as pixels:
                         self.assertEqual(pixels.getpixel((0, 0)), (shade, shade, shade))
+
+    def test_multiple_files_keep_order_at_each_destination(self):
+        from controls import file_preview
+
+        first = self.directory / "z-first.pdf"
+        last = self.directory / "a-last.pdf"
+        for path, labels in ((first, ("First 1", "First 2")), (last, ("Last",))):
+            with fitz.open() as document:
+                for label in labels:
+                    document.new_page().insert_text((72, 72), label)
+                document.save(path)
+        image_path = self.directory / "middle.tiff"
+        with Image.new("RGB", (80, 90), "red") as one, Image.new("RGB", (100, 120), "blue") as two:
+            one.save(image_path, save_all=True, append_images=[two])
+
+        owner = SimpleNamespace(current_preview_path=self.target, busy_cursor=nullcontext)
+        for insert_at in (0, 1, 2):
+            with self.subTest(insert_at=insert_at):
+                pdf_utils.discard_pdf_changes(self.target)
+                with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
+                     mock.patch.object(file_preview, "_show_import_pdf_dialog", return_value={
+                         "source_paths": [str(first), str(image_path), str(last)],
+                         "insert_at_index": insert_at,
+                     }), \
+                     mock.patch.object(file_preview, "show_pdf_feed"), \
+                     mock.patch.object(file_preview, "update_pdf_save_button_state"), \
+                     mock.patch.object(file_preview.wx, "MessageBox") as error:
+                    file_preview.on_preview_import_from_file(SimpleNamespace())
+                error.assert_not_called()
+                with pdf_utils._open_pdf_document(self.target) as document:
+                    expected = ["Before", "After"]
+                    expected[insert_at:insert_at] = ["First 1", "First 2", "", "", "Last"]
+                    self.assertEqual([page.get_text().strip() for page in document], expected)
+                    self.assertEqual(document[insert_at + 2].get_images()[0][2:4], (80, 90))
+                    self.assertEqual(document[insert_at + 3].get_images()[0][2:4], (100, 120))
 
 
 if __name__ == "__main__":

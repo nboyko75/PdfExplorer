@@ -1993,7 +1993,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_load_all_btn.Enable.assert_any_call(False)
 
     def test_import_from_file_imports_all_selected_files_in_sequence(self):
-        file_preview = _import_file_preview_with_mocked_wx()
+        file_preview = importlib.import_module("controls.file_preview")
         owner = types.SimpleNamespace(
             current_preview_path="target.pdf",
             busy_cursor=lambda: file_preview.nullcontext(),
@@ -2002,33 +2002,55 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         with mock.patch.object(file_preview, "_get_preview_owner_from_event", return_value=owner), \
              mock.patch.object(file_preview, "is_pdf_file", return_value=True), \
              mock.patch.object(file_preview, "_show_import_pdf_dialog", return_value={
-                 "source_paths": ["first.pdf", "second.pdf"],
+                 "source_paths": ["z-first.pdf", "a-second.pdf"],
                  "insert_at_index": 2,
              }), \
-             mock.patch.object(file_preview, "get_pdf_page_count", side_effect=[10, 3, 5]), \
+             mock.patch.object(file_preview, "get_pdf_page_count", side_effect=[10, 13, 18]) as mocked_count, \
              mock.patch.object(file_preview, "show_pdf_feed") as mocked_show_pdf_feed, \
              mock.patch.object(file_preview, "update_pdf_save_button_state") as mocked_update_save, \
              mock.patch.object(file_preview, "import_pdf_pages") as mocked_import:
             file_preview.on_preview_import_from_file(types.SimpleNamespace())
 
         self.assertEqual(mocked_import.call_args_list, [
-            mock.call("target.pdf", "first.pdf", 2),
-            mock.call("target.pdf", "second.pdf", 5),
+            mock.call("target.pdf", "z-first.pdf", 2),
+            mock.call("target.pdf", "a-second.pdf", 5),
         ])
+        self.assertEqual(mocked_count.call_args_list, [mock.call("target.pdf")] * 3)
         mocked_show_pdf_feed.assert_called_once_with(owner, "target.pdf")
         mocked_update_save.assert_called_once_with(owner)
 
-    def test_import_dialog_wildcard_includes_image_extensions(self):
-        file_preview = _import_file_preview_with_mocked_wx()
+    def test_import_dialog_preserves_picker_order_and_reads_controls_before_destroy(self):
+        file_preview = importlib.import_module("controls.file_preview")
+        picker = mock.MagicMock()
+        picker.ShowModal.return_value = wx.ID_OK
+        paths = [r"C:\scans\z first.pdf", r"C:\scans\a; second.tiff"]
+        picker.GetPaths.return_value = paths
         dialog = mock.MagicMock()
-        dialog.ShowModal.return_value = wx.ID_OK
-        created_dialogs = []
+        source = mock.MagicMock()
+        browse = mock.MagicMock()
+        destroyed = False
 
-        def fake_file_dialog(*args, **kwargs):
-            created_dialogs.append(kwargs)
-            return dialog
+        def show_dialog():
+            browse.Bind.call_args.args[1](None)
+            return wx.ID_OK
 
-        with mock.patch.object(file_preview.wx, "FileDialog", side_effect=fake_file_dialog), \
+        def read_source():
+            self.assertFalse(destroyed)
+            return source.SetValue.call_args.args[0]
+
+        def destroy_dialog():
+            nonlocal destroyed
+            destroyed = True
+
+        dialog.ShowModal.side_effect = show_dialog
+        dialog.Destroy.side_effect = destroy_dialog
+        source.GetValue.side_effect = read_source
+
+        with mock.patch.object(file_preview.wx, "ID_OK", wx.ID_OK), \
+             mock.patch.object(file_preview.wx, "FD_OPEN", wx.FD_OPEN), \
+             mock.patch.object(file_preview.wx, "FD_FILE_MUST_EXIST", wx.FD_FILE_MUST_EXIST), \
+             mock.patch.object(file_preview.wx, "FD_MULTIPLE", wx.FD_MULTIPLE), \
+             mock.patch.object(file_preview.wx, "FileDialog", return_value=picker) as create_picker, \
              mock.patch.object(file_preview, "_build_pdf_import_destination_controls", return_value={
                  "sizer": mock.MagicMock(),
                  "at_begin": mock.MagicMock(GetValue=lambda: True),
@@ -2036,16 +2058,22 @@ class FilePreviewManualZoomTests(unittest.TestCase):
                  "at_end": mock.MagicMock(GetValue=lambda: False),
                  "page_number": mock.MagicMock(GetValue=lambda: 1),
              }), \
-             mock.patch.object(file_preview.wx, "Dialog", return_value=mock.MagicMock()), \
+             mock.patch.object(file_preview.wx, "Dialog", return_value=dialog), \
+             mock.patch.object(file_preview.wx, "Panel", return_value=mock.MagicMock()), \
              mock.patch.object(file_preview.wx, "StaticText", return_value=mock.MagicMock()), \
-             mock.patch.object(file_preview.wx, "TextCtrl", return_value=mock.MagicMock(GetValue=lambda: "")), \
-             mock.patch.object(file_preview.wx, "Button", return_value=mock.MagicMock()), \
+             mock.patch.object(file_preview.wx, "TextCtrl", return_value=source), \
+             mock.patch.object(file_preview.wx, "Button", return_value=browse), \
              mock.patch.object(file_preview.wx, "BoxSizer", return_value=mock.MagicMock()), \
-             mock.patch.object(file_preview, "persistent_dialog", return_value=file_preview.nullcontext(mock.MagicMock(ShowModal=lambda: wx.ID_OK))), \
+             mock.patch.object(file_preview, "_restore_dialog_geometry"), \
+             mock.patch.object(file_preview, "_save_dialog_geometry"), \
              mock.patch.object(file_preview, "create_ok_cancel_row", return_value=(mock.MagicMock(), mock.MagicMock(), mock.MagicMock())):
-            file_preview._show_import_pdf_dialog(types.SimpleNamespace(), 1)
+            result = file_preview._show_import_pdf_dialog(types.SimpleNamespace(), 1)
 
-        wildcard = created_dialogs[0]["wildcard"]
+        self.assertEqual(result, {"source_paths": paths, "insert_at_index": 0})
+        self.assertTrue(destroyed)
+        picker.Destroy.assert_called_once()
+        self.assertTrue(create_picker.call_args.kwargs["style"] & wx.FD_MULTIPLE)
+        wildcard = create_picker.call_args.kwargs["wildcard"]
         self.assertIn("*.png", wildcard)
         self.assertIn("*.jpg", wildcard)
         self.assertIn("*.pdf", wildcard)

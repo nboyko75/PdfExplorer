@@ -142,8 +142,7 @@ class ExcelPrintTests(unittest.TestCase):
             printer.SetPrinter.assert_not_called()
             printer.EndDoc.assert_called_once()
 
-    def test_form_validates_pages_against_active_sheet_and_preserves_layout(self):
-        app = wx.App.Get() or wx.App(False)
+    def test_request_validates_pages_against_active_sheet_and_preserves_layout(self):
         self.create_pdf(self.pdf)
         for duplex in (1, 2):
             for page_text in ("3", "4"):
@@ -158,19 +157,21 @@ class ExcelPrintTests(unittest.TestCase):
                         patch.object(print_form, "_get_printer_names", return_value=["Printer"]), \
                         patch.object(print_form, "_export_excel_active_sheet", return_value=(str(self.pdf), self.layout)) as export, \
                         patch.object(print_form, "_print_with_selected_printer", return_value="Printer") as direct, \
-                        patch.object(print_form, "_print_manual_duplex", return_value="Printer") as manual, \
-                        patch.object(wx.Dialog, "ShowModal", return_value=wx.ID_OK), \
-                        patch.object(wx, "MessageBox"):
-                    result = print_form.show_print_form(None, str(self.path))
-                    export.assert_called_once()
+                        patch.object(print_form, "_print_manual_duplex", return_value="Printer") as manual:
+                    request = dict(document_path=str(self.path), selected_printer="Printer",
+                                   duplex=duplex, mirrored_margins=True,
+                                   is_selected_pages=True, page_text=page_text)
                     if page_text == "4":
-                        self.assertFalse(result)
+                        with self.assertRaises(ValueError):
+                            print_form._execute_print_request(**request)
                         direct.assert_not_called()
                         manual.assert_not_called()
                     else:
+                        result = print_form._execute_print_request(**request)
                         self.assertTrue(result)
                         backend = direct if duplex == 1 else manual
                         self.assertEqual(backend.call_args.kwargs["page_setup"], self.layout)
+                    export.assert_called_once()
 
 
 if __name__ == "__main__":

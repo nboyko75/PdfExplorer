@@ -166,8 +166,14 @@ class MirroredMarginsTests(unittest.TestCase):
                         patch.object(print_form, "_save_print_form_geometry"), \
                         patch.object(print_form, "_print_manual_duplex", return_value="Printer One") as manual, \
                         patch.object(print_form, "_print_with_selected_printer", return_value="Printer One") as direct, \
-                        patch.object(wx.Dialog, "ShowModal", modal), patch.object(wx, "MessageBox"):
-                    self.assertTrue(print_form.show_print_form(None, str(self.path)))
+                        patch.object(print_form, "_PrintJob") as job, patch.object(wx, "MessageBox"):
+                    dialog = print_form.show_print_form(None, str(self.path))
+                    try:
+                        modal(dialog)
+                        dialog.ProcessWindowEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId, wx.ID_OK))
+                        self.assertTrue(print_form._execute_print_request(**job.call_args.args[0]))
+                    finally:
+                        dialog.Close()
                     handoff = direct if duplex == 1 else manual
                     unused = manual if duplex == 1 else direct
                     unused.assert_not_called()

@@ -2523,7 +2523,7 @@ def _show_import_pdf_dialog(owner, page_count):
     panel = wx.Panel(dialog)
 
     source_label = wx.StaticText(panel, label=tr("import_pdf_source_label"))
-    source_text = wx.TextCtrl(panel)
+    source_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE, size=(420, 90))
     browse_btn = wx.Button(panel, label=tr("import_pdf_browse_button"))
 
     def browse_for_pdf(_):
@@ -2537,11 +2537,14 @@ def _show_import_pdf_dialog(owner, page_count):
                 f"All supported files ({image_pattern_text};*.pdf)|{image_pattern_text};*.pdf|"
                 f"PDF files (*.pdf)|*.pdf|Image files ({image_pattern_text})|{image_pattern_text}"
             ),
-            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE,
         )
-        if file_dialog.ShowModal() == wx.ID_OK:
-            source_text.SetValue(file_dialog.GetPath())
-        file_dialog.Destroy()
+        try:
+            if file_dialog.ShowModal() == wx.ID_OK:
+                # Keep the picker order; one path per line also allows editing it.
+                source_text.SetValue("\n".join(file_dialog.GetPaths()))
+        finally:
+            file_dialog.Destroy()
 
     browse_btn.Bind(wx.EVT_BUTTON, browse_for_pdf)
 
@@ -2570,25 +2573,24 @@ def _show_import_pdf_dialog(owner, page_count):
     dialog.SetSizerAndFit(dialog_sizer)
 
     with persistent_dialog(dialog, "import_pdf_dialog_size") as modal_dialog:
-        result = modal_dialog.ShowModal()
+        if modal_dialog.ShowModal() != wx.ID_OK:
+            return None
 
-    if result != wx.ID_OK:
-        return None
+        # Read controls while the dialog is alive: persistent_dialog destroys it.
+        source_paths = [path.strip() for path in source_text.GetValue().splitlines() if path.strip()]
+        if not source_paths:
+            wx.MessageBox(tr("import_pdf_source_required"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+            return None
 
-    source_path = source_text.GetValue().strip()
-    if not source_path:
-        wx.MessageBox(tr("import_pdf_source_required"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-        return None
-
-    if at_begin_radio.GetValue():
-        insert_at_index = 0
-    elif after_page_radio.GetValue():
-        insert_at_index = page_number_spin.GetValue()
-    else:
-        insert_at_index = page_count
+        if at_begin_radio.GetValue():
+            insert_at_index = 0
+        elif after_page_radio.GetValue():
+            insert_at_index = page_number_spin.GetValue()
+        else:
+            insert_at_index = page_count
 
     result = {
-        "source_path": source_path,
+        "source_paths": source_paths,
         "insert_at_index": insert_at_index,
     }
     return result
@@ -2846,9 +2848,13 @@ def on_preview_import_from_file(event):
     try:
         with owner.busy_cursor():
             current_insert_index = initial_insert_index
+            previous_page_count = page_count
             for source_path in source_paths:
                 import_pdf_pages(owner.current_preview_path, source_path, current_insert_index)
-                current_insert_index += get_pdf_page_count(source_path)
+                # Count inserted pages in the target, including multi-page images.
+                current_page_count = get_pdf_page_count(owner.current_preview_path)
+                current_insert_index += current_page_count - previous_page_count
+                previous_page_count = current_page_count
             show_pdf_feed(owner, owner.current_preview_path)
             update_pdf_save_button_state(owner)
     except Exception as exc:

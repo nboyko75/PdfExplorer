@@ -198,15 +198,19 @@ class PrinterPreferencesTests(unittest.TestCase):
                     patch.object(print_form, "load_settings", return_value={"print_form_printer": "Printer One"}), \
                     patch.object(print_form, "update_settings") as save_settings, \
                     patch.object(print_form, "_save_print_form_geometry"), \
-                    patch.object(print_form, "_show_printer_properties", return_value=True), \
-                    patch.object(wx.Dialog, "ShowModal", modal):
+                    patch.object(print_form, "_show_printer_properties", return_value=True):
                 original_translations = localization.TRANSLATIONS.copy()
                 try:
                     for locale in localization.available_locales():
                         with self.subTest(locale=locale):
                             localization.load_locale(locale)
                             self.saved["Printer One"].Duplex = 2
-                            self.assertFalse(print_form.show_print_form(None, str(path)))
+                            dialog = print_form.show_print_form(None, str(path))
+                            try:
+                                self.assertFalse(dialog.IsModal())
+                                modal(dialog)
+                            finally:
+                                dialog.Close()
                 finally:
                     localization.TRANSLATIONS.clear()
                     localization.TRANSLATIONS.update(original_translations)
@@ -239,9 +243,12 @@ class PrinterPreferencesTests(unittest.TestCase):
                         patch.object(print_form, "load_settings", return_value={"print_form_copies": saved}), \
                         patch.object(print_form, "_get_printer_names", return_value=["Printer One"]), \
                         patch.object(print_form, "update_settings") as save, \
-                        patch.object(print_form, "_save_print_form_geometry"), \
-                        patch.object(wx.Dialog, "ShowModal", modal):
-                    self.assertFalse(print_form.show_print_form(None, str(path)))
+                        patch.object(print_form, "_save_print_form_geometry"):
+                    dialog = print_form.show_print_form(None, str(path))
+                    try:
+                        modal(dialog)
+                    finally:
+                        dialog.Close()
                     self.assertEqual(save.call_args.args[0]["print_form_copies"], 4)
 
 
