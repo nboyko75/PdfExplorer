@@ -103,6 +103,7 @@ Import from files:
  - Files import sequentially, including mixed PDFs and images.
  - An editable list lets you adjust import order 
  
-
+Creation archive:
+ - remove command line limitation that allows to add to an archive more than 500 files
 
 

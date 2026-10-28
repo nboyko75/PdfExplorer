@@ -57,64 +57,48 @@ def _create_zip_archive(source_path, destination_path):
         source_paths = [path for path in source_path if isinstance(path, str) and os.path.exists(path)]
         if not source_paths:
             raise FileNotFoundError(str(source_path))
+    else:
+        if not isinstance(source_path, str) or not os.path.exists(source_path):
+            raise FileNotFoundError(source_path)
+        source_paths = [source_path]
 
-        destination_path = os.path.normpath(destination_path or _build_archive_destination_path(source_paths[0]))
-        if any(os.path.abspath(destination_path) == os.path.abspath(path) for path in source_paths):
-            raise ValueError("Archive destination must differ from the source path.")
-
-        powershell = shutil.which("powershell")
-        if powershell:
-            escaped_paths = [path.replace('"', '""') for path in source_paths]
-            quoted_paths = ", ".join(f'"{path}"' for path in escaped_paths)
-            quoted_destination = destination_path.replace('"', '""')
-            _run_command([
-                powershell,
-                "-NoProfile",
-                "-Command",
-                f'Compress-Archive -LiteralPath {quoted_paths} -DestinationPath "{quoted_destination}" -Force',
-            ])
-            return destination_path
-
-        zip_executable = shutil.which("zip")
-        if zip_executable:
-            cwd = os.path.dirname(source_paths[0]) or os.getcwd()
-            archive_name = os.path.basename(destination_path)
-            arguments = [zip_executable, "-r", archive_name]
-            for source in source_paths:
-                arguments.append(os.path.basename(source))
-            _run_command(arguments, cwd=cwd)
-            return os.path.join(cwd, archive_name)
-
-        raise RuntimeError("No system zip utility is available.")
-
-    if not isinstance(source_path, str) or not os.path.exists(source_path):
-        raise FileNotFoundError(source_path)
-
-    destination_path = os.path.normpath(destination_path or _build_archive_destination_path(source_path))
-    if os.path.exists(destination_path) and os.path.abspath(destination_path) == os.path.abspath(source_path):
+    destination_path = os.path.normpath(destination_path or _build_archive_destination_path(source_paths[0]))
+    destination_key = os.path.normcase(os.path.realpath(destination_path))
+    if any(destination_key == os.path.normcase(os.path.realpath(path)) for path in source_paths):
         raise ValueError("Archive destination must differ from the source path.")
 
-    powershell = shutil.which("powershell")
-    if powershell:
-        quoted_source = source_path.replace('"', '""')
-        quoted_destination = destination_path.replace('"', '""')
-        _run_command([
-            powershell,
-            "-NoProfile",
-            "-Command",
-            f'Compress-Archive -LiteralPath "{quoted_source}" -DestinationPath "{quoted_destination}" -Force',
-        ])
-        return destination_path
+    def raise_walk_error(error):
+        raise error
 
-    zip_executable = shutil.which("zip")
-    if zip_executable:
-        source_dir = os.path.dirname(source_path) or os.getcwd()
-        source_name = os.path.basename(source_path)
-        archive_name = os.path.basename(destination_path)
-        _run_command([zip_executable, "-r", archive_name, source_name], cwd=source_dir)
-        return os.path.join(source_dir, archive_name)
-
-    raise RuntimeError("No system zip utility is available.")
+    # Keep file lists out of subprocess command lines: large selections exceed
+    # Windows' command-length limit. Stage the ZIP so failures leave no partial
+    # archive and preserve an existing destination.
+    with tempfile.NamedTemporaryFile(
+        prefix=".docexplorer-", suffix=".zip",
+        dir=os.path.dirname(os.path.abspath(destination_path)), delete=False,
+    ) as temporary_file:
+        temporary_path = temporary_file.name
+    excluded_paths = {destination_key, os.path.normcase(os.path.realpath(temporary_path))}
+    try:
+        with zipfile.ZipFile(temporary_path, "w", compression=zipfile.ZIP_DEFLATED,
+                             strict_timestamps=False) as archive:
+            for source in source_paths:
+                source = os.path.abspath(source)
+                parent = os.path.dirname(source)
+                if os.path.isdir(source):
+                    for root, directories, files in os.walk(source, onerror=raise_walk_error):
+                        archive.write(root, os.path.relpath(root, parent))
+                        for name in files:
+                            path = os.path.join(root, name)
+                            if os.path.normcase(os.path.realpath(path)) not in excluded_paths:
+                                archive.write(path, os.path.relpath(path, parent))
+                else:
+                    archive.write(source, os.path.basename(source))
+        os.replace(temporary_path, destination_path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+    return destination_path
 
 
 def _get_7z_executable():
