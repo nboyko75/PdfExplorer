@@ -406,10 +406,10 @@ def _refresh_after_scan(owner, output_path):
             owner.load_folder(current_folder_value)
 
     if output_path and os.path.isfile(output_path):
-        if hasattr(owner, "current_preview_path"):
-            owner.current_preview_path = output_path
         try:
-            file_preview.show_file_preview(owner, output_path)
+            # Let the preview loader update its current path after switching.
+            # A scan may also replace the file that is already displayed.
+            file_preview.show_file_preview(owner, output_path, force_refresh=True)
         except Exception:
             pass
 

@@ -108,3 +108,5 @@ Creation archive:
 
 Transparent previews now clear the background before repainting, preventing leftover strokes and darkening edges.
 
+Newly scanned documents now preview immediately, without selecting another file first. Scans replacing an existing filename also refresh correctly
+
