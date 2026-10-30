@@ -33,6 +33,24 @@ import controls.video_preview as video_preview
 from file_operations.document_types import OFFICE_EXTENSIONS, POWERPOINT_EXTENSIONS
 
 
+class _PreviewBitmap(GenStaticBitmap):
+    """Clear each frame so transparent pixels cannot retain old preview content."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+
+    def OnPaint(self, event):
+        # GenStaticBitmap suppresses background erasure and only draws the bitmap.
+        # Clear in the same buffered paint to avoid trails and repeated alpha blending.
+        dc = wx.AutoBufferedPaintDC(self)
+        dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
+        dc.Clear()
+        bitmap = self.GetBitmap()
+        if bitmap and bitmap.IsOk():
+            dc.DrawBitmap(bitmap, 0, 0, True)
+
+
 @contextmanager
 def _preview_update(owner):
     """Paint a preview change only after its children and layout are ready."""
@@ -762,7 +780,7 @@ def build_file_preview_pane(owner, file_splitter):
     owner.pdf_preview_container.SetScrollRate(10, 10)
     owner.pdf_preview_container.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
 
-    owner.pdf_preview = GenStaticBitmap(owner.pdf_preview_container, wx.ID_ANY, wx.Bitmap(1, 1))
+    owner.pdf_preview = _PreviewBitmap(owner.pdf_preview_container, wx.ID_ANY, wx.Bitmap(1, 1))
     owner.pdf_preview.SetMinSize((250, 250))
     owner.pdf_preview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
     owner.filePreview.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)

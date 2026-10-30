@@ -106,4 +106,5 @@ Import from files:
 Creation archive:
  - remove command line limitation that allows to add to an archive more than 500 files
 
+Transparent previews now clear the background before repainting, preventing leftover strokes and darkening edges.
 
