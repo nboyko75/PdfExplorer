@@ -126,6 +126,7 @@ def _show_scan_dialog(owner, selected_path=None):
     fields.AddGrowableCol(1, 1)
 
     scan_btn = wx.Button(panel, wx.ID_OK, tr("scan_button"))
+    scan_btn.SetDefault()
     cancel_btn = wx.Button(panel, wx.ID_CANCEL, tr("scan_cancel_button"))
     ok_bmp = wx.ArtProvider.GetBitmap(getattr(wx, "ART_TICK_MARK", wx.ART_INFORMATION), wx.ART_BUTTON, (16, 16))
     if ok_bmp.IsOk():

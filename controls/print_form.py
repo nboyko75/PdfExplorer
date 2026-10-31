@@ -984,6 +984,10 @@ def show_print_form(owner, document_path=None):
     if default_printer not in printer_names:
         default_printer = printer_names[0]
 
+    previous_focus = wx.Window.FindFocus()
+    if not previous_focus or not owner.IsDescendant(previous_focus):
+        previous_focus = getattr(owner, "list", None)
+
     dialog = wx.Dialog(owner, title=tr("print_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
 
@@ -1252,11 +1256,23 @@ def show_print_form(owner, document_path=None):
             job.close()
             job = None
 
+    def restore_focus():
+        if (owner and not owner.IsBeingDeleted() and previous_focus
+                and not previous_focus.IsBeingDeleted()
+                and previous_focus.IsShownOnScreen() and previous_focus.IsEnabled()):
+            previous_focus.SetFocus()
+
     def on_close(_event):
+        focus = wx.Window.FindFocus()
+        return_focus = not focus or focus == dialog or dialog.IsDescendant(focus)
         save_options()
         _save_print_form_geometry(dialog)
         cleanup()
         dialog.Destroy()
+        if return_focus:
+            # Let dialog teardown finish before restoring keyboard navigation.
+            # A modeless print job must not steal focus if the user moved on.
+            wx.CallAfter(restore_focus)
 
     dialog_id = dialog.GetId()
 

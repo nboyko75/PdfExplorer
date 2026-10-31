@@ -84,6 +84,52 @@ class ModelessPrintTests(unittest.TestCase):
         return any(isinstance(child, wx.StaticText) and text in child.GetLabel()
                    for child in self.dialog.GetChildren()[0].GetChildren())
 
+    def reopen_from_file_list(self):
+        self.close_dialog()
+        self.owner.list = wx.ListCtrl(self.owner.list_host_panel, style=wx.LC_REPORT)
+        self.owner.list.InsertColumn(0, "File")
+        self.owner.list.InsertItem(0, "selected.pdf")
+        self.owner.list.InsertItem(1, "another.pdf")
+        self.owner.list.Select(0)
+        self.owner.list.Focus(0)
+        self.owner.Show()
+        self.owner.list.SetFocus()
+        self.wait_until(lambda: wx.Window.FindFocus() == self.owner.list)
+        self.dialog = print_form.show_print_form(self.owner, self.path)
+        self.dialog.FindWindow(wx.ID_CANCEL).SetFocus()
+        self.wait_until(lambda: wx.Window.FindFocus() == self.dialog.FindWindow(wx.ID_CANCEL))
+
+    def test_success_and_close_restore_file_focus_and_selection(self):
+        self.reopen_from_file_list()
+        click(self.dialog, wx.ID_OK)
+        self.job.poll.return_value = [("done", "Printer")]
+        self.wait_until(lambda: not self.dialog)
+        self.wait_until(lambda: wx.Window.FindFocus() == self.owner.list)
+        self.assertEqual(self.owner.list.GetFirstSelected(), 0)
+        self.assertEqual(self.owner.list.GetFocusedItem(), 0)
+
+        self.dialog = print_form.show_print_form(self.owner, self.path)
+        self.dialog.FindWindow(wx.ID_CANCEL).SetFocus()
+        click(self.dialog, wx.ID_CANCEL)
+        self.wait_until(lambda: not self.dialog)
+        self.wait_until(lambda: wx.Window.FindFocus() == self.owner.list)
+        self.assertEqual(self.owner.list.GetFirstSelected(), 0)
+
+    def test_completion_preserves_focus_and_selection_changed_during_printing(self):
+        self.reopen_from_file_list()
+        click(self.dialog, wx.ID_OK)
+        self.owner.list.Select(0, False)
+        self.owner.list.Select(1)
+        self.owner.list.Focus(1)
+        other_control = wx.TextCtrl(self.owner.list_host_panel, pos=(0, 150))
+        other_control.SetFocus()
+        self.wait_until(lambda: wx.Window.FindFocus() == other_control)
+        self.job.poll.return_value = [("done", "Printer")]
+        self.wait_until(lambda: not self.dialog)
+        self.assertEqual(wx.Window.FindFocus(), other_control)
+        self.assertEqual(self.owner.list.GetFirstSelected(), 1)
+        self.assertEqual(self.owner.list.GetFocusedItem(), 1)
+
     def test_form_and_submission_leave_main_window_enabled_and_capture_original_file(self):
         self.assertFalse(self.dialog.IsModal())
         self.assertTrue(self.owner.IsEnabled())
