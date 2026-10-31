@@ -1,5 +1,6 @@
 import os
 import ctypes
+import logging
 import multiprocessing
 import subprocess
 import tempfile
@@ -799,10 +800,18 @@ def _print_with_selected_printer(document_path, printer_name, copies=1, page_num
                     win32print.SetPrinter(current_printer, 9, {"pDevMode": devmode}, 0)
             finally:
                 win32print.ClosePrinter(current_printer)
-        # Pass the printer explicitly; changing the default around an asynchronous
-        # shell launch races the receiving application.
-        win32api.ShellExecute(0, "printto", print_target,
-                              subprocess.list2cmdline([selected_printer]), ".", 0)
+        from win32com.shell import shell, shellcon
+
+        # Finish the shell/DDE handoff and application startup in the worker.
+        # Otherwise the text editor can activate after we restore Explorer.
+        # FLAG_DDEWAIT is pywin32's name for SEE_MASK_NOASYNC.
+        wait_for_input_idle = 0x02000000  # SEE_MASK_WAITFORINPUTIDLE (absent in older pywin32)
+        shell.ShellExecuteEx(
+            fMask=shellcon.SEE_MASK_FLAG_DDEWAIT | wait_for_input_idle,
+            lpVerb="printto", lpFile=print_target,
+            lpParameters=subprocess.list2cmdline([selected_printer]),
+            lpDirectory=".", nShow=win32con.SW_HIDE,
+        )
 
     return selected_printer
 
@@ -907,6 +916,10 @@ def _print_worker(connection, request, translations):
         except OSError:
             pass  # The form may have closed while the job was being submitted.
     finally:
+        if os.name == "nt":
+            # A driver/Office window may have made this worker foreground.
+            # Hand that permission back before its native windows disappear.
+            ctypes.windll.user32.AllowSetForegroundWindow(os.getppid())
         connection.close()
 
 
@@ -917,6 +930,7 @@ class _PrintJob:
         self.process = context.Process(target=_print_worker,
                                        args=(child_connection, request, dict(TRANSLATIONS)))
         self.finished = False
+        self._terminal_message = None
         try:
             self.process.start()
         except Exception:
@@ -928,19 +942,26 @@ class _PrintJob:
 
     def poll(self):
         messages = []
-        try:
-            while self.connection.poll():
-                message = self.connection.recv()
-                messages.append(message)
-                if message[0] in ("done", "error"):
-                    self.finished = True
-        except (EOFError, OSError):
-            if not self.finished:
-                messages.append(("error", tr("print_worker_stopped")))
+        if not self.finished:
+            try:
+                while self.connection.poll():
+                    message = self.connection.recv()
+                    if message[0] in ("done", "error"):
+                        self._terminal_message = message
+                        self.finished = True
+                        break
+                    messages.append(message)
+            except (EOFError, OSError):
+                self._terminal_message = ("error", tr("print_worker_stopped"))
                 self.finished = True
-        if not messages and not self.finished and not self.process.is_alive():
-            messages.append(("error", tr("print_worker_stopped")))
-            self.finished = True
+            if not self.finished and not self.process.is_alive():
+                self._terminal_message = ("error", tr("print_worker_stopped"))
+                self.finished = True
+        # Receiving "done" does not mean the worker's native windows and COM
+        # objects have gone away. Restore focus only after process teardown.
+        if self._terminal_message is not None and not self.process.is_alive():
+            messages.append(self._terminal_message)
+            self._terminal_message = None
         return messages
 
     def resume(self):
@@ -983,10 +1004,6 @@ def show_print_form(owner, document_path=None):
             default_printer = printer_names[0]
     if default_printer not in printer_names:
         default_printer = printer_names[0]
-
-    previous_focus = wx.Window.FindFocus()
-    if not previous_focus or not owner.IsDescendant(previous_focus):
-        previous_focus = getattr(owner, "list", None)
 
     dialog = wx.Dialog(owner, title=tr("print_dialog_title"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     panel = wx.Panel(dialog)
@@ -1124,6 +1141,7 @@ def show_print_form(owner, document_path=None):
     job = None
     reload_dialog = None
     closed = False
+    restore_focus_on_destroy = False
     timer = wx.Timer(dialog)
     inputs = (printer_choice, copies_spin, duplex_choice, multiple_pages_choice,
               range_choice, pages_text, button_parameters)
@@ -1257,28 +1275,37 @@ def show_print_form(owner, document_path=None):
             job = None
 
     def restore_focus():
-        if (owner and not owner.IsBeingDeleted() and previous_focus
-                and not previous_focus.IsBeingDeleted()
-                and previous_focus.IsShownOnScreen() and previous_focus.IsEnabled()):
-            previous_focus.SetFocus()
+        if not owner or owner.IsBeingDeleted():
+            return
+        file_list = getattr(owner, "list", None)
+        if (file_list and not file_list.IsBeingDeleted()
+                and file_list.IsShownOnScreen() and file_list.IsEnabled()):
+            frame = wx.GetTopLevelParent(owner)
+            frame.Raise()
+            if win32gui is not None:
+                try:
+                    win32gui.SetForegroundWindow(frame.GetHandle())
+                except Exception:
+                    logging.getLogger(__name__).debug("Windows declined print focus restoration", exc_info=True)
+            file_list.SetFocus()
 
     def on_close(_event):
-        focus = wx.Window.FindFocus()
-        return_focus = not focus or focus == dialog or dialog.IsDescendant(focus)
+        nonlocal restore_focus_on_destroy
         save_options()
         _save_print_form_geometry(dialog)
         cleanup()
+        restore_focus_on_destroy = True
         dialog.Destroy()
-        if return_focus:
-            # Let dialog teardown finish before restoring keyboard navigation.
-            # A modeless print job must not steal focus if the user moved on.
-            wx.CallAfter(restore_focus)
 
     dialog_id = dialog.GetId()
 
     def on_destroy(event):
         if event.GetId() == dialog_id:
             cleanup()
+            if restore_focus_on_destroy:
+                # Destroy() defers native teardown until idle. A CallAfter in
+                # on_close can run before it and lose focus to the tab header.
+                wx.CallAfter(restore_focus)
         event.Skip()
 
     dialog.Bind(wx.EVT_BUTTON, on_print, id=wx.ID_OK)

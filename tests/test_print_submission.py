@@ -96,11 +96,17 @@ class PrintSubmissionTests(unittest.TestCase):
         self.printer.StartDoc.assert_not_called()
 
     def test_other_file_types_pass_selected_printer_to_shell(self):
+        from win32com.shell import shell, shellcon
+
         path = self.path.with_suffix(".txt")
         path.touch()
-        with patch.object(print_form, "win32api") as api:
+        with patch.object(shell, "ShellExecuteEx") as execute:
             print_form._print_with_selected_printer(str(path), "Selected printer")
-            api.ShellExecute.assert_called_once_with(0, "printto", str(path), '"Selected printer"', ".", 0)
+            execute.assert_called_once_with(
+                fMask=shellcon.SEE_MASK_FLAG_DDEWAIT | 0x02000000,
+                lpVerb="printto", lpFile=str(path), lpParameters='"Selected printer"',
+                lpDirectory=".", nShow=print_form.win32con.SW_HIDE,
+            )
         self.printer.SetDefaultPrinter.assert_not_called()
 
     def test_office_all_pages_and_selected_pages_use_complete_pdf_export(self):

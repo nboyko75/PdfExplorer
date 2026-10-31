@@ -12,6 +12,8 @@ import wx
 from controls import print_form
 from localization import tr
 
+REAL_PRINT_JOB = print_form._PrintJob
+
 
 def click(dialog, button_id):
     dialog.ProcessWindowEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId, button_id))
@@ -32,6 +34,27 @@ def simulated_worker(connection, request, translations):
 
     with patch.object(print_form, "_execute_print_request", side_effect=submit):
         print_form._print_worker(connection, request, translations)
+
+
+def simulated_foreground_worker(connection, request, translations):
+    """A driver window that outlives the worker's completion message."""
+    app = wx.App(False)
+    frame = wx.Frame(None, title="Simulated print driver")
+    frame.Show()
+    frame.Raise()
+    connection.recv()  # The test grants this process foreground permission.
+    try:
+        print_form.win32gui.SetForegroundWindow(frame.GetHandle())
+    except Exception:
+        if print_form.win32gui.GetForegroundWindow() != frame.GetHandle():
+            raise
+    app.Yield()
+    with patch.object(print_form, "_execute_print_request", return_value="Printer"):
+        print_form._print_worker(connection, request, translations)
+    Path(request["record"]).touch()
+    time.sleep(0.4)  # Native teardown happens after sending done and closing IPC.
+    frame.Destroy()
+    app.Yield()
 
 
 class ModelessPrintTests(unittest.TestCase):
@@ -115,7 +138,7 @@ class ModelessPrintTests(unittest.TestCase):
         self.wait_until(lambda: wx.Window.FindFocus() == self.owner.list)
         self.assertEqual(self.owner.list.GetFirstSelected(), 0)
 
-    def test_completion_preserves_focus_and_selection_changed_during_printing(self):
+    def test_completion_focuses_file_list_and_preserves_changed_selection(self):
         self.reopen_from_file_list()
         click(self.dialog, wx.ID_OK)
         self.owner.list.Select(0, False)
@@ -126,9 +149,86 @@ class ModelessPrintTests(unittest.TestCase):
         self.wait_until(lambda: wx.Window.FindFocus() == other_control)
         self.job.poll.return_value = [("done", "Printer")]
         self.wait_until(lambda: not self.dialog)
-        self.assertEqual(wx.Window.FindFocus(), other_control)
+        self.wait_until(lambda: wx.Window.FindFocus() == self.owner.list)
         self.assertEqual(self.owner.list.GetFirstSelected(), 1)
         self.assertEqual(self.owner.list.GetFocusedItem(), 1)
+
+    def test_closing_form_opened_from_another_control_focuses_file_list(self):
+        self.reopen_from_file_list()
+        self.close_dialog()
+        other_control = wx.Button(self.owner.list_host_panel, label="Print", pos=(0, 150))
+        other_control.SetFocus()
+        self.wait_until(lambda: wx.Window.FindFocus() == other_control)
+        self.dialog = print_form.show_print_form(self.owner, self.path)
+        self.dialog.FindWindow(wx.ID_CANCEL).SetFocus()
+        click(self.dialog, wx.ID_CANCEL)
+        self.wait_until(lambda: not self.dialog)
+        self.wait_until(lambda: wx.Window.FindFocus() == self.owner.list)
+        self.assertEqual(self.owner.list.GetFirstSelected(), 0)
+
+    def test_repeated_prints_restore_focus_after_native_dialog_destruction(self):
+        self.reopen_from_file_list()
+        set_focus = self.owner.list.SetFocus
+        dialog_alive_when_focused = []
+
+        def record_focus():
+            dialog_alive_when_focused.append(bool(self.dialog))
+            set_focus()
+
+        with patch.object(self.owner.list, "SetFocus", side_effect=record_focus):
+            for cycle in range(6):
+                with self.subTest(cycle=cycle):
+                    if cycle:
+                        self.dialog = print_form.show_print_form(self.owner, self.path)
+                    self.dialog.FindWindow(wx.ID_CANCEL).SetFocus()
+                    self.job.poll.return_value = []
+                    if cycle % 2:
+                        prompt = self.open_reload_window()
+                        click(prompt, wx.ID_OK)
+                    else:
+                        click(self.dialog, wx.ID_OK)
+                    self.job.poll.return_value = [("done", "Printer")]
+                    self.wait_until(lambda: not self.dialog)
+                    # Keep processing after destruction: an immediate focus
+                    # assertion can miss the later native focus restoration.
+                    self.pump_events()
+                    self.assertEqual(wx.Window.FindFocus(), self.owner.list)
+                    self.assertEqual(self.owner.list.GetFirstSelected(), 0)
+                    self.assertEqual(self.owner.list.GetFocusedItem(), 0)
+        self.assertEqual(dialog_alive_when_focused, [False] * 6)
+
+    def test_foreground_returns_after_driver_process_teardown(self):
+        self.reopen_from_file_list()
+        jobs = []
+        record = Path(self.path).with_suffix(".ready")
+
+        def start(request):
+            job = REAL_PRINT_JOB(dict(request, record=str(record)))
+            jobs.append(job)
+            print_form.ctypes.windll.user32.AllowSetForegroundWindow(job.process.pid)
+            job.connection.send(True)
+            return job
+
+        self.start_job.side_effect = start
+        with patch.object(print_form, "_print_worker", simulated_foreground_worker):
+            for cycle in range(3):
+                with self.subTest(cycle=cycle):
+                    if cycle:
+                        record.unlink()
+                        self.dialog = print_form.show_print_form(self.owner, self.path)
+                    click(self.dialog, wx.ID_OK)
+                    self.wait_until(lambda: record.exists(), timeout=15)
+                    self.wait_until(lambda: jobs[-1].finished)
+                    self.assertTrue(jobs[-1].process.is_alive())
+                    self.assertTrue(self.dialog)
+                    self.wait_until(lambda: not self.dialog, timeout=15)
+                    self.wait_until(lambda: self.owner.IsActive())
+                    # Include another event-loop pass after worker destruction.
+                    wx.CallLater(250, self.app.ExitMainLoop)
+                    self.app.MainLoop()
+                    self.assertEqual(print_form.win32gui.GetForegroundWindow(), self.owner.GetHandle())
+                    self.assertEqual(wx.Window.FindFocus(), self.owner.list)
+                    self.assertEqual(self.owner.list.GetFirstSelected(), 0)
 
     def test_form_and_submission_leave_main_window_enabled_and_capture_original_file(self):
         self.assertFalse(self.dialog.IsModal())
@@ -240,6 +340,24 @@ class ModelessPrintTests(unittest.TestCase):
 
 
 class PrintWorkerTests(unittest.TestCase):
+    def test_completion_waits_for_worker_exit_without_blocking_reload(self):
+        for terminal in (("done", "Printer"), ("error", "Spooler failed")):
+            with self.subTest(terminal=terminal):
+                job = print_form._PrintJob.__new__(print_form._PrintJob)
+                job.connection = Mock()
+                job.connection.poll.return_value = True
+                job.connection.recv.side_effect = [("reload", "Reload sheets"), terminal]
+                job.process = Mock()
+                job.process.is_alive.return_value = True
+                job.finished = False
+                job._terminal_message = None
+                self.assertEqual(job.poll(), [("reload", "Reload sheets")])
+                self.assertEqual(job.poll(), [])
+                job.process.is_alive.return_value = False
+                self.assertEqual(job.poll(), [terminal])
+                self.assertEqual(job.poll(), [])
+                job.process.join.assert_not_called()
+
     def test_worker_relays_reload_and_completion_without_using_wx(self):
         connection = Mock()
         connection.recv.return_value = True
