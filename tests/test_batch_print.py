@@ -1,4 +1,5 @@
 """Batch selection and submission checks without sending jobs to a printer."""
+import importlib
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -9,9 +10,21 @@ import fitz
 
 from common import menu_utils
 from controls import filelist, print_form
+from localization import DEFAULT_TRANSLATIONS, available_locales
 
 
 class BatchPrintTests(unittest.TestCase):
+    def test_descending_order_label_is_translated_in_every_locale(self):
+        for locale in available_locales():
+            with self.subTest(locale=locale):
+                translations = importlib.import_module(f"localization.localization_{locale}").TRANSLATIONS
+                if locale == "en":
+                    self.assertEqual(translations.get("print_descending_order", DEFAULT_TRANSLATIONS["print_descending_order"]),
+                                     "In descending order")
+                    continue
+                self.assertTrue(translations["print_descending_order"].strip())
+                self.assertNotEqual(translations["print_descending_order"], "In descending order")
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)

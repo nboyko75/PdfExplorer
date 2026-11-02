@@ -186,6 +186,7 @@ TRANSLATIONS = {
     "print_range_all": "全部",
     "print_range_selection": "所选页",
     "print_file_label": "文档",
+    "print_descending_order": "按降序打印",
     "print_button": "打印",
     "print_parameters_button": "打印机参数",
     "print_cancel_button": "取消",

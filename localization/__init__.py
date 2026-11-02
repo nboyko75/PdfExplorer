@@ -217,6 +217,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "print_range_all": "All",
     "print_range_selection": "Selected pages",
     "print_file_label": "Document",
+    "print_descending_order": "In descending order",
     "print_files_label": "Documents ({count})",
     "print_batch_range_hint": "The selected page range applies to each document separately.",
     "print_button": "Print",

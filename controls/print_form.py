@@ -1114,6 +1114,13 @@ def show_print_form(owner, document_path=None):
         file_label = wx.StaticText(panel, label=tr("print_file_label"))
         file_value = wx.StaticText(panel, label=os.path.basename(document_path))
 
+    descending_order = wx.CheckBox(panel, label=tr("print_descending_order"))
+    descending_order.SetValue(bool(settings.get("print_form_descending_order", False)))
+    descending_order.Show(len(document_paths) > 1)
+    file_sizer = wx.BoxSizer(wx.VERTICAL)
+    file_sizer.Add(file_value, 1, wx.EXPAND)
+    file_sizer.Add(descending_order, 0, wx.TOP, 6)
+
     def update_page_range_visibility(_event=None):
         is_selected_pages = range_choice.GetSelection() == 1
         pages_label.Show(is_selected_pages)
@@ -1155,7 +1162,7 @@ def show_print_form(owner, document_path=None):
     fields.Add(pages_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(pages_text, 1, wx.EXPAND)
     fields.Add(file_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(file_value, 1, wx.EXPAND)
+    fields.Add(file_sizer, 1, wx.EXPAND)
 
     button_sizer = wx.BoxSizer(wx.HORIZONTAL)
     button_sizer.AddStretchSpacer()
@@ -1185,7 +1192,7 @@ def show_print_form(owner, document_path=None):
     restore_focus_on_destroy = False
     timer = wx.Timer(dialog)
     inputs = (printer_choice, copies_spin, duplex_choice, multiple_pages_choice,
-              range_choice, pages_text, button_parameters)
+              range_choice, pages_text, descending_order, button_parameters)
 
     def set_status(message):
         status.SetLabel(message)
@@ -1211,8 +1218,12 @@ def show_print_form(owner, document_path=None):
             ),
             "print_form_page_range": "selection" if is_selected_pages else "all",
             "print_form_page_numbers": page_text,
+            "print_form_descending_order": descending_order.GetValue(),
         })
-        return dict(document_path=document_path, selected_printer=selected_printer,
+        print_paths = document_path
+        if len(document_paths) > 1 and descending_order.GetValue():
+            print_paths = list(reversed(document_paths))
+        return dict(document_path=print_paths, selected_printer=selected_printer,
                     copies=copies, duplex=duplex, mirrored_margins=mirrored_margins,
                     is_selected_pages=is_selected_pages, page_text=page_text)
 

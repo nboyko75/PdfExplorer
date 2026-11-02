@@ -261,6 +261,58 @@ class ModelessPrintTests(unittest.TestCase):
         self.assertEqual(self.start_job.call_args.args[0]["document_path"], [self.path, second])
         self.assertTrue(self.owner.IsEnabled())
 
+    def descending_checkbox(self):
+        return next(child for child in self.dialog.GetChildren()[0].GetChildren()
+                    if isinstance(child, wx.CheckBox) and child.GetLabel() == tr("print_descending_order"))
+
+    def test_batch_descending_order_prints_last_file_first(self):
+        self.close_dialog()
+        paths = [self.path, str(Path(self.path).with_name("second.pdf")),
+                 str(Path(self.path).with_name("third.pdf"))]
+        for path in paths[1:]:
+            Path(path).touch()
+        for descending in (False, True):
+            with self.subTest(descending=descending):
+                self.start_job.reset_mock()
+                self.dialog = print_form.show_print_form(self.owner, paths)
+                checkbox = self.descending_checkbox()
+                self.assertTrue(checkbox.IsShown())
+                checkbox.SetValue(descending)
+                files = next(child for child in self.dialog.GetChildren()[0].GetChildren()
+                             if isinstance(child, wx.ListBox))
+                self.assertGreaterEqual(checkbox.GetPosition().y, files.GetRect().GetBottom())
+                click(self.dialog, wx.ID_OK)
+                self.assertFalse(checkbox.IsEnabled())
+                request = self.start_job.call_args.args[0]
+                with patch.object(print_form, "_print_with_selected_printer", return_value="Printer") as submit:
+                    print_form._execute_print_request(**request)
+                self.assertEqual([call.args[0] for call in submit.call_args_list],
+                                 paths[::-1] if descending else paths)
+                self.assertEqual(files.GetStrings(), paths)
+                self.close_dialog()
+
+    def test_batch_descending_order_persists_across_close_and_single_file_form(self):
+        self.close_dialog()
+        second = str(Path(self.path).with_name("second.pdf"))
+        Path(second).touch()
+        settings = {}
+        with patch.object(print_form, "load_settings", side_effect=lambda: dict(settings)), \
+                patch.object(print_form, "update_settings", side_effect=settings.update):
+            self.dialog = print_form.show_print_form(self.owner, [self.path, second])
+            self.assertFalse(self.descending_checkbox().GetValue())
+            for checked in (True, False):
+                with self.subTest(checked=checked):
+                    self.descending_checkbox().SetValue(checked)
+                    self.close_dialog()
+                    self.assertEqual(settings["print_form_descending_order"], checked)
+                    self.dialog = print_form.show_print_form(self.owner, self.path)
+                    self.assertFalse(self.descending_checkbox().IsShown())
+                    self.close_dialog()
+                    self.dialog = print_form.show_print_form(self.owner, [self.path, second])
+                    self.assertTrue(self.descending_checkbox().IsShown())
+                    self.assertEqual(self.descending_checkbox().GetValue(), checked)
+            self.close_dialog()
+
     def test_success_uses_three_second_list_hint_and_errors_stay_in_form(self):
         for kind, message in (("error", "Spooler failed"), ("done", "Printer")):
             click(self.dialog, wx.ID_OK)

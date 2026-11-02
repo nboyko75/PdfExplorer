@@ -186,6 +186,7 @@ TRANSLATIONS = {
     "print_range_all": "전체",
     "print_range_selection": "선택한 페이지",
     "print_file_label": "문서",
+    "print_descending_order": "내림차순으로 인쇄",
     "print_button": "인쇄",
     "print_parameters_button": "프린터 설정",
     "print_cancel_button": "취소",

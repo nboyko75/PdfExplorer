@@ -186,6 +186,7 @@ TRANSLATIONS = {
     "print_range_all": "全体",
     "print_range_selection": "選択ページ",
     "print_file_label": "ドキュメント",
+    "print_descending_order": "降順で印刷",
     "print_button": "印刷",
     "print_parameters_button": "プリンター設定",
     "print_cancel_button": "キャンセル",

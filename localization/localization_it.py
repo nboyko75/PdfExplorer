@@ -197,6 +197,7 @@ TRANSLATIONS = {
     "print_range_all": "Tutto",
     "print_range_selection": "Pagine selezionate",
     "print_file_label": "Documento",
+    "print_descending_order": "In ordine decrescente",
     "print_button": "Stampa",
     "print_parameters_button": "Parametri stampante",
     "print_cancel_button": "Annulla",
