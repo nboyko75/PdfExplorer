@@ -178,7 +178,7 @@ def _can_create_folder(context):
 
 
 def _can_print(context):
-    return len(context.selected_paths) == 1 and os.path.isfile(context.selected_paths[0])
+    return bool(context.selected_paths) and all(os.path.isfile(path) for path in context.selected_paths)
 
 
 def _can_add_archive(context):

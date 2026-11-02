@@ -244,6 +244,23 @@ class ModelessPrintTests(unittest.TestCase):
         wx.CallAfter(received.append, "app remains responsive")
         self.wait_until(lambda: bool(received))
 
+    def test_batch_form_lists_and_captures_original_selection(self):
+        self.close_dialog()
+        second = str(Path(self.path).with_name("second.pdf"))
+        Path(second).touch()
+        selected = [self.path, second]
+        self.dialog = print_form.show_print_form(self.owner, selected)
+        files = next(child for child in self.dialog.GetChildren()[0].GetChildren()
+                     if isinstance(child, wx.ListBox))
+        self.assertEqual(files.GetStrings(), selected)
+        self.assertTrue(self.has_status(tr("print_files_label", count=2)))
+        selected.clear()
+        self.owner.current_preview_path = "unrelated.pdf"
+        click(self.dialog, wx.ID_OK)
+        self.start_job.assert_called_once()
+        self.assertEqual(self.start_job.call_args.args[0]["document_path"], [self.path, second])
+        self.assertTrue(self.owner.IsEnabled())
+
     def test_success_uses_three_second_list_hint_and_errors_stay_in_form(self):
         for kind, message in (("error", "Spooler failed"), ("done", "Printer")):
             click(self.dialog, wx.ID_OK)

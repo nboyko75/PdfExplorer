@@ -275,6 +275,8 @@ TRANSLATIONS = {
     "print_range_all": "Все",
     "print_range_selection": "Вибрані сторінки",
     "print_file_label": "Документ",
+    "print_files_label": "Документи ({count})",
+    "print_batch_range_hint": "Вибраний діапазон сторінок застосовується до кожного документа окремо.",
     "print_button": "Друк",
     "print_parameters_button": "Параметри принтера",
     "print_cancel_button": "Скасувати",

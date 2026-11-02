@@ -369,7 +369,7 @@ def update_list_toolbar_buttons(owner):
 
     button = getattr(owner, "list_print_btn", None)
     if button is not None:
-        button.Enable(has_single_existing_item)
+        button.Enable(bool(FILE_COMMANDS["print"].can_execute(build_list_command_context(owner))))
 
     for button_name in ("list_copy_btn", "list_cut_btn", "list_delete_btn"):
         button = getattr(owner, button_name, None)
@@ -1165,7 +1165,10 @@ def on_list_new_folder(owner, _):
 
 def on_list_print(owner, _):
     selected_paths = get_selected_list_paths(owner)
-    path = selected_paths[0] if len(selected_paths) == 1 else getattr(owner, "current_preview_path", None)
+    if selected_paths:
+        print_form.show_print_form(owner, selected_paths[0] if len(selected_paths) == 1 else selected_paths)
+        return
+    path = getattr(owner, "current_preview_path", None)
     if not path:
         path = getattr(owner, "path_box", None)
         if hasattr(path, "GetValue"):

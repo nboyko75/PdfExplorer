@@ -876,8 +876,32 @@ def _apply_print_form_geometry(dialog, settings=None):
 
 def _execute_print_request(document_path, selected_printer, copies=1, duplex=1,
                            mirrored_margins=False, is_selected_pages=False, page_text="",
-                           confirm_reload=None):
+                           confirm_reload=None, continue_printing=None):
     """Prepare and submit one immutable set of form options without accessing UI."""
+    if isinstance(document_path, (list, tuple)):
+        # Validate the entire selection before submitting any files.
+        for path in document_path:
+            if not os.path.isfile(path):
+                raise FileNotFoundError(path)
+        result = None
+        for path in document_path:
+            if continue_printing is not None and not continue_printing():
+                return None
+
+            def reload_file(message, path=path):
+                return confirm_reload(os.path.basename(path) + "\n\n" + message)
+
+            try:
+                result = _execute_print_request(
+                    path, selected_printer, copies=copies, duplex=duplex,
+                    mirrored_margins=mirrored_margins, is_selected_pages=is_selected_pages,
+                    page_text=page_text, confirm_reload=reload_file if confirm_reload else None)
+            except Exception as exc:
+                raise RuntimeError(f"{os.path.basename(path)}: {exc}") from exc
+            if result is None:  # Cancelling manual duplex also cancels the remaining files.
+                return None
+        return result
+
     layout_options = {}
     if os.path.splitext(document_path)[1].lower() in pdf_utils.EXCEL_OFFICE_EXTENSIONS:
         document_path, page_setup = _export_excel_active_sheet(document_path)
@@ -907,8 +931,17 @@ def _print_worker(connection, request, translations):
         except (EOFError, OSError):
             return False  # Closing the form cancels the remaining duplex pass.
 
+    def continue_printing():
+        try:
+            if connection.poll():
+                return connection.recv() is True
+            return True
+        except (EOFError, OSError):
+            return False
+
     try:
-        result = _execute_print_request(**request, confirm_reload=confirm_reload)
+        result = _execute_print_request(**request, confirm_reload=confirm_reload,
+                                        continue_printing=continue_printing)
         connection.send(("done", result))
     except Exception as exc:
         try:
@@ -984,9 +1017,11 @@ def show_print_form(owner, document_path=None):
     if document_path is None:
         document_path = getattr(owner, "current_preview_path", None)
 
-    if not document_path or not os.path.exists(document_path):
+    document_paths = list(document_path) if isinstance(document_path, (list, tuple)) else [document_path]
+    if not document_paths or not all(isinstance(path, str) and os.path.isfile(path) for path in document_paths):
         wx.MessageBox(tr("print_no_selection"), tr("print_dialog_title"), style=wx.OK | wx.ICON_INFORMATION)
         return False
+    document_path = document_paths[0] if len(document_paths) == 1 else document_paths
 
     printer_names = _get_printer_names()
     if not printer_names:
@@ -1070,8 +1105,14 @@ def show_print_form(owner, document_path=None):
     pages_label.Hide()
     pages_text.Hide()
 
-    file_label = wx.StaticText(panel, label=tr("print_file_label"))
-    file_value = wx.StaticText(panel, label=os.path.basename(document_path))
+    if len(document_paths) > 1:
+        file_label = wx.StaticText(panel, label=tr("print_files_label", count=len(document_paths)))
+        file_value = wx.ListBox(panel, choices=document_paths, size=(280, 70), style=wx.LB_HSCROLL)
+        range_choice.SetToolTip(tr("print_batch_range_hint"))
+        pages_text.SetToolTip(tr("print_batch_range_hint"))
+    else:
+        file_label = wx.StaticText(panel, label=tr("print_file_label"))
+        file_value = wx.StaticText(panel, label=os.path.basename(document_path))
 
     def update_page_range_visibility(_event=None):
         is_selected_pages = range_choice.GetSelection() == 1
