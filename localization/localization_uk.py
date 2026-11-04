@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "context_properties": 'Властивості',
+    "properties_failed": 'Не вдалося відкрити властивості:\n{path}\n\n{error}',
     'merge_mark_changes': 'Позначати зміни кольором',
     'merge_change_color': 'Колір змін',
     'help_manual_missing': 'Файл довідки не знайдено:\n{path}',

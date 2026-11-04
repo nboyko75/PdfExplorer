@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "context_properties": '속성',
+    "properties_failed": '다음 항목의 속성을 열 수 없습니다:\n{path}\n\n{error}',
     'merge_mark_changes': '변경 사항을 색상으로 표시',
     'merge_change_color': '변경 사항 색상',
     'menu_file': '파일',

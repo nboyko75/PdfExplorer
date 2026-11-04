@@ -7,7 +7,7 @@ import wx
 import file_operations.archive_helper as archive_helper
 from file_operations.copy_and_paste import _can_paste_into_directory
 from localization import tr
-from file_operations import open_with
+from file_operations import open_with, properties
 
 
 @dataclass(frozen=True)
@@ -246,6 +246,7 @@ def _handle_rename_files(context, event):
 
 
 FILE_COMMANDS = {
+    "properties": MenuCommand("properties", "context_properties", properties.show_properties, art_id=wx.ART_INFORMATION, can_execute=lambda c: bool(properties.selected_path(c))),
     "rename_files": MenuCommand("rename_files", "rename_files", _handle_rename_files, art_id=wx.ART_EDIT),
     "merge": MenuCommand("merge", "merge_documents", _handle_merge, art_id=wx.ART_REPORT_VIEW, can_execute=lambda c: bool(merge_selected_path(c))),
     "document_generator": MenuCommand("document_generator", "create_document_generator", _handle_document_generator, custom_icon="document_generator", can_execute=lambda c: bool(generator_selected_path(c))),
@@ -340,4 +341,6 @@ def build_file_operations_menu(context):
         menu.AppendSeparator()
         append_command(menu, owner, FILE_COMMANDS["optimize_all"], context)
         append_command(menu, owner, FILE_COMMANDS["adjust_all"], context)
+    menu.AppendSeparator()
+    append_command(menu, owner, FILE_COMMANDS["properties"], context)
     return menu

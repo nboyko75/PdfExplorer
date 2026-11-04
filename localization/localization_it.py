@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "context_properties": 'Proprietà',
+    "properties_failed": 'Impossibile aprire le proprietà di:\n{path}\n\n{error}',
     'merge_mark_changes': 'Evidenzia le modifiche con un colore',
     'merge_change_color': 'Colore delle modifiche',
     'help_manual_missing': 'File della guida non trovato:\n{path}',

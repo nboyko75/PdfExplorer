@@ -111,3 +111,6 @@ Transparent previews now clear the background before repainting, preventing left
 
 Newly scanned documents now preview immediately, without selecting another file first. Scans replacing an existing filename also refresh correctly
 
+1.0.11.0
+
+Added Properties to both context menus and the file list toolbar

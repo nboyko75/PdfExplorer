@@ -1,4 +1,6 @@
 TRANSLATIONS = {
+    "context_properties": 'Properties',
+    "properties_failed": 'Unable to open properties for:\n{path}\n\n{error}',
     'merge_mark_changes': 'Mark changes with color',
     'merge_change_color': 'Change color',
     'help_manual_missing': 'Help file was not found:\n{path}',

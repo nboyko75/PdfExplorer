@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "context_properties": '属性',
+    "properties_failed": '无法打开以下项目的属性：\n{path}\n\n{error}',
     'merge_mark_changes': '用颜色标记更改',
     'merge_change_color': '更改颜色',
     'menu_file': '文件',

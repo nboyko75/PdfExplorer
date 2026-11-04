@@ -3,6 +3,8 @@ import os
 from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
+    "context_properties": 'Properties',
+    "properties_failed": 'Unable to open properties for:\n{path}\n\n{error}',
     'help_manual_missing': 'Help file was not found:\n{path}',
     'help_manual_viewer_unavailable': 'The embedded HTML viewer is unavailable. Select Open in browser to view Help.',
     "confirm_bulk_pdf_operation": 'Run “{operation}” for:\n{path}\n\nPDF files will be modified and saved. For a folder, all PDF files in its subfolders will also be processed.\n\nContinue?',

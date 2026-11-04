@@ -122,6 +122,13 @@ def build_list_panel(owner, parent_splitter):
     owner.list_open_with_btn = wx.Button(owner.list_host_panel, label="▾", size=(36, 24))
     owner.list_open_with_btn.SetBitmap(owner.icon_manager.get_bitmap("open_with", size=(16, 16)))
     owner.list_open_with_btn.SetToolTip(tr("context_open_with"))
+    owner.list_properties_btn = image_utils.create_bitmap_button(
+        owner.list_host_panel,
+        wx.ART_INFORMATION,
+        tr("context_properties"),
+        icon_size=list_btn_icon_size,
+        button_size=list_btn_size,
+    )
     owner.list_up_btn = image_utils.create_bitmap_button(
         owner.list_host_panel,
         wx.ART_GO_UP,
@@ -220,6 +227,7 @@ def build_list_panel(owner, parent_splitter):
     owner.list_toolbar.Add(owner.list_paste_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_rename_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_delete_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_properties_btn, 0, wx.RIGHT, 3)
     ## owner.list_toolbar.Add(owner.list_delete_permanent_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.filter_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
     owner.list_toolbar.Add(owner.search_box, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -268,6 +276,7 @@ def bind_list_events(owner):
     bind_command(owner.list_scan_btn, owner, FILE_COMMANDS["scan"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_open_btn, owner, FILE_COMMANDS["open"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_open_with_btn, owner, FILE_COMMANDS["open_with"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_properties_btn, owner, FILE_COMMANDS["properties"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_rename_btn, owner, FILE_COMMANDS["rename"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_up_btn, owner, FILE_COMMANDS["folder_up"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_new_folder_btn, owner, FILE_COMMANDS["new_folder"], wx.EVT_BUTTON, context_factory)
@@ -357,6 +366,10 @@ def update_list_toolbar_buttons(owner):
     button = getattr(owner, "list_rename_btn", None)
     if button is not None:
         button.Enable(has_single_existing_item)
+
+    button = getattr(owner, "list_properties_btn", None)
+    if button is not None:
+        button.Enable(bool(FILE_COMMANDS["properties"].can_execute(build_list_command_context(owner))))
 
     button = getattr(owner, "list_up_btn", None)
     if button is not None:

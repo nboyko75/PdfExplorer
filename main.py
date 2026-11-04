@@ -868,6 +868,7 @@ class ExplorerWorkspace(wx.Panel):
         self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
         self.list_open_with_btn.SetToolTip(tr("context_open_with"))
+        self.list_properties_btn.SetToolTip(tr("context_properties"))
         self.list_refresh_btn.SetToolTip(tr("context_refresh"))
         self.list_rename_btn.SetToolTip(tr("context_rename"))
         self.list_up_btn.SetToolTip(tr("folder_up_button"))

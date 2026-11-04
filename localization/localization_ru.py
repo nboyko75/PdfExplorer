@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "context_properties": 'Свойства',
+    "properties_failed": 'Не удалось открыть свойства:\n{path}\n\n{error}',
     'merge_mark_changes': 'Отмечать изменения цветом',
     'merge_change_color': 'Цвет изменений',
     'help_manual_missing': 'Файл справки не найден:\n{path}',
