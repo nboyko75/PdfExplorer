@@ -2288,7 +2288,7 @@ def on_preview_delete(event):
 
 def _refresh_preview_after_pdf_save(owner, saved_path):
     owner.load_folder(owner.path_box.GetValue())
-    show_file_preview(owner, saved_path)
+    show_file_preview(owner, saved_path, force_refresh=True)
 
     current_folder = os.path.normpath(owner.path_box.GetValue())
     saved_folder = os.path.normpath(os.path.dirname(saved_path))
@@ -2669,10 +2669,11 @@ def _show_export_pages_dialog(owner, page_count):
 
     current_path = owner.current_preview_path
     base_name, _ = os.path.splitext(os.path.basename(current_path))
+    default_filename = f"{base_name}.pdf" if page_count == 1 else f"{base_name}_pages.pdf"
     output_file_label = wx.StaticText(panel, label=tr("export_pdf_file_name_label"))
     output_file_text = wx.TextCtrl(
         panel,
-        value=os.path.join(export_initial_dir, f"{base_name}_pages.pdf"),
+        value=os.path.join(export_initial_dir, default_filename),
     )
     browse_btn = wx.Button(panel, label=tr("import_pdf_browse_button"))
 
@@ -2684,7 +2685,7 @@ def _show_export_pages_dialog(owner, page_count):
             dialog,
             tr("export_pdf_save_dialog_title"),
             defaultDir=os.path.dirname(current_output) or export_initial_dir,
-            defaultFile=os.path.basename(current_output) or f"{base_name}_pages.pdf",
+            defaultFile=os.path.basename(current_output) or default_filename,
             wildcard='|'.join(f'{ext[1:].upper()} (*{ext})|*{ext}' for ext in extensions),
             style=wx.FD_SAVE,
         )
