@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 from localization import tr
 from common.window_tools import load_settings, update_settings, save_control_geometry, restore_control_geometry
 import controls.file_preview as file_preview
+import controls.filelist as filelist
 
 
 def _create_nonexistent_temp_path(prefix, suffix):
@@ -407,6 +408,8 @@ def _refresh_after_scan(owner, output_path):
             owner.load_folder(current_folder_value)
 
     if output_path and os.path.isfile(output_path):
+        if getattr(owner, "list", None) is not None:
+            filelist.select_list_item_by_path(owner, output_path)
         try:
             # Let the preview loader update its current path after switching.
             # A scan may also replace the file that is already displayed.
