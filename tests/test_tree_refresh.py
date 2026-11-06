@@ -53,6 +53,82 @@ class Tree:
 
 
 class TreeRefreshTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(__file__).resolve().parents[1]
+        source = ast.parse((root / 'controls/tree_control.py').read_text(encoding='utf-8'))
+        names = {'_tree_children', 'refresh_tree_node', 'refresh_expanded_tree_nodes'}
+        self.scope = {'os': os, 'normalize_tree_path': os.path.normpath,
+                      'is_hidden': lambda path: Path(path).name == 'hidden.txt',
+                      'get_tree_icon_index': lambda *a, **k: 0, 'tr': lambda key: key}
+        exec(compile(ast.Module(body=[n for n in source.body if isinstance(n, ast.FunctionDef)
+                                      and n.name in names], type_ignores=[]),
+                     'tree_refresh', 'exec'), self.scope)
+
+    def test_folder_reload_syncs_external_changes_without_replacing_tree_items(self):
+        root = Path(__file__).resolve().parents[1]
+        source = ast.parse((root / 'controls/filelist.py').read_text(encoding='utf-8'))
+        scope = {'os': os, 'tree_control': SimpleNamespace(**self.scope)}
+        names = {'_refresh_tree_node', '_find_tree_item_without_expanding'}
+        exec(compile(ast.Module(body=[n for n in source.body if isinstance(n, ast.FunctionDef)
+                                      and n.name in names], type_ignores=[]),
+                     'filelist', 'exec'), scope)
+
+        def load_list(owner, path):
+            owner.list_paths = {str(p) for p in Path(path).iterdir()
+                                if owner.show_hidden or p.name != 'hidden.txt'}
+
+        source = ast.parse((root / 'main.py').read_text(encoding='utf-8'))
+        workspace = next(n for n in source.body if isinstance(n, ast.ClassDef)
+                         and n.name == 'ExplorerWorkspace')
+        function = next(n for n in workspace.body if isinstance(n, ast.FunctionDef)
+                        and n.name == 'load_folder')
+        scope.update(filelist=SimpleNamespace(**scope),
+                     navigation_utils=SimpleNamespace(load_folder=load_list))
+        exec(compile(ast.Module(body=[function], type_ignores=[]), 'main', 'exec'), scope)
+
+        for expanded in (True, False):
+            with self.subTest(expanded=expanded), tempfile.TemporaryDirectory() as folder:
+                base = Path(folder)
+                (base / 'nested').mkdir()
+                (base / 'nested' / 'keep.txt').write_text('keep')
+                (base / 'removed.txt').write_text('remove')
+                tree = Tree()
+                item = tree.AppendItem(tree.root, 'current')
+                item.path, item.expanded = folder, expanded
+                owner = SimpleNamespace(tree=tree, show_hidden=False, updating_tree=False,
+                                        host=SimpleNamespace(explorer_tabs=SimpleNamespace(
+                                            location_changed=mock.Mock())))
+                scope['load_folder'](owner, folder)
+                nested = next(child for child in item.children if child.path == str(base / 'nested'))
+                nested.expanded = True
+                self.scope['refresh_tree_node'](owner, nested)
+                selected = nested.children[0]
+                removed = next(child for child in item.children if child.path == str(base / 'removed.txt'))
+
+                # Simulate another application's writes, then the normal list reload.
+                (base / 'external.txt').write_text('new')
+                (base / 'new_folder').mkdir()
+                (base / 'hidden.txt').write_text('hidden')
+                (base / 'removed.txt').unlink()
+                scope['load_folder'](owner, folder)
+
+                self.assertEqual({child.path for child in item.children}, owner.list_paths)
+                self.assertIn(str(base / 'external.txt'), owner.list_paths)
+                self.assertNotIn(str(base / 'hidden.txt'), owner.list_paths)
+                self.assertIn(nested, item.children)
+                self.assertEqual(nested.children, [selected])
+                self.assertTrue(selected.valid)
+                self.assertTrue(nested.expanded)
+                self.assertEqual(item.expanded, expanded)
+                self.assertFalse(removed.valid)
+                self.assertFalse(owner.updating_tree)
+
+                owner.show_hidden = True
+                owner.updating_tree = True
+                scope['load_folder'](owner, folder)
+                self.assertIn(str(base / 'hidden.txt'), {child.path for child in item.children})
+                self.assertTrue(owner.updating_tree)
+
     def test_f5_refreshes_the_focused_pane(self):
         source = ast.parse((Path(__file__).resolve().parents[1] / 'main.py').read_text(encoding='utf-8'))
         function = next(n for n in ast.walk(source) if isinstance(n, ast.FunctionDef)
@@ -81,13 +157,7 @@ class TreeRefreshTests(unittest.TestCase):
                 event.Skip.assert_not_called()
 
     def test_refreshes_sibling_and_nested_branches_preserving_nodes(self):
-        source = ast.parse((Path(__file__).resolve().parents[1] / 'controls/tree_control.py').read_text())
-        function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
-                        and n.name == 'refresh_expanded_tree_nodes')
-        scope = {'os': os, 'normalize_tree_path': os.path.normpath,
-                 'is_hidden': lambda path: False, 'get_tree_icon_index': lambda *a, **k: 0,
-                 'tr': lambda key: key}
-        exec(compile(ast.Module(body=[function], type_ignores=[]), 'tree_refresh', 'exec'), scope)
+        scope = self.scope
         tree = Tree()
         owner = SimpleNamespace(tree=tree, show_hidden=False, updating_tree=False)
         with tempfile.TemporaryDirectory() as folder:

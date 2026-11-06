@@ -277,6 +277,65 @@ def populate_tree_node(owner, item, path):
     finally:
         owner.updating_tree = False
 
+def _tree_children(tree, item):
+    children = []
+    child, cookie = tree.GetFirstChild(item)
+    while child.IsOk():
+        children.append(child)
+        child, cookie = tree.GetNextChild(item, cookie)
+    return children
+
+
+def refresh_tree_node(owner, item):
+    """Update one directory in place, preserving surviving items and expansion."""
+    tree = owner.tree
+    if not item or not item.IsOk():
+        return
+    path = tree.GetItemData(item)
+    if not isinstance(path, str) or not path or path.lower().startswith("shell:"):
+        return
+
+    try:
+        entries = []
+        for name in os.listdir(path):
+            full_path = normalize_tree_path(os.path.join(path, name))
+            hidden = bool(is_hidden(full_path))
+            if owner.show_hidden or not hidden:
+                entries.append((name, full_path, os.path.isdir(full_path), hidden))
+        entries.sort(key=lambda entry: (not entry[2], entry[0].lower()))
+    except OSError:
+        # Leave unavailable branches intact and continue with siblings.
+        return
+
+    updating = owner.updating_tree
+    owner.updating_tree = True
+    try:
+        wanted = {entry[1] for entry in entries}
+        existing = {}
+        for child in _tree_children(tree, item):
+            child_path = tree.GetItemData(child)
+            if child_path in wanted:
+                existing[child_path] = child
+            else:
+                tree.Delete(child)
+        previous = None
+        for name, full_path, is_dir, hidden in entries:
+            child = existing.get(full_path)
+            if child is None:
+                child = (tree.PrependItem(item, name) if previous is None
+                         else tree.InsertItem(item, previous, name))
+                tree.SetItemData(child, full_path)
+            tree.SetItemImage(child, get_tree_icon_index(
+                owner, full_path, is_dir=is_dir, is_hidden_item=hidden))
+            if is_dir and not tree.ItemHasChildren(child):
+                tree.AppendItem(child, tr("tree_expand_placeholder"))
+            elif not is_dir and tree.ItemHasChildren(child):
+                tree.DeleteChildren(child)
+            previous = child
+    finally:
+        owner.updating_tree = updating
+
+
 def refresh_expanded_tree_nodes(owner):
     """Reconcile loaded branches without replacing surviving tree items."""
     tree = owner.tree
@@ -284,52 +343,10 @@ def refresh_expanded_tree_nodes(owner):
     if not root or not root.IsOk():
         return
 
-    def children(item):
-        result = []
-        child, cookie = tree.GetFirstChild(item)
-        while child.IsOk():
-            result.append(child)
-            child, cookie = tree.GetNextChild(item, cookie)
-        return result
-
     def visit(item):
-        path = tree.GetItemData(item)
-        if tree.IsExpanded(item) and isinstance(path, str) and path:
-            try:
-                entries = []
-                for name in os.listdir(path):
-                    full_path = normalize_tree_path(os.path.join(path, name))
-                    hidden = bool(is_hidden(full_path))
-                    if owner.show_hidden or not hidden:
-                        entries.append((name, full_path, os.path.isdir(full_path), hidden))
-                entries.sort(key=lambda entry: (not entry[2], entry[0].lower()))
-            except OSError:
-                # Leave unavailable branches intact and continue with siblings.
-                entries = None
-            if entries is not None:
-                wanted = {entry[1] for entry in entries}
-                existing = {}
-                for child in children(item):
-                    child_path = tree.GetItemData(child)
-                    if child_path in wanted:
-                        existing[child_path] = child
-                    else:
-                        tree.Delete(child)
-                previous = None
-                for name, full_path, is_dir, hidden in entries:
-                    child = existing.get(full_path)
-                    if child is None:
-                        child = (tree.PrependItem(item, name) if previous is None
-                                 else tree.InsertItem(item, previous, name))
-                        tree.SetItemData(child, full_path)
-                    tree.SetItemImage(child, get_tree_icon_index(
-                        owner, full_path, is_dir=is_dir, is_hidden_item=hidden))
-                    if is_dir and not tree.ItemHasChildren(child):
-                        tree.AppendItem(child, tr("tree_expand_placeholder"))
-                    elif not is_dir and tree.ItemHasChildren(child):
-                        tree.DeleteChildren(child)
-                    previous = child
-        for child in children(item):
+        if tree.IsExpanded(item):
+            refresh_tree_node(owner, item)
+        for child in _tree_children(tree, item):
             visit(child)
 
     updating = owner.updating_tree

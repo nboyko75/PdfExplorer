@@ -1043,6 +1043,7 @@ class ExplorerWorkspace(wx.Panel):
     # ---------------- LIST ----------------
     def load_folder(self, path):
         navigation_utils.load_folder(self, path)
+        filelist._refresh_tree_node(self, path)
         self.host.explorer_tabs.location_changed(self, path)
 
     def refresh_list_item_size(self, path):

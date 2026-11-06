@@ -770,7 +770,7 @@ def _refresh_tree_node(owner, folder_path):
     try:
         item = _find_tree_item_without_expanding(owner, folder_path)
         if item is not None and item.IsOk():
-            tree_control.populate_tree_node(owner, item, folder_path)
+            tree_control.refresh_tree_node(owner, item)
     except Exception:
         pass
 
@@ -858,8 +858,6 @@ def refresh_current_list_folder(owner):
                 path_box.ChangeValue(folder)
             else:
                 path_box.SetValue(folder)
-        if not is_virtual:
-            _refresh_tree_node(owner, folder)
         owner.load_folder(folder)
     finally:
         owner._syncing_tree_from_path = previous_syncing
@@ -884,8 +882,6 @@ def _refresh_after_fs_change(owner, affected_dirs=None, preferred_preview_path=N
     is_virtual_shell_folder = isinstance(current_folder, str) and current_folder.lower().startswith("shell:")
     if current_folder and (os.path.isdir(current_folder) or is_virtual_shell_folder) and hasattr(owner, "load_folder"):
         owner.load_folder(current_folder)
-        if os.path.isdir(current_folder):
-            _refresh_tree_node(owner, current_folder)
 
     if selected_tree_path and os.path.isdir(selected_tree_path):
         if normalized_current_folder is None or os.path.normcase(normalized_current_folder) != os.path.normcase(selected_tree_path):
