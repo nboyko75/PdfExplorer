@@ -915,6 +915,19 @@ def get_selected_pdf_page_index(owner):
     return getattr(owner.selected_pdf_page_panel, "page_index", None)
 
 
+def get_scrolled_pdf_page_index(owner):
+    """Return the first page crossing the viewport edge in reading order."""
+    panels = getattr(owner, "pdf_page_panels", {})
+    if not panels:
+        return 0
+    axis = 1 if getattr(owner, "preview_vertical_view", False) else 0
+    return next(
+        (index for index, panel in sorted(panels.items())
+         if panel.GetPosition()[axis] + panel.GetSize()[axis] > 0),
+        max(panels),
+    )
+
+
 def can_preview_html(path):
     if not isinstance(path, str) or not os.path.isfile(path):
         return False
@@ -967,7 +980,7 @@ def update_page_buttons_state(owner):
     owner.preview_import_from_file_btn.Enable(can_act_on_pdf)
     owner.preview_export_pages_btn.Enable(can_act_on_pdf)
     owner.preview_move_page_btn.Enable(can_select_pdf_page)
-    owner.preview_remove_page_btn.Enable(can_select_pdf_page)
+    owner.preview_remove_page_btn.Enable(is_pdf_preview)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
     if hasattr(owner, "preview_zoom_in_btn"):
@@ -3283,9 +3296,10 @@ def on_preview_remove_page(event, owner=None):
         if page_count <= 0:
             return
 
-        page_indices = _show_remove_page_dialog(
-            owner, page_count, get_selected_pdf_page_indices(owner),
-        )
+        default_indices = get_selected_pdf_page_indices(owner)
+        if not default_indices:
+            default_indices = [min(get_scrolled_pdf_page_index(owner), page_count - 1)]
+        page_indices = _show_remove_page_dialog(owner, page_count, default_indices)
         if page_indices is None:
             return
         try:
@@ -3506,7 +3520,7 @@ def on_preview_right_click(event):
         or (bool(current_path) and (can_preview_html(current_path) or can_preview_text_file(current_path)))
         or is_office_preview_allowed(owner, current_path)
     )
-    remove_page_item.Enable(is_pdf_preview and get_selected_pdf_page_index(owner) is not None)
+    remove_page_item.Enable(is_pdf_preview)
     move_page_item.Enable(is_pdf_preview)
     cancel_item.Enable(is_pdf_preview and has_unsaved_pdf_changes(current_path))
     adjust_page_width_item.Enable(is_pdf_preview)

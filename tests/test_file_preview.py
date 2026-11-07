@@ -542,7 +542,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         file_preview = _import_file_preview_with_mocked_wx()
         owner = types.SimpleNamespace(
             current_preview_path="sample.pdf",
-            selected_pdf_page_panel=object(),
+            selected_pdf_page_panel=None,
             preview_rotate_menu_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
             preview_import_from_file_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
             preview_export_pages_btn=types.SimpleNamespace(Enable=mock.MagicMock()),
@@ -558,10 +558,12 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(True)
         owner.preview_optimize_btn.Enable.assert_called_once_with(True)
+        owner.preview_remove_page_btn.Enable.assert_called_once_with(True)
 
         owner.current_preview_path = "sample.png"
         owner.preview_adjust_page_width_btn.Enable.reset_mock()
         owner.preview_optimize_btn.Enable.reset_mock()
+        owner.preview_remove_page_btn.Enable.reset_mock()
 
         with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
              mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False):
@@ -569,6 +571,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
 
         owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(False)
         owner.preview_optimize_btn.Enable.assert_called_once_with(False)
+        owner.preview_remove_page_btn.Enable.assert_called_once_with(False)
 
     def test_office_preview_zoom_actions_are_disabled(self):
         file_preview = _import_file_preview_with_mocked_wx()

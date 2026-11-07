@@ -399,7 +399,7 @@ class ExplorerWorkspace(wx.Panel):
         self.doc_rotate_right_item.Enable(is_pdf_preview or is_image_preview)
         self.doc_rotate_all_right_item.Enable(is_pdf_preview)
         self.doc_move_page_item.Enable(is_pdf_preview)
-        self.doc_remove_page_item.Enable(is_pdf_preview and file_preview.get_selected_pdf_page_index(self) is not None)
+        self.doc_remove_page_item.Enable(is_pdf_preview)
         self.doc_adjust_page_width_item.Enable(is_pdf_preview)
         self.doc_optimize_item.Enable(is_pdf_preview)
         batch_target = getattr(self, "current_preview_path", None) or (self.path_box.GetValue() if hasattr(self, "path_box") and self.path_box is not None else "")
