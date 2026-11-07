@@ -20,6 +20,75 @@ def _import_file_preview_with_mocked_wx():
         return importlib.import_module("controls.file_preview")
 
 
+class RemovePageDialogTests(unittest.TestCase):
+    def setUp(self):
+        self.preview = importlib.import_module("controls.file_preview")
+
+    def test_dialog_prefills_selection_and_accepts_edited_ranges(self):
+        fake_wx = mock.MagicMock(ID_OK=wx.ID_OK, ID_CANCEL=wx.ID_CANCEL)
+        dialog = fake_wx.Dialog.return_value
+        field = fake_wx.TextCtrl.return_value
+        ok_button = mock.Mock()
+
+        def accept():
+            field.GetValue.return_value = "2, 4-5, 4"
+            ok_button.Bind.call_args.args[1](mock.Mock())
+            return wx.ID_OK
+
+        dialog.ShowModal.side_effect = accept
+        with mock.patch.object(self.preview, "wx", fake_wx), \
+             mock.patch.object(self.preview, "create_ok_cancel_row", return_value=(mock.Mock(), ok_button, mock.Mock())), \
+             mock.patch.object(self.preview, "persistent_dialog", side_effect=lambda dlg, key: nullcontext(dlg)):
+            result = self.preview._show_remove_page_dialog(None, 6, [4, 0])
+        self.assertEqual(fake_wx.TextCtrl.call_args.kwargs["value"], "1, 5")
+        self.assertEqual(result, [1, 3, 4])
+        dialog.EndModal.assert_called_once_with(wx.ID_OK)
+
+    def test_invalid_or_all_pages_keep_dialog_open_for_correction(self):
+        for value in ("", "0", "7", "abc", "*", "1-6"):
+            with self.subTest(value=value):
+                fake_wx = mock.MagicMock(ID_OK=wx.ID_OK, ID_CANCEL=wx.ID_CANCEL)
+                dialog = fake_wx.Dialog.return_value
+                field = fake_wx.TextCtrl.return_value
+                ok_button = mock.Mock()
+
+                def reject_then_cancel():
+                    field.GetValue.return_value = value
+                    ok_button.Bind.call_args.args[1](mock.Mock())
+                    dialog.EndModal.assert_not_called()
+                    return wx.ID_CANCEL
+
+                dialog.ShowModal.side_effect = reject_then_cancel
+                with mock.patch.object(self.preview, "wx", fake_wx), \
+                     mock.patch.object(self.preview, "create_ok_cancel_row", return_value=(mock.Mock(), ok_button, mock.Mock())), \
+                     mock.patch.object(self.preview, "persistent_dialog", side_effect=lambda dlg, key: nullcontext(dlg)):
+                    self.assertIsNone(self.preview._show_remove_page_dialog(None, 6, [0]))
+                fake_wx.MessageBox.assert_called_once()
+
+    def test_remove_uses_dialog_pages_and_cancel_leaves_document_unchanged(self):
+        owner = types.SimpleNamespace(current_preview_path="report.pdf", busy_cursor=nullcontext)
+        for result in ([1, 3], None):
+            with self.subTest(result=result), \
+                 mock.patch.object(self.preview, "_get_preview_owner_from_event", return_value=owner), \
+                 mock.patch.object(self.preview, "is_pdf_file", return_value=True), \
+                 mock.patch.object(self.preview, "get_pdf_page_count", return_value=6), \
+                 mock.patch.object(self.preview, "get_selected_pdf_page_indices", return_value=[0]), \
+                 mock.patch.object(self.preview, "_show_remove_page_dialog", return_value=result) as dialog, \
+                 mock.patch.object(self.preview.pdf_utils, "remove_pdf_pages") as remove, \
+                 mock.patch.object(self.preview, "show_pdf_feed") as refresh, \
+                 mock.patch.object(self.preview, "update_pdf_save_button_state") as update:
+                self.preview.on_preview_remove_page(mock.Mock(), owner=owner)
+                dialog.assert_called_once_with(owner, 6, [0])
+                if result is None:
+                    remove.assert_not_called()
+                    refresh.assert_not_called()
+                    update.assert_not_called()
+                else:
+                    remove.assert_called_once_with("report.pdf", result)
+                    refresh.assert_called_once_with(owner, "report.pdf")
+                    update.assert_called_once_with(owner)
+
+
 class HtmlPreviewErrorTests(unittest.TestCase):
     def test_async_browser_error_replaces_blank_office_preview_with_message(self):
         file_preview = importlib.import_module("controls.file_preview")

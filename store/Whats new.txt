@@ -115,3 +115,6 @@ Newly scanned documents now preview immediately, without selecting another file 
 
 Added Properties to both context menus and the file list toolbar
 cancelling PDF changes now forces the current preview to reload
+
+The delete action currently uses a confirmation box. I’ll replace it with an editable page-number form, prefilled with the selected pages and supporting ranges such as 1, 3-5
+

@@ -3223,6 +3223,51 @@ def on_preview_rotate_all_right(event):
 #             wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
+def _show_remove_page_dialog(owner, page_count, selected_indices=None):
+    dialog = wx.Dialog(owner, title=tr("preview_remove_page_button"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    panel = wx.Panel(dialog)
+    page_numbers_label = wx.StaticText(panel, label=tr("export_pdf_page_numbers_label"))
+    page_numbers_text = wx.TextCtrl(
+        panel, value=", ".join(str(index + 1) for index in sorted(set(selected_indices or [0]))),
+    )
+    fields = wx.FlexGridSizer(cols=2, hgap=8, vgap=8)
+    fields.Add(page_numbers_label, 0, wx.ALIGN_CENTER_VERTICAL)
+    fields.Add(page_numbers_text, 1, wx.EXPAND)
+    fields.AddGrowableCol(1, 1)
+    button_sizer, ok_btn, cancel_btn = create_ok_cancel_row(panel)
+
+    root_sizer = wx.BoxSizer(wx.VERTICAL)
+    root_sizer.Add(fields, 1, wx.EXPAND | wx.ALL, 12)
+    root_sizer.Add(button_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+    panel.SetSizer(root_sizer)
+    dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+    dialog_sizer.Add(panel, 1, wx.EXPAND)
+    dialog.SetSizerAndFit(dialog_sizer)
+
+    page_indices = None
+
+    def on_ok(event):
+        nonlocal page_indices
+        try:
+            page_indices = _parse_page_numbers_input(page_numbers_text.GetValue(), page_count)
+            if len(page_indices) == page_count:
+                raise ValueError(tr("pdf_keep_one_page"))
+        except ValueError as exc:
+            wx.MessageBox(str(exc), tr("preview_remove_page_button"), wx.OK | wx.ICON_ERROR, parent=dialog)
+            page_numbers_text.SetFocus()
+            page_numbers_text.SelectAll()
+            return
+        dialog.EndModal(wx.ID_OK)
+
+    ok_btn.Bind(wx.EVT_BUTTON, on_ok)
+    page_numbers_text.SetFocus()
+    page_numbers_text.SelectAll()
+    with persistent_dialog(dialog, "remove_page_dialog_size") as modal_dialog:
+        if modal_dialog.ShowModal() != wx.ID_OK:
+            return None
+        return page_indices
+
+
 def on_preview_remove_page(event, owner=None):
     owner = _get_preview_owner_from_event(event, fallback_owner=owner)
     if owner:
@@ -3230,29 +3275,26 @@ def on_preview_remove_page(event, owner=None):
             wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
             return
 
-        page_indices = get_selected_pdf_page_indices(owner)
-        if not page_indices:
-            wx.MessageBox(tr("select_pdf_page"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        try:
+            page_count = get_pdf_page_count(owner.current_preview_path)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+            return
+        if page_count <= 0:
             return
 
-        dialog = wx.MessageDialog(
-            owner,
-            (tr("confirm_remove_page", page_no=page_indices[0] + 1) if len(page_indices) == 1
-             else tr("confirm_remove_pages", count=len(page_indices))),
-            tr("preview_remove_page_button"),
-            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+        page_indices = _show_remove_page_dialog(
+            owner, page_count, get_selected_pdf_page_indices(owner),
         )
-        if dialog.ShowModal() == wx.ID_YES:
-            try:
-                with owner.busy_cursor():
-                    pdf_utils.remove_pdf_pages(owner.current_preview_path, page_indices)
-                    ## save_pdf(owner.current_preview_path)
-                    ## owner.refresh_list_item_size(owner.current_preview_path)
-                    show_pdf_feed(owner, owner.current_preview_path)
-                    update_pdf_save_button_state(owner)
-            except Exception as exc:
-                wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
-        dialog.Destroy()
+        if page_indices is None:
+            return
+        try:
+            with owner.busy_cursor():
+                pdf_utils.remove_pdf_pages(owner.current_preview_path, page_indices)
+                show_pdf_feed(owner, owner.current_preview_path)
+                update_pdf_save_button_state(owner)
+        except Exception as exc:
+            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
 def _show_move_page_dialog(owner, page_count, default_source_page_no, selected_indices=None):
