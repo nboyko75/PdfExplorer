@@ -434,20 +434,17 @@ def _close_preview_tab(owner, tab_index):
     active_index = owner.preview_active_tab_index
     del owner.preview_tabs[tab_index]
 
-    if not owner.preview_tabs:
+    if not owner.preview_tabs or is_closing_active_tab:
         close_office_preview(owner, save_changes=False)
         owner.preview_active_tab_index = None
         owner.current_preview_path = None
         _clear_preview_content_state(owner)
         _render_preview_tab_bar(owner)
-        return
-
-    if is_closing_active_tab:
-        close_office_preview(owner, save_changes=False)
-        owner.preview_active_tab_index = None
-        owner.current_preview_path = None
-        _clear_preview_content_state(owner)
-        _render_preview_tab_bar(owner)
+        update_page_buttons_state(owner)
+        update_pdf_save_button_state(owner)
+        update_menu = getattr(owner, "_update_main_menu_state", None)
+        if callable(update_menu):
+            update_menu()
         return
 
     if active_index is None:
