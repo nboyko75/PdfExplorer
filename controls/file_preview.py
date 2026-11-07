@@ -3433,23 +3433,39 @@ def on_preview_move_page(event):
 
 
 def on_preview_optimize(event):
-    ## Auto-rotate the PDF before optimizing to avoid cutting page.
-    ## on_preview_auto_rotate(event)
+    from controls.filelist import get_selected_list_paths
 
     owner = _get_preview_owner_from_event(event)
-    if owner:
-        if not is_pdf_file(owner.current_preview_path):
-            wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
-            return
-        try:
-            with owner.busy_cursor():
-                optimize_pdf(owner.current_preview_path)
-                save_pdf(owner.current_preview_path)
-                owner.refresh_list_item_size(owner.current_preview_path)
+    if owner is None:
+        return
+    current_path = owner.current_preview_path
+    if not is_pdf_file(current_path):
+        wx.MessageBox(tr("no_preview_available"), tr("app_title"), wx.OK | wx.ICON_INFORMATION)
+        return
+
+    selected_paths = get_selected_list_paths(owner)
+    targets = [path for path in (selected_paths or [current_path])
+               if is_pdf_file(path) and not os.path.isdir(path)]
+    errors = []
+    refresh_preview = False
+    with owner.busy_cursor():
+        for path in targets:
+            try:
+                optimize_pdf(path)
+                if _normalize_preview_path(path) == _normalize_preview_path(current_path):
+                    refresh_preview = True
+                save_pdf(path)
+                owner.refresh_list_item_size(path)
+            except Exception as exc:
+                errors.append(f"{path}: {exc}")
+        if refresh_preview:
+            try:
                 update_pdf_save_button_state(owner)
-                show_pdf_feed(owner, owner.current_preview_path)
-        except Exception as exc:
-            wx.MessageBox(str(exc), tr("app_title"), wx.OK | wx.ICON_ERROR)
+                show_pdf_feed(owner, current_path)
+            except Exception as exc:
+                errors.append(f"{current_path}: {exc}")
+    if errors:
+        wx.MessageBox("\n".join(errors), tr("app_title"), wx.OK | wx.ICON_ERROR)
 
 
 def on_preview_adjust_page_width(event):

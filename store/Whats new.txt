@@ -118,3 +118,4 @@ cancelling PDF changes now forces the current preview to reload
 
 The delete action currently uses a confirmation box. I’ll replace it with an editable page-number form, prefilled with the selected pages and supporting ranges such as 1, 3-5
 
+Optimize now processes all selected PDFs, saves each result, and updates file sizes. It skips other file types and folders, continues after failures, and reports errors.
