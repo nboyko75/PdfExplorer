@@ -151,6 +151,7 @@ class ExplorerWorkspace(wx.Panel):
 
         self.file_menu = wx.Menu()
         self.file_open_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open"], context_factory=list_context)
+        self.file_create_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["create"], context_factory=list_context)
         self.file_scan_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["scan"], context_factory=list_context)
         self.file_open_with_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["open_with"], context_factory=list_context)
         self.file_new_folder_item = menu_utils.append_menu_command(self.file_menu, self, menu_utils.FILE_COMMANDS["new_folder"], context_factory=list_context)
@@ -345,6 +346,7 @@ class ExplorerWorkspace(wx.Panel):
 
         self.file_scan_item.Enable(True)
         self.file_open_item.Enable(has_single_selection)
+        self.file_create_item.Enable(bool(menu_utils.FILE_COMMANDS["create"].can_execute(filelist.build_list_command_context(self, source="main"))))
         self.file_open_with_item.Enable(len(selected_items) == 1 and os.path.isfile(selected_items[0]))
         self.file_rename_item.Enable(has_single_selection)
         self.file_new_folder_item.Enable(bool(current_path and os.path.isdir(current_path)))
@@ -804,6 +806,10 @@ class ExplorerWorkspace(wx.Panel):
                 self.menu_bar.SetMenuLabel(index, tr(key))
             self.file_scan_item.SetItemLabel(tr("scan"))
             self.file_open_item.SetItemLabel(tr("context_open"))
+            self.file_create_item.SetItemLabel(tr("context_create"))
+            self.file_create_item.SetHelp(tr("create_hint"))
+            menu_utils.create_item.populate_menu(
+                self.file_create_item.GetSubMenu(), lambda: filelist.build_list_command_context(self, source="main"))
             self.file_open_with_item.SetItemLabel(tr("context_open_with"))
             self.file_rename_item.SetItemLabel(tr("context_rename"))
             self.file_rename_files_item.SetItemLabel(tr("rename_files"))
@@ -867,6 +873,7 @@ class ExplorerWorkspace(wx.Panel):
         self.preview_move_page_btn.SetToolTip(tr("preview_move_page_button"))
         self.list_scan_btn.SetToolTip(tr("scan"))
         self.list_open_btn.SetToolTip(tr("context_open"))
+        self.list_create_btn.SetToolTip(tr("create_hint"))
         self.list_open_with_btn.SetToolTip(tr("context_open_with"))
         self.list_properties_btn.SetToolTip(tr("context_properties"))
         self.list_refresh_btn.SetToolTip(tr("context_refresh"))

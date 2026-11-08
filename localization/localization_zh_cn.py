@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': '新建',
+    'create_hint': '在此文件夹中新建文件夹、快捷方式或文档',
+    'create_shortcut': '快捷方式',
+    'create_word': 'Word 文档',
+    'create_excel': 'Excel 工作簿',
+    'create_text': '文本文档',
+    'create_rich_text': 'RTF 文档',
+    'create_name': '名称',
+    'create_shortcut_target': '输入此快捷方式所指向的文件或文件夹的路径',
+    'create_target_missing': '请选择现有文件或文件夹作为快捷方式的目标。',
+    'create_failed': '无法创建项目。\n\n{error}',
     "context_properties": '属性',
     "properties_failed": '无法打开以下项目的属性：\n{path}\n\n{error}',
     'merge_mark_changes': '用颜色标记更改',

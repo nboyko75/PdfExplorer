@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': '새로 만들기',
+    'create_hint': '이 폴더에 폴더, 바로 가기 또는 문서를 만듭니다',
+    'create_shortcut': '바로 가기',
+    'create_word': 'Word 문서',
+    'create_excel': 'Excel 통합 문서',
+    'create_text': '텍스트 문서',
+    'create_rich_text': '서식 있는 텍스트 문서',
+    'create_name': '이름',
+    'create_shortcut_target': '바로 가기의 대상 파일 또는 폴더 경로를 입력하세요',
+    'create_target_missing': '바로 가기 대상으로 기존 파일 또는 폴더를 선택하세요.',
+    'create_failed': '항목을 만들 수 없습니다.\n\n{error}',
     "context_properties": '속성',
     "properties_failed": '다음 항목의 속성을 열 수 없습니다:\n{path}\n\n{error}',
     'merge_mark_changes': '변경 사항을 색상으로 표시',

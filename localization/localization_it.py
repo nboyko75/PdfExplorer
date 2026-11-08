@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Crea',
+    'create_hint': 'Crea una cartella, un collegamento o un documento in questa cartella',
+    'create_shortcut': 'Collegamento',
+    'create_word': 'Documento Word',
+    'create_excel': 'Cartella di lavoro Excel',
+    'create_text': 'Documento di testo',
+    'create_rich_text': 'Documento RTF',
+    'create_name': 'Nome',
+    'create_shortcut_target': 'Inserisci il percorso del file o della cartella per questo collegamento',
+    'create_target_missing': 'Seleziona un file o una cartella esistente come destinazione del collegamento.',
+    'create_failed': 'Impossibile creare questo elemento.\n\n{error}',
     "context_properties": 'Proprietà',
     "properties_failed": 'Impossibile aprire le proprietà di:\n{path}\n\n{error}',
     'merge_mark_changes': 'Evidenzia le modifiche con un colore',

@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Créer',
+    'create_hint': 'Créer un dossier, un raccourci ou un document dans ce dossier',
+    'create_shortcut': 'Raccourci',
+    'create_word': 'Document Word',
+    'create_excel': 'Classeur Excel',
+    'create_text': 'Document texte',
+    'create_rich_text': 'Document au format RTF',
+    'create_name': 'Nom',
+    'create_shortcut_target': 'Saisissez le chemin du fichier ou du dossier pour ce raccourci',
+    'create_target_missing': 'Sélectionnez un fichier ou un dossier existant comme cible du raccourci.',
+    'create_failed': 'Impossible de créer cet élément.\n\n{error}',
     "context_properties": 'Propriétés',
     "properties_failed": 'Impossible d’ouvrir les propriétés de :\n{path}\n\n{error}',
     'merge_mark_changes': 'Marquer les modifications en couleur',

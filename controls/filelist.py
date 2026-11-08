@@ -111,6 +111,9 @@ def build_list_panel(owner, parent_splitter):
         icon_size=list_btn_icon_size,
         button_size=list_btn_size,
     )
+    owner.list_create_btn = wx.Button(owner.list_host_panel, label="▾", size=(36, 24))
+    owner.list_create_btn.SetBitmap(wx.ArtProvider.GetBitmap(wx.ART_NEW, wx.ART_BUTTON, (16, 16)))
+    owner.list_create_btn.SetToolTip(tr("create_hint"))
     owner.list_scan_btn = image_utils.create_bitmap_button2(
         owner.list_host_panel,
         owner.icon_manager,
@@ -207,6 +210,7 @@ def build_list_panel(owner, parent_splitter):
     owner.search_box.SetHint(tr("search_hint"))
 
     owner.list_toolbar.Add(owner.list_open_btn, 0, wx.RIGHT, 3)
+    owner.list_toolbar.Add(owner.list_create_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_scan_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_open_with_btn, 0, wx.RIGHT, 3)
     owner.list_toolbar.Add(owner.list_up_btn, 0, wx.RIGHT, 3)
@@ -275,6 +279,7 @@ def bind_list_events(owner):
     context_factory = lambda: build_list_command_context(owner, source="toolbar")
     bind_command(owner.list_scan_btn, owner, FILE_COMMANDS["scan"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_open_btn, owner, FILE_COMMANDS["open"], wx.EVT_BUTTON, context_factory)
+    bind_command(owner.list_create_btn, owner, FILE_COMMANDS["create"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_open_with_btn, owner, FILE_COMMANDS["open_with"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_properties_btn, owner, FILE_COMMANDS["properties"], wx.EVT_BUTTON, context_factory)
     bind_command(owner.list_rename_btn, owner, FILE_COMMANDS["rename"], wx.EVT_BUTTON, context_factory)
@@ -379,6 +384,10 @@ def update_list_toolbar_buttons(owner):
     button = getattr(owner, "list_new_folder_btn", None)
     if button is not None:
         button.Enable(os.path.isdir(current_folder))
+
+    button = getattr(owner, "list_create_btn", None)
+    if button is not None:
+        button.Enable(bool(FILE_COMMANDS["create"].can_execute(build_list_command_context(owner))))
 
     button = getattr(owner, "list_print_btn", None)
     if button is not None:

@@ -416,6 +416,20 @@ DEFAULT_TRANSLATIONS.update({
     'generator_keep_format': 'Save the result in the original {extension} format.',
 })
 
+DEFAULT_TRANSLATIONS.update({
+    'context_create': 'Create',
+    'create_hint': 'Create a folder, shortcut or document in this folder',
+    'create_shortcut': 'Shortcut',
+    'create_word': 'Word document',
+    'create_excel': 'Excel workbook',
+    'create_text': 'Text document',
+    'create_rich_text': 'Rich Text document',
+    'create_name': 'Name',
+    'create_shortcut_target': 'Enter the path to the file or folder for this shortcut',
+    'create_target_missing': 'Select an existing file or folder as the shortcut target.',
+    'create_failed': 'Could not create the item.\n\n{error}',
+})
+
 TRANSLATIONS: Dict[str, str] = DEFAULT_TRANSLATIONS.copy()
 
 

@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Criar',
+    'create_hint': 'Criar uma pasta, um atalho ou um documento nesta pasta',
+    'create_shortcut': 'Atalho',
+    'create_word': 'Documento do Word',
+    'create_excel': 'Pasta de trabalho do Excel',
+    'create_text': 'Documento de texto',
+    'create_rich_text': 'Documento de texto formatado',
+    'create_name': 'Nome',
+    'create_shortcut_target': 'Digite o caminho do arquivo ou da pasta para este atalho',
+    'create_target_missing': 'Selecione um arquivo ou uma pasta existente como destino do atalho.',
+    'create_failed': 'Não foi possível criar o item.\n\n{error}',
     "context_properties": 'Propriedades',
     "properties_failed": 'Não foi possível abrir as propriedades de:\n{path}\n\n{error}',
     'merge_mark_changes': 'Marcar alterações com cor',

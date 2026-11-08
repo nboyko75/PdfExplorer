@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Створити',
+    'create_hint': 'Створити папку, ярлик або документ у цій папці',
+    'create_shortcut': 'Ярлик',
+    'create_word': 'Документ Word',
+    'create_excel': 'Книга Excel',
+    'create_text': 'Текстовий документ',
+    'create_rich_text': 'Документ RTF',
+    'create_name': 'Ім’я',
+    'create_shortcut_target': 'Введіть шлях до файлу або папки для цього ярлика',
+    'create_target_missing': 'Виберіть наявний файл або папку як об’єкт ярлика.',
+    'create_failed': 'Не вдалося створити елемент.\n\n{error}',
     "context_properties": 'Властивості',
     "properties_failed": 'Не вдалося відкрити властивості:\n{path}\n\n{error}',
     'merge_mark_changes': 'Позначати зміни кольором',

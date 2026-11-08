@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Создать',
+    'create_hint': 'Создать папку, ярлык или документ в этой папке',
+    'create_shortcut': 'Ярлык',
+    'create_word': 'Документ Word',
+    'create_excel': 'Книга Excel',
+    'create_text': 'Текстовый документ',
+    'create_rich_text': 'Документ RTF',
+    'create_name': 'Имя',
+    'create_shortcut_target': 'Введите путь к файлу или папке для этого ярлыка',
+    'create_target_missing': 'Выберите существующий файл или папку в качестве объекта ярлыка.',
+    'create_failed': 'Не удалось создать элемент.\n\n{error}',
     "context_properties": 'Свойства',
     "properties_failed": 'Не удалось открыть свойства:\n{path}\n\n{error}',
     'merge_mark_changes': 'Отмечать изменения цветом',

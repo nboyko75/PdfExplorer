@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': '新規作成',
+    'create_hint': 'このフォルダーにフォルダー、ショートカット、またはドキュメントを作成します',
+    'create_shortcut': 'ショートカット',
+    'create_word': 'Word 文書',
+    'create_excel': 'Excel ブック',
+    'create_text': 'テキスト ドキュメント',
+    'create_rich_text': 'リッチ テキスト ドキュメント',
+    'create_name': '名前',
+    'create_shortcut_target': 'ショートカットのリンク先のファイルまたはフォルダーのパスを入力してください',
+    'create_target_missing': 'リンク先として既存のファイルまたはフォルダーを選択してください。',
+    'create_failed': '項目を作成できませんでした。\n\n{error}',
     "context_properties": 'プロパティ',
     "properties_failed": '次の項目のプロパティを開けませんでした:\n{path}\n\n{error}',
     'merge_mark_changes': '変更箇所を色でマークする',

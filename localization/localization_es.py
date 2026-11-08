@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Crear',
+    'create_hint': 'Crear una carpeta, un acceso directo o un documento en esta carpeta',
+    'create_shortcut': 'Acceso directo',
+    'create_word': 'Documento de Word',
+    'create_excel': 'Libro de Excel',
+    'create_text': 'Documento de texto',
+    'create_rich_text': 'Documento de texto enriquecido',
+    'create_name': 'Nombre',
+    'create_shortcut_target': 'Introduzca la ruta del archivo o la carpeta para este acceso directo',
+    'create_target_missing': 'Seleccione un archivo o una carpeta existente como destino del acceso directo.',
+    'create_failed': 'No se pudo crear el elemento.\n\n{error}',
     "context_properties": 'Propiedades',
     "properties_failed": 'No se pudieron abrir las propiedades de:\n{path}\n\n{error}',
     'merge_mark_changes': 'Marcar cambios con color',

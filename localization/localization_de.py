@@ -1,6 +1,17 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'context_create': 'Erstellen',
+    'create_hint': 'Einen Ordner, eine Verknüpfung oder ein Dokument in diesem Ordner erstellen',
+    'create_shortcut': 'Verknüpfung',
+    'create_word': 'Word-Dokument',
+    'create_excel': 'Excel-Arbeitsmappe',
+    'create_text': 'Textdokument',
+    'create_rich_text': 'Rich-Text-Dokument',
+    'create_name': 'Name',
+    'create_shortcut_target': 'Pfad zur Datei oder zum Ordner für diese Verknüpfung eingeben',
+    'create_target_missing': 'Wählen Sie eine vorhandene Datei oder einen Ordner als Verknüpfungsziel aus.',
+    'create_failed': 'Das Element konnte nicht erstellt werden.\n\n{error}',
     "context_properties": 'Eigenschaften',
     "properties_failed": 'Eigenschaften konnten nicht geöffnet werden:\n{path}\n\n{error}',
     'merge_mark_changes': 'Änderungen farbig markieren',
