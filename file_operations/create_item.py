@@ -1,6 +1,7 @@
-"""Create Explorer-style items without requiring an installed Office application."""
+"""Explorer's New-menu UI, with built-in creation as a fallback."""
 
 import io
+import logging
 import os
 from pathlib import Path
 import re
@@ -10,9 +11,12 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import wx
 
 from localization import tr
+from file_operations import shell_new
+
+log = logging.getLogger(__name__)
 
 
-# Order is shared by the main menu, both pane menus and the toolbar dropdown.
+# Fallback only, for systems where the Windows New-menu handler is unavailable.
 ITEM_TYPES = (
     ("folder", "file_type_folder", ""),
     ("shortcut", "create_shortcut", ".lnk"),
@@ -31,14 +35,15 @@ def target_directory(context):
     return path if isinstance(path, str) and os.path.isdir(path) else None
 
 
-def item_name(name, kind):
+def item_name(name, kind=None, *, extension=None):
     """Accept one Windows filename, never a path or an alternate data stream."""
     if (not name or name in (".", "..") or name.endswith((".", " "))
             or re.search(r'[<>:"/\\|?*\x00-\x1f]', name)
             or re.fullmatch(r"CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]",
                             name.split(".")[0].rstrip(), re.IGNORECASE)):
         raise ValueError(tr("rename_invalid_name"))
-    extension = _TYPES[kind][1]
+    if extension is None:
+        extension = _TYPES[kind][1]
     if extension and not name.lower().endswith(extension):
         name += extension
     if len(name.encode("utf-16-le")) // 2 > 255:
@@ -170,24 +175,106 @@ def run(context, kind):
         wx.MessageBox(tr("create_failed", error=str(exc)), tr("context_create"), wx.OK | wx.ICON_ERROR, owner)
         return
 
+    _refresh_created(owner, directory, path)
+
+
+def _refresh_created(owner, directory, path=None):
     from controls import filelist, tree_control
     path_box = getattr(owner, "path_box", None)
     if path_box is not None:
         path_box.ChangeValue(directory)
     filelist._refresh_after_fs_change(owner, affected_dirs=[directory], current_folder=directory)
-    if kind == "folder" and getattr(owner, "tree", None) is not None:
+    if path and os.path.isdir(path) and getattr(owner, "tree", None) is not None:
         tree_control.select_tree_item_by_path(owner, path, update_path_box=False)
-    filelist.select_list_item_by_path(owner, path)
+    if path:
+        filelist.select_list_item_by_path(owner, path)
+
+
+def _finish_shell_creation(owner, directory, before, attempts=10, expected_folder=None):
+    if not owner or getattr(owner, "_closing_workspace", False) or not os.path.isdir(directory):
+        return
+    try:
+        if expected_folder is not None:
+            current = getattr(owner, "_list_folder_path", None)
+            if current is not None and current != expected_folder:
+                # An asynchronous application must not navigate the user back.
+                from controls import filelist
+                filelist._refresh_after_fs_change(owner, affected_dirs=[directory])
+                return
+        added = set(os.listdir(directory)) - before
+        if not added and attempts:
+            # Some registered New commands create their file asynchronously.
+            wx.CallLater(300, _finish_shell_creation, owner, directory, before, attempts - 1, expected_folder)
+            return
+        path = os.path.join(directory, next(iter(added))) if len(added) == 1 else None
+        if path:
+            # Explorer creates first, then offers to rename. Cancel keeps its default name.
+            name = _prompt(owner, tr("create_name"), os.path.basename(path))
+            if name is not None:
+                extension = os.path.splitext(path)[1] if os.path.isfile(path) else ""
+                destination = os.path.join(directory, item_name(name, extension=extension))
+                if destination != path:
+                    os.rename(path, destination)  # Windows refuses to overwrite an existing file.
+                    path = destination
+        _refresh_created(owner, directory, path)
+    except Exception as exc:
+        wx.MessageBox(tr("create_failed", error=str(exc)), tr("context_create"), wx.OK | wx.ICON_ERROR, owner)
+        _refresh_created(owner, directory)
+
+
+def run_shell(context, entry):
+    directory = target_directory(context)
+    if not directory:
+        return
+    # These two native commands require Explorer's IShellView for editing/wizards.
+    # Keep our existing dialogs while using their exact Shell labels and icons.
+    if entry.verb in ("NewFolder", "NewLink"):
+        return run(context, "folder" if entry.verb == "NewFolder" else "shortcut")
+    try:
+        expected_folder = getattr(context.owner, "_list_folder_path", None)
+        before = set(os.listdir(directory))
+        shell_new.invoke(directory, entry, context.owner.GetHandle())
+    except Exception as exc:
+        wx.MessageBox(tr("create_failed", error=str(exc)), tr("context_create"), wx.OK | wx.ICON_ERROR, context.owner)
+        return
+    _finish_shell_creation(context.owner, directory, before, expected_folder=expected_folder)
+
+
+def _fallback_bitmap(kind, extension):
+    from file_operations.image_utils import get_shell_bitmap
+    bitmap = get_shell_bitmap("folder" if kind == "folder" else "new" + extension,
+                              file_attr=0x10 if kind == "folder" else 0x80,
+                              use_file_attributes=True)
+    if bitmap is not None and bitmap.IsOk():
+        return bitmap
+    return wx.ArtProvider.GetBitmap(wx.ART_FOLDER if kind == "folder" else wx.ART_NORMAL_FILE,
+                                    wx.ART_MENU, (16, 16))
 
 
 def populate_menu(menu, context_factory):
     for item in list(menu.GetMenuItems()):
         menu.Unbind(wx.EVT_MENU, id=item.GetId())
         menu.DestroyItem(item)
-    for kind, label, _extension in ITEM_TYPES:
+    directory = target_directory(context_factory())
+    if directory:
+        try:
+            entries = shell_new.items(directory)
+        except Exception:
+            log.warning("Unable to read Windows New menu; using built-in creation types", exc_info=True)
+        else:
+            for entry in entries:
+                if entry.separator:
+                    menu.AppendSeparator()
+                    continue
+                item = menu.Append(wx.ID_ANY, entry.label)
+                item.Enable(entry.enabled)
+                if entry.icon:
+                    item.SetBitmap(wx.Bitmap.FromBufferRGBA(*entry.icon))
+                menu.Bind(wx.EVT_MENU, lambda event, selected=entry: run_shell(context_factory(), selected), item)
+            return
+    for kind, label, extension in ITEM_TYPES:
         item = menu.Append(wx.ID_ANY, tr(label))
-        art = wx.ART_FOLDER if kind == "folder" else wx.ART_NORMAL_FILE
-        item.SetBitmap(wx.ArtProvider.GetBitmap(art, wx.ART_MENU, (16, 16)))
+        item.SetBitmap(_fallback_bitmap(kind, extension))
         menu.Bind(wx.EVT_MENU, lambda event, selected=kind: run(context_factory(), selected), item)
 
 

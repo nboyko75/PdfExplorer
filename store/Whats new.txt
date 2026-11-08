@@ -120,5 +120,4 @@ The delete action currently uses a confirmation box. I’ll replace it with an e
 
 Optimize now processes all selected PDFs, saves each result, and updates file sizes. It skips other file types and folders, continues after failures, and reports errors.
 
-Added Create to the main File menu, tree and file-list context menus, and toolbar beside Open.
-Includes Folder, Shortcut, Word, Excel, Text, and Rich Text.
+Create now mirrors Windows Explorer’s New submenu in all four locations, using its registered file types, ordering, separators, and native icons.

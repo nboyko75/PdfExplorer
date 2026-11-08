@@ -330,6 +330,8 @@ class ExplorerWorkspace(wx.Panel):
             self._update_main_menu_state()
             context = filelist.build_list_command_context(self, source="main")
             open_with.populate_menu(self.file_open_with_item.GetSubMenu(), self, open_with.selected_file(context))
+            menu_utils.create_item.populate_menu(
+                self.file_create_item.GetSubMenu(), lambda: filelist.build_list_command_context(self, source="main"))
         event.Skip()
 
     def _update_main_menu_state(self):

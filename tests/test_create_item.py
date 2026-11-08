@@ -168,7 +168,11 @@ class CreateMenuTests(unittest.TestCase):
 
     def test_native_submenu_uses_live_context_and_updates_language(self):
         from common import menu_utils
-        with tempfile.TemporaryDirectory() as folder:
+        from file_operations.shell_new import NewItem
+        entries = [NewItem(1, "System folder", "NewFolder"),
+                   NewItem(2, "System shortcut", "NewLink"),
+                   NewItem(3, "Installed document", ".custom", icon=(1, 1, bytes((255, 0, 0, 255))))]
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(create_item.shell_new, "items", return_value=entries):
             context = menu_utils.FileCommandContext(None, "main", folder, [])
             menu = wx.Menu()
             try:
@@ -177,16 +181,17 @@ class CreateMenuTests(unittest.TestCase):
                 self.assertTrue(item.IsEnabled())
                 self.assertEqual(item.GetHelp(), tr("create_hint"))
                 submenu = item.GetSubMenu()
-                self.assertEqual(submenu.GetMenuItemCount(), len(create_item.ITEM_TYPES))
+                self.assertEqual(submenu.GetMenuItemCount(), len(entries))
+                self.assertTrue(submenu.GetMenuItems()[2].GetBitmap().IsOk())
                 context = menu_utils.FileCommandContext(None, "main", folder, ["changed"])
-                with mock.patch.object(create_item, "run") as run:
+                with mock.patch.object(create_item, "run_shell") as run:
                     event = wx.CommandEvent(wx.EVT_MENU.typeId, submenu.GetMenuItems()[2].GetId())
                     submenu.ProcessEvent(event)
-                    run.assert_called_once_with(context, "word")
+                    run.assert_called_once_with(context, entries[2])
                 load_locale("uk")
                 create_item.populate_menu(submenu, lambda: context)
-                self.assertEqual(submenu.GetMenuItems()[1].GetItemLabel(), "Ярлик")
-                self.assertEqual(submenu.GetMenuItemCount(), len(create_item.ITEM_TYPES))
+                self.assertEqual(submenu.GetMenuItems()[1].GetItemLabel(), "System shortcut")
+                self.assertEqual(submenu.GetMenuItemCount(), len(entries))
             finally:
                 load_locale("en")
                 menu.Destroy()
@@ -217,9 +222,14 @@ class CreateMenuTests(unittest.TestCase):
                     buttons = [child.GetWindow() for child in owner.list_toolbar.GetChildren()]
                     self.assertEqual(buttons.index(owner.list_create_btn), buttons.index(owner.list_open_btn) + 1)
                     # Dispatch the real main submenu; exercise refresh and selection too.
+                    entries = create_item.shell_new.items(folder)
+                    text_index = next((index for index, entry in enumerate(entries) if entry.verb == ".txt"), None)
+                    if text_index is None:
+                        self.skipTest("Windows has no Text Document New-menu registration")
+                    owner.on_main_menu_open(SimpleNamespace(GetMenu=lambda: owner.file_menu, Skip=lambda: None))
                     submenu = owner.file_create_item.GetSubMenu()
                     with mock.patch.object(create_item, "_prompt", return_value="from main"):
-                        submenu.ProcessEvent(wx.CommandEvent(wx.EVT_MENU.typeId, submenu.GetMenuItems()[4].GetId()))
+                        submenu.ProcessEvent(wx.CommandEvent(wx.EVT_MENU.typeId, submenu.GetMenuItems()[text_index].GetId()))
                     path = os.path.join(folder, "from main.txt")
                     self.assertTrue(os.path.isfile(path))
                     self.assertIn(path, filelist.get_selected_list_paths(owner))
@@ -232,7 +242,7 @@ class CreateMenuTests(unittest.TestCase):
                         try:
                             submenu = menu.GetMenuItems()[1].GetSubMenu()
                             with mock.patch.object(create_item, "_prompt", return_value=source):
-                                submenu.ProcessEvent(wx.CommandEvent(wx.EVT_MENU.typeId, submenu.GetMenuItems()[4].GetId()))
+                                submenu.ProcessEvent(wx.CommandEvent(wx.EVT_MENU.typeId, submenu.GetMenuItems()[text_index].GetId()))
                             self.assertTrue(os.path.isfile(os.path.join(destination, source + ".txt")))
                         finally:
                             menu.Destroy()
@@ -245,7 +255,7 @@ class CreateMenuTests(unittest.TestCase):
                         self.assertEqual(owner.file_create_item.GetItemLabel(), tr("context_create"))
                         self.assertEqual(owner.file_create_item.GetHelp(), tr("create_hint"))
                         self.assertEqual(owner.list_create_btn.GetToolTip().GetTip(), tr("create_hint"))
-                        self.assertEqual(owner.file_create_item.GetSubMenu().GetMenuItems()[2].GetItemLabel(), tr("create_word"))
+                        self.assertEqual(owner.file_create_item.GetSubMenu().GetMenuItems()[text_index].GetItemLabel(), entries[text_index].label)
                 finally:
                     frame.Destroy()
                     load_locale("en")
