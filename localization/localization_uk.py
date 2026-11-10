@@ -259,7 +259,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "Введіть номери сторінок у форматі 1,3-5.",
     "export_pdf_save_dialog_title": "Зберегти експортовані сторінки",
     "move_page_dialog_title": "Перемістити сторінку PDF",
-    "move_page_source_label": "Сторінка для переміщення:",
+    "move_page_source_label": "Маска сторінок (1-2,3):",
     "move_page_destination_label": "Призначення:",
     "move_page_destination_page_label": "Номер сторінки:",
     "move_page_at_begin": "На початок",

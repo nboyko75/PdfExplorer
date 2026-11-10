@@ -217,7 +217,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "Enter page numbers like 1,3-5.",
     "export_pdf_save_dialog_title": "Save exported pages",
     "move_page_dialog_title": "Move PDF page",
-    "move_page_source_label": "Page to move:",
+    "move_page_source_label": "Page mask (1-2,3):",
     "move_page_destination_label": "Destination:",
     "move_page_destination_page_label": "Page number:",
     "move_page_at_begin": "At the begin",

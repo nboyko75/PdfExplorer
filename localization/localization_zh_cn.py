@@ -297,7 +297,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "请输入类似 1,3-5 的页码。",
     "export_pdf_save_dialog_title": "保存导出的页面",
     "move_page_dialog_title": "移动 PDF 页面",
-    "move_page_source_label": "要移动的页面:",
+    "move_page_source_label": "页面掩码 (1-2,3):",
     "move_page_destination_label": "目标位置:",
     "move_page_destination_page_label": "页码:",
     "move_page_at_begin": "到开头",

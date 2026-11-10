@@ -308,7 +308,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "Saisissez des numéros de page comme 1,3-5.",
     "export_pdf_save_dialog_title": "Enregistrer les pages exportées",
     "move_page_dialog_title": "Deplacer la page PDF",
-    "move_page_source_label": "Page a deplacer:",
+    "move_page_source_label": "Masque de pages (1-2,3) :",
     "move_page_destination_label": "Destination:",
     "move_page_destination_page_label": "Numero de page:",
     "move_page_at_begin": "Au debut",

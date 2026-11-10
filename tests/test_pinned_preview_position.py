@@ -116,6 +116,23 @@ class PinnedPreviewPositionTests(unittest.TestCase):
                     error.assert_not_called()
                     dialog.assert_called_once_with(self.owner, 5, expected)
 
+    def test_move_defaults_to_scrolled_page_regardless_of_selection(self):
+        self.owner._pdf_session_bytes = {}
+        for vertical in (False, True):
+            with self.subTest(vertical=vertical):
+                self.preview.show_file_preview(self.owner, None)
+                self.owner.preview_vertical_view = vertical
+                self.preview.show_file_preview(self.owner, self.paths[0])
+                self.scroll_to_page(2)
+                for selection in (set(), {0}, {1, 4}):
+                    self.owner.selected_pdf_page_indices = selection
+                    with mock.patch.object(self.preview, "_get_preview_owner_from_event", return_value=self.owner), \
+                         mock.patch.object(self.preview, "_show_move_page_dialog", return_value=None) as dialog, \
+                         mock.patch.object(self.preview.wx, "MessageBox") as error:
+                        self.preview.on_preview_move_page(None)
+                    error.assert_not_called()
+                    dialog.assert_called_once_with(self.owner, 5, 3)
+
     def test_folder_selection_preserves_position_and_unpin_discards_it(self):
         self.preview.show_file_preview(self.owner, self.paths[0])
         self.scroll_to_page(2)

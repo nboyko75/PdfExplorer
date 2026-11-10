@@ -297,7 +297,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "1,3-5 のようにページ番号を入力してください。",
     "export_pdf_save_dialog_title": "エクスポートしたページを保存",
     "move_page_dialog_title": "PDFページを移動",
-    "move_page_source_label": "移動するページ:",
+    "move_page_source_label": "ページマスク (1-2,3):",
     "move_page_destination_label": "移動先:",
     "move_page_destination_page_label": "ページ番号:",
     "move_page_at_begin": "先頭へ",

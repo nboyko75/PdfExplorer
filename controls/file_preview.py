@@ -965,7 +965,6 @@ def update_page_buttons_state(owner):
     current_path = getattr(owner, "current_preview_path", None)
     is_current_path = bool(current_path)
     is_pdf_preview = is_pdf_file(current_path)
-    can_select_pdf_page = is_pdf_preview and get_selected_pdf_page_index(owner) is not None
     can_rotate_image = is_current_path and image_utils.can_preview_image(current_path)
     can_preview_html_file = is_current_path and can_preview_html(current_path)
     ## can_preview_text = is_current_path and can_preview_text_file(current_path)
@@ -976,7 +975,7 @@ def update_page_buttons_state(owner):
     owner.preview_rotate_menu_btn.Enable(is_pdf_preview or can_rotate_image)
     owner.preview_import_from_file_btn.Enable(can_act_on_pdf)
     owner.preview_export_pages_btn.Enable(can_act_on_pdf)
-    owner.preview_move_page_btn.Enable(can_select_pdf_page)
+    owner.preview_move_page_btn.Enable(is_pdf_preview)
     owner.preview_remove_page_btn.Enable(is_pdf_preview)
     owner.preview_adjust_page_width_btn.Enable(is_pdf_preview)
     owner.preview_optimize_btn.Enable(is_pdf_preview)
@@ -3314,13 +3313,11 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no, selected_i
 
     source_label = wx.StaticText(panel, label=tr("move_page_source_label"))
     selected_indices = sorted(set(selected_indices or []))
-    if len(selected_indices) > 1:
-        source_spin = wx.TextCtrl(
-            panel, value=", ".join(str(index + 1) for index in selected_indices),
-            style=wx.TE_READONLY,
-        )
-    else:
-        source_spin = wx.SpinCtrl(panel, min=1, max=page_count, initial=default_source_page_no)
+    source_text = wx.TextCtrl(
+        panel, value=", ".join(str(index + 1) for index in selected_indices)
+        if selected_indices else str(default_source_page_no),
+    )
+    source_text.SetHint("1-2,3")
 
     destination_label = wx.StaticText(panel, label=tr("move_page_destination_label"))
     destination_choice = wx.Choice(
@@ -3348,7 +3345,7 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no, selected_i
 
     fields = wx.FlexGridSizer(cols=2, hgap=8, vgap=8)
     fields.Add(source_label, 0, wx.ALIGN_CENTER_VERTICAL)
-    fields.Add(source_spin, 1, wx.EXPAND)
+    fields.Add(source_text, 1, wx.EXPAND)
     fields.Add(destination_label, 0, wx.ALIGN_CENTER_VERTICAL)
     fields.Add(destination_choice, 1, wx.EXPAND)
     fields.Add(destination_page_label, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -3366,13 +3363,28 @@ def _show_move_page_dialog(owner, page_count, default_source_page_no, selected_i
     dialog_sizer.Add(panel, 1, wx.EXPAND)
     dialog.SetSizerAndFit(dialog_sizer)
 
+    source_indices = None
+
+    def on_ok(event):
+        nonlocal source_indices
+        try:
+            source_indices = _parse_page_numbers_input(source_text.GetValue(), page_count)
+        except ValueError as exc:
+            wx.MessageBox(str(exc), tr("move_page_dialog_title"), wx.OK | wx.ICON_ERROR, parent=dialog)
+            source_text.SetFocus()
+            source_text.SelectAll()
+            return
+        dialog.EndModal(wx.ID_OK)
+
+    ok_btn.Bind(wx.EVT_BUTTON, on_ok)
+    source_text.SetFocus()
+    source_text.SelectAll()
     with persistent_dialog(dialog, "move_page_dialog_size") as modal_dialog:
         if modal_dialog.ShowModal() != wx.ID_OK:
             return None
         # Read controls before persistent_dialog destroys their native windows.
         return {
-            "source_indices": (selected_indices if len(selected_indices) > 1
-                               else [source_spin.GetValue() - 1]),
+            "source_indices": source_indices,
             "destination_mode": destination_choice.GetSelection(),
             "destination_page_no": destination_page_spin.GetValue(),
         }
@@ -3404,10 +3416,8 @@ def on_preview_move_page(event):
     if page_count <= 0:
         return
 
-    selected_index = get_selected_pdf_page_index(owner)
-    default_source_page_no = (selected_index + 1) if selected_index is not None else 1
-    selected_indices = get_selected_pdf_page_indices(owner)
-    dialog_result = _show_move_page_dialog(owner, page_count, default_source_page_no, selected_indices)
+    default_source_page_no = min(get_scrolled_pdf_page_index(owner), page_count - 1) + 1
+    dialog_result = _show_move_page_dialog(owner, page_count, default_source_page_no)
     if dialog_result is None:
         return
 

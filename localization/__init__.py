@@ -295,6 +295,7 @@ DEFAULT_TRANSLATIONS: Dict[str, str] = {
     "preview_adjust_page_width_button": "Ajust page width",
     "preview_remove_page_button": "Remove page",
     "preview_move_page_button": "Move page",
+    "move_page_source_label": "Page mask (1-2,3):",
     "preview_load_all_button": "Load all",
     "preview_pin_button": "Pin tab",
     "preview_unpin_button": "Unpin tab",

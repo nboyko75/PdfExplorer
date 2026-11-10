@@ -89,6 +89,105 @@ class RemovePageDialogTests(unittest.TestCase):
                     update.assert_called_once_with(owner)
 
 
+class MovePageDialogTests(unittest.TestCase):
+    def setUp(self):
+        self.preview = importlib.import_module("controls.file_preview")
+
+    def show_dialog(self, selected_indices, default_page, action):
+        fake_wx = mock.MagicMock(ID_OK=wx.ID_OK, ID_CANCEL=wx.ID_CANCEL)
+        dialog = fake_wx.Dialog.return_value
+        field = fake_wx.TextCtrl.return_value
+        ok_button = mock.Mock()
+        fake_wx.Choice.return_value.GetSelection.return_value = 3
+        fake_wx.SpinCtrl.return_value.GetValue.return_value = 4
+        dialog.ShowModal.side_effect = lambda: action(
+            field, dialog, ok_button.Bind.call_args.args[1], fake_wx,
+        )
+        with mock.patch.object(self.preview, "wx", fake_wx), \
+             mock.patch.object(self.preview, "create_ok_cancel_row", return_value=(mock.Mock(), ok_button, mock.Mock())), \
+             mock.patch.object(self.preview, "persistent_dialog", side_effect=lambda dlg, key: nullcontext(dlg)):
+            result = self.preview._show_move_page_dialog(None, 6, default_page, selected_indices)
+        return result, fake_wx
+
+    def test_mask_is_editable_for_single_and_multiple_selected_pages(self):
+        for selection, default_page, initial in ((None, 4, "4"), ([2], 3, "3"), ([4, 0], 1, "1, 5")):
+            with self.subTest(selection=selection):
+                def accept(field, dialog, on_ok, fake_wx):
+                    field.GetValue.return_value = "1-2,3,2"
+                    on_ok(mock.Mock())
+                    dialog.EndModal.assert_called_once_with(wx.ID_OK)
+                    return wx.ID_OK
+
+                result, fake_wx = self.show_dialog(selection, default_page, accept)
+                self.assertEqual(fake_wx.TextCtrl.call_args.kwargs["value"], initial)
+                self.assertNotIn("style", fake_wx.TextCtrl.call_args.kwargs)
+                self.assertEqual(result, {"source_indices": [0, 1, 2], "destination_mode": 3,
+                                          "destination_page_no": 4})
+
+    def test_invalid_masks_keep_dialog_open_and_allow_correction(self):
+        def correct(field, dialog, on_ok, fake_wx):
+            for value in ("", "0", "7", "abc", "1-7", "1-"):
+                field.GetValue.return_value = value
+                on_ok(mock.Mock())
+                dialog.EndModal.assert_not_called()
+            self.assertEqual(fake_wx.MessageBox.call_count, 6)
+            field.GetValue.return_value = "2,4-5"
+            on_ok(mock.Mock())
+            dialog.EndModal.assert_called_once_with(wx.ID_OK)
+            return wx.ID_OK
+
+        result, _ = self.show_dialog([0], 1, correct)
+        self.assertEqual(result["source_indices"], [1, 3, 4])
+
+    def test_cancel_returns_no_move(self):
+        result, _ = self.show_dialog([0], 1, lambda *args: wx.ID_CANCEL)
+        self.assertIsNone(result)
+
+    def test_move_action_reorders_all_mask_pages_in_pdf(self):
+        import fitz
+
+        cases = (
+            ("2,4-5", 0, 1, [2, 4, 5, 1, 3, 6]),
+            ("2,4-5", 1, 3, [1, 2, 4, 5, 3, 6]),
+            ("2,4-5", 2, 3, [1, 3, 2, 4, 5, 6]),
+            ("1-2,3", 3, 1, [4, 5, 6, 1, 2, 3]),
+        )
+        for mask, mode, destination, expected in cases:
+            with self.subTest(mask=mask, mode=mode), tempfile.TemporaryDirectory() as temp_dir:
+                path = os.path.join(temp_dir, "report.pdf")
+                with fitz.open() as doc:
+                    for number in range(1, 7):
+                        doc.new_page().insert_text((72, 72), str(number))
+                    doc.save(path)
+                owner = types.SimpleNamespace(current_preview_path=path, busy_cursor=nullcontext)
+
+                def accept(field, dialog, on_ok, fake_wx):
+                    field.GetValue.return_value = mask
+                    fake_wx.Choice.return_value.GetSelection.return_value = mode
+                    fake_wx.SpinCtrl.return_value.GetValue.return_value = destination
+                    on_ok(mock.Mock())
+                    return wx.ID_OK
+
+                result, _ = self.show_dialog([0], 1, accept)
+                with mock.patch.object(self.preview.pdf_utils, "pdf_sessions", return_value={}), \
+                     mock.patch.object(self.preview, "_get_preview_owner_from_event", return_value=owner), \
+                     mock.patch.object(self.preview, "get_selected_pdf_page_index", return_value=0), \
+                     mock.patch.object(self.preview, "get_selected_pdf_page_indices", return_value=[0]), \
+                     mock.patch.object(self.preview, "_show_move_page_dialog", return_value=result), \
+                     mock.patch.object(self.preview, "show_pdf_feed") as refresh, \
+                     mock.patch.object(self.preview, "_paint_pdf_page_selection"), \
+                     mock.patch.object(self.preview, "update_pdf_save_button_state"), \
+                     mock.patch.object(self.preview.wx, "MessageBox") as error:
+                    self.preview.on_preview_move_page(mock.Mock())
+                    error.assert_not_called()
+                    self.preview.pdf_utils.save_pdf(path)
+                refresh.assert_called_once_with(owner, path, force_all_pages=True)
+                with fitz.open(path) as doc:
+                    self.assertEqual([int(page.get_text().strip()) for page in doc], expected)
+                self.assertEqual(owner.selected_pdf_page_indices,
+                                 {expected.index(index + 1) for index in result["source_indices"]})
+
+
 class HtmlPreviewErrorTests(unittest.TestCase):
     def test_async_browser_error_replaces_blank_office_preview_with_message(self):
         file_preview = importlib.import_module("controls.file_preview")
@@ -539,7 +638,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         mocked_show_image_preview.assert_called_once_with(owner, "sample.png", file_preview.tr)
 
     def test_update_page_buttons_state_restricts_adjust_and_optimize_to_pdf(self):
-        file_preview = _import_file_preview_with_mocked_wx()
+        file_preview = importlib.import_module("controls.file_preview")
         owner = types.SimpleNamespace(
             current_preview_path="sample.pdf",
             selected_pdf_page_panel=None,
@@ -559,11 +658,13 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(True)
         owner.preview_optimize_btn.Enable.assert_called_once_with(True)
         owner.preview_remove_page_btn.Enable.assert_called_once_with(True)
+        owner.preview_move_page_btn.Enable.assert_called_once_with(True)
 
         owner.current_preview_path = "sample.png"
         owner.preview_adjust_page_width_btn.Enable.reset_mock()
         owner.preview_optimize_btn.Enable.reset_mock()
         owner.preview_remove_page_btn.Enable.reset_mock()
+        owner.preview_move_page_btn.Enable.reset_mock()
 
         with mock.patch.object(file_preview, "is_pdf_file", return_value=False), \
              mock.patch.object(file_preview.image_utils, "can_preview_image", return_value=False):
@@ -572,6 +673,7 @@ class FilePreviewManualZoomTests(unittest.TestCase):
         owner.preview_adjust_page_width_btn.Enable.assert_called_once_with(False)
         owner.preview_optimize_btn.Enable.assert_called_once_with(False)
         owner.preview_remove_page_btn.Enable.assert_called_once_with(False)
+        owner.preview_move_page_btn.Enable.assert_called_once_with(False)
 
     def test_office_preview_zoom_actions_are_disabled(self):
         file_preview = _import_file_preview_with_mocked_wx()

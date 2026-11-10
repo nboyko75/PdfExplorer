@@ -297,7 +297,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "1,3-5와 같은 페이지 번호를 입력하세요.",
     "export_pdf_save_dialog_title": "내보낸 페이지 저장",
     "move_page_dialog_title": "PDF 페이지 이동",
-    "move_page_source_label": "이동할 페이지:",
+    "move_page_source_label": "페이지 마스크 (1-2,3):",
     "move_page_destination_label": "대상 위치:",
     "move_page_destination_page_label": "페이지 번호:",
     "move_page_at_begin": "맨 앞",

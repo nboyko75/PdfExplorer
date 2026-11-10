@@ -308,7 +308,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "Введите номера страниц в формате 1,3-5.",
     "export_pdf_save_dialog_title": "Сохранить экспортированные страницы",
     "move_page_dialog_title": "Переместить страницу PDF",
-    "move_page_source_label": "Страница для перемещения:",
+    "move_page_source_label": "Маска страниц (1-2,3):",
     "move_page_destination_label": "Назначение:",
     "move_page_destination_page_label": "Номер страницы:",
     "move_page_at_begin": "В начало",

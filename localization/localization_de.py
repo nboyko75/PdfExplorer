@@ -308,7 +308,7 @@ TRANSLATIONS = {
     "export_pdf_page_numbers_invalid": "Geben Sie Seitennummern wie 1,3-5 ein.",
     "export_pdf_save_dialog_title": "Exportierte Seiten speichern",
     "move_page_dialog_title": "PDF-Seite verschieben",
-    "move_page_source_label": "Zu verschiebende Seite:",
+    "move_page_source_label": "Seitenmaske (1-2,3):",
     "move_page_destination_label": "Ziel:",
     "move_page_destination_page_label": "Seitennummer:",
     "move_page_at_begin": "An den Anfang",
