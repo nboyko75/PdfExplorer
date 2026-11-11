@@ -169,7 +169,7 @@ class WordMergeTests(unittest.TestCase):
                     patch.object(m, 'read_document', return_value=document('Price 200\r')):
                 m.save_merge(base, [conflict])
             self.assertEqual(path.read_bytes(), b'saved bytes')
-            self.assertEqual(Path(str(path) + '.merge-backup').read_bytes(), b'original bytes')
+            self.assertEqual(path.with_name('original.merge-backup.docx').read_bytes(), b'original bytes')
             self.assertEqual(base.text, 'Price 200\r')
             self.assertEqual(base.digest, m.fingerprint(path))
 
@@ -187,8 +187,10 @@ class WordMergeTests(unittest.TestCase):
                 m.save_merge(base, [conflict])
             self.assertEqual(path.read_bytes(), b'changed')
 
-    def test_save_shades_only_replacement_text_with_exact_rgb(self):
-        for color in (None, (255, 255, 0), (18, 52, 86), (0, 0, 0)):
+    def test_save_highlights_only_replacement_text_and_preserves_shading(self):
+        for color, expected_index in ((None, 7), ((255, 255, 0), 7),
+                                      ((18, 52, 86), 9), ((0, 0, 0), 1),
+                                      ((0, 255, 0), 4)):
             with self.subTest(color=color), tempfile.TemporaryDirectory() as folder:
                 path = Path(folder) / 'original.docx'
                 path.write_bytes(b'original')
@@ -219,18 +221,14 @@ class WordMergeTests(unittest.TestCase):
                 self.assertEqual(ranges[4, 7].Text, 'new\U0001f600')
                 self.assertEqual(ranges[13, 19].Text, '')
                 self.assertEqual(set(ranges), {(4, 7), (13, 19)} | ({(4, 9)} if color is not None else set()))
-                if color is not None:
-                    self.assertEqual(ranges[4, 9].Font.Shading.BackgroundPatternColor,
-                                     color[0] | color[1] << 8 | color[2] << 16)
                 for offsets, area in ranges.items():
                     marked = color is not None and offsets == (4, 9)
                     self.assertEqual(area.Font.Color, 456)
-                    self.assertEqual(area.Font.Shading.Texture, 0 if marked else 20)
-                    if not marked:
-                        self.assertEqual(area.Font.Shading.BackgroundPatternColor, 789)
+                    self.assertEqual(area.Font.Shading.Texture, 20)
+                    self.assertEqual(area.Font.Shading.BackgroundPatternColor, 789)
                     self.assertEqual(area.Shading.BackgroundPatternColor, 123)
                     self.assertEqual(area.Shading.Texture, 10)
-                    self.assertEqual(area.HighlightColorIndex, 0 if marked else 7)
+                    self.assertEqual(area.HighlightColorIndex, expected_index if marked else 7)
 
 
 if __name__ == '__main__':

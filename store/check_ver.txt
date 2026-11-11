@@ -1,0 +1,5 @@
+$s = Get-AuthenticodeSignature "D:\Projects\DocExplorer\store\DocExplorer.msix"
+
+$s | Format-List Status, StatusMessage
+$s.SignerCertificate |
+    Format-List Subject, Issuer, NotAfter, EnhancedKeyUsageList

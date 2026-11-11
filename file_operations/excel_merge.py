@@ -37,6 +37,20 @@ def fingerprint(path):
     return digest.hexdigest()
 
 
+def merge_backup_path(path):
+    stem, extension = os.path.splitext(path)
+    backup, number = stem + '.merge-backup' + extension, 1
+    while os.path.exists(backup):
+        backup = f'{stem}.merge-backup.{number}{extension}'
+        number += 1
+    return backup
+
+
+def is_merge_backup(path):
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return bool(re.search(r'\.merge-backup(?:\.\d+)?$', stem, re.IGNORECASE))
+
+
 def get_system_decimal_separator():
     try:
         import ctypes
@@ -592,6 +606,7 @@ def search_books(path, base=None, cache=None, progress=None):
         cache = {} if cache is None else cache
         with os.scandir(os.path.dirname(path)) as entries:
             candidates = sorted((e.path for e in entries if e.is_file() and is_excel(e.path)
+                                 and not is_merge_backup(e.path)
                                  and os.path.normcase(os.path.abspath(e.path)) != os.path.normcase(os.path.abspath(path))),
                                 key=str.casefold)
         for index, candidate in enumerate(candidates):
@@ -703,12 +718,7 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
             raise MergeError('merge_changed', path=base.path)
         if backup_original:
             # Retain the exact source bytes as a recovery copy.
-            backup = base.path + '.merge-backup'
-            n = 1
-            while os.path.exists(backup):
-                backup = base.path + '.merge-backup.' + str(n)
-                n += 1
-            shutil.copy2(base.path, backup)
+            shutil.copy2(base.path, merge_backup_path(base.path))
         os.replace(temporary, base.path)
         # Keep the in-memory original in step with the file for subsequent saves.
         for conflict in changes:

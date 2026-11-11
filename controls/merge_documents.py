@@ -767,6 +767,15 @@ class WordMergeDialog(MergeDialog):
     instructions_key = 'word_merge_instructions'
     ready_key = 'word_merge_ready'
 
+    def __init__(self, owner, path):
+        super().__init__(owner, path)
+        self.change_color_picker.Bind(wx.EVT_COLOURPICKER_CHANGED, self.on_highlight_color)
+
+    def on_highlight_color(self, event):
+        color = self.change_color_picker.GetColour()
+        index = word_merge.highlight_color_index((color.Red(), color.Green(), color.Blue()))
+        self.change_color_picker.SetColour(wx.Colour(*word_merge.HIGHLIGHT_COLORS[index]))
+
     def load_initial(self):
         with word_merge.word_app() as app:
             document = word_merge.read_document(app, self.path)

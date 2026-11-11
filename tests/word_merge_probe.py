@@ -63,7 +63,7 @@ def run(folder, ui=False):
             check_ui(original)
         print(extension, 'saving and verifying', flush=True)
         m.save_merge(base, conflicts, change_color=(18, 52, 86))
-        assert Path(str(original) + '.merge-backup').read_bytes() == original_bytes
+        assert original.with_name('original.merge-backup' + extension).read_bytes() == original_bytes
         with m.word_app() as app:
             doc = m.open_document(app, str(original))
             try:
@@ -78,8 +78,11 @@ def run(folder, ui=False):
                     marked = doc.Content.Duplicate
                     assert marked.Find.Execute(FindText=text)
                     assert marked.Font.Color == 0x332211
-                    assert marked.Font.Shading.BackgroundPatternColor == 0x563412
-                    assert marked.Font.Shading.Texture == 0
+                    assert marked.HighlightColorIndex == 9  # wdDarkBlue, nearest to the custom RGB
+                    # The same property used by Word's highlight command remains editable.
+                    marked.HighlightColorIndex = 7  # wdYellow
+                    assert marked.HighlightColorIndex == 7
+                    marked.HighlightColorIndex = 0  # wdNoHighlight
                     assert marked.HighlightColorIndex == 0
                     marked = None
             finally:

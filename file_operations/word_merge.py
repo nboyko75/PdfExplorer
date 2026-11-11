@@ -18,13 +18,30 @@ import shutil
 import tempfile
 import uuid
 
-from file_operations.excel_merge import MergeError, fingerprint, source_key
+from file_operations.excel_merge import (MergeError, fingerprint, is_merge_backup,
+                                        merge_backup_path, source_key)
 from file_operations.office_session import save_word_html
 
 EXTENSIONS = {'.doc', '.docx', '.docm'}
 MAX_CHARACTERS = 500000
 CONTROL = re.compile(r'[\x00-\x08\x0c-\x1f]')
 TOKEN = re.compile(r'\w+|[^\w\s]|[^\S\r]+|\r', re.UNICODE)
+
+# WdColorIndex values supported by Word's Text Highlight Color command.
+HIGHLIGHT_COLORS = {
+    1: (0, 0, 0), 2: (0, 0, 255), 3: (0, 255, 255),
+    4: (0, 255, 0), 5: (255, 0, 255), 6: (255, 0, 0),
+    7: (255, 255, 0), 8: (255, 255, 255), 9: (0, 0, 128),
+    10: (0, 128, 128), 11: (0, 128, 0), 12: (128, 0, 128),
+    13: (128, 0, 0), 14: (128, 128, 0), 15: (128, 128, 128),
+    16: (192, 192, 192),
+}
+
+
+def highlight_color_index(color):
+    """Map the RGB picker to Word's fixed native highlight palette."""
+    return min(HIGHLIGHT_COLORS, key=lambda index: sum(
+        (a - b) ** 2 for a, b in zip(color, HIGHLIGHT_COLORS[index])))
 
 
 def is_word(path):
@@ -160,6 +177,7 @@ def search_documents(path, base=None, cache=None, progress=None):
             base = read_document(app, path)
         with os.scandir(os.path.dirname(path)) as entries:
             candidates = sorted((e.path for e in entries if e.is_file() and is_word(e.path)
+                                 and not is_merge_backup(e.path)
                                  and source_key(e.path) != source_key(path)), key=str.casefold)
         for index, candidate in enumerate(candidates):
             if progress:
@@ -391,12 +409,9 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
                         # Deletions leave no text to color.
                         start = word_offset(base.text, conflict.start)
                         area = document.Range(start, start + word_offset(replacement, len(replacement)))
-                        red, green, blue = change_color
-                        # Character shading keeps paragraph and table-cell fills intact.
-                        # Clear highlighting so it cannot obscure the chosen RGB shade.
-                        area.HighlightColorIndex = 0  # wdNoHighlight
-                        area.Font.Shading.Texture = 0  # wdTextureNone
-                        area.Font.Shading.BackgroundPatternColor = red | (green << 8) | (blue << 16)
+                        # Native highlighting can be changed/removed with Word's
+                        # Text Highlight Color command. Preserve existing shading.
+                        area.HighlightColorIndex = highlight_color_index(change_color)
                         area = None
                 document.TrackRevisions = track
                 document.Save()
@@ -410,11 +425,7 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
         if fingerprint(base.path) != base.digest:
             raise MergeError('merge_changed', path=base.path)
         if backup_original:
-            backup, number = base.path + '.merge-backup', 1
-            while os.path.exists(backup):
-                backup = base.path + '.merge-backup.' + str(number)
-                number += 1
-            shutil.copy2(base.path, backup)
+            shutil.copy2(base.path, merge_backup_path(base.path))
         os.replace(temporary, base.path)
         base.text, base.protected, base.digest = verified.text, verified.protected, fingerprint(base.path)
     finally:

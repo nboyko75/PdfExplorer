@@ -19,6 +19,24 @@ def book(path, values, name='Sheet1'):
 
 
 class MergeTests(unittest.TestCase):
+    def test_backup_names_preserve_extensions_and_existing_copies(self):
+        for extension in ('.doc', '.docx', '.docm', '.xls', '.xlsx', '.xlsm', '.xlsb'):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / ('report.v2' + extension)
+                first = Path(m.merge_backup_path(path))
+                self.assertEqual(first.name, 'report.v2.merge-backup' + extension)
+                first.write_bytes(b'first backup')
+                second = Path(m.merge_backup_path(path))
+                self.assertEqual(second.name, 'report.v2.merge-backup.1' + extension)
+                second.write_bytes(b'second backup')
+                third = Path(m.merge_backup_path(path))
+                self.assertEqual(third.name, 'report.v2.merge-backup.2' + extension)
+                self.assertEqual(first.read_bytes(), b'first backup')
+                self.assertEqual(second.read_bytes(), b'second backup')
+                self.assertFalse(m.is_merge_backup(path))
+                for backup in (first, second, third):
+                    self.assertTrue(m.is_merge_backup(backup))
+
     def test_source_identity_distinguishes_workbooks_with_the_same_filename(self):
         from types import SimpleNamespace
         tree = ast.parse((ROOT/'common/sheet_table.py').read_text())
@@ -584,7 +602,7 @@ class MergeTests(unittest.TestCase):
                         m.save_merge(base,[c])
                 self.assertEqual(path.read_bytes(),b'original' if fail else b'merged')
                 if not fail:
-                    self.assertEqual(Path(str(path)+'.merge-backup').read_bytes(),b'original')
+                    self.assertEqual(path.with_name('a.merge-backup.xlsm').read_bytes(),b'original')
                     self.assertEqual(cell.Value2,'new')
                 self.assertFalse(list(Path(d).glob('DocExplorer_merge_*')))
                 if not fail:
