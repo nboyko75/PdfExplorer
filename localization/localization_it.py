@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "Aggiungi nuove righe / colonne dai file uniti",
+    'merge_structure_unsupported': "Le nuove righe e colonne richiedono tabelle corrispondenti senza celle unite.",
     'context_create': 'Crea',
     'create_hint': 'Crea una cartella, un collegamento o un documento in questa cartella',
     'create_shortcut': 'Collegamento',

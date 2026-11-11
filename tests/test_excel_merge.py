@@ -144,6 +144,7 @@ class MergeTests(unittest.TestCase):
         table.labels = {(1, 2): ['old', 'unchecked']}
         table.colors = {(1, 2): [(0, 0, 0), (1, 2, 3)]}
         table.grid_position.return_value = (0, 1)
+        dialog.prepared_base = None
         scope['on_checks'](dialog, None)
         self.assertEqual(table.conflicts, {})
         self.assertEqual(table.labels, {})
@@ -338,6 +339,7 @@ class MergeTests(unittest.TestCase):
             yield app
         with patch.object(m, 'excel_app', excel), patch.object(m, 'fingerprint', return_value=''), \
              patch.object(m, 'read_book', return_value=formatted) as read:
+            dialog.add_structure_checkbox.GetValue.return_value = False
             scope['on_compare'](dialog, None)
             conflicts = dialog.run_job.call_args.args[0]()
         read.assert_called_once_with(app, 'checked.xlsx', load_first_style=False)
@@ -834,6 +836,7 @@ class MergeTests(unittest.TestCase):
         exec(compile(ast.Module(body=[method], type_ignores=[]), 'on_checks', 'exec'), scope)
         dialog = Mock()
         dialog.notebook.GetPageCount.return_value = 0
+        dialog.prepared_base = None
         scope['on_checks'](dialog, None)
         dialog.show_selected_book.assert_not_called()
         dialog.notebook.DeleteAllPages.assert_not_called()

@@ -5,7 +5,8 @@ are passed to the UI. Paragraph/table structure belongs to the original.
 """
 from collections import Counter
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from bisect import bisect_left
 from difflib import SequenceMatcher
 from html import escape
 import gc
@@ -21,6 +22,7 @@ import uuid
 from file_operations.excel_merge import (MergeError, fingerprint, is_merge_backup,
                                         merge_backup_path, source_key)
 from file_operations.office_session import save_word_html
+from file_operations.merge_structure import align_grids, added_axes
 
 EXTENSIONS = {'.doc', '.docx', '.docm'}
 MAX_CHARACTERS = 500000
@@ -56,6 +58,17 @@ class Document:
     digest: str
     text: str
     protected: list = field(default_factory=list)
+    tables: list = field(default_factory=list)
+    original: object = None
+
+
+@dataclass
+class Table:
+    start: int
+    end: int
+    rows: int
+    cols: int
+    cells: dict  # (row, column) -> Python text offsets, excluding cell markers
 
 
 @dataclass
@@ -154,12 +167,102 @@ def read_document(app, path):
         if document.ProtectionType != -1 or document.Revisions.Count:
             raise MergeError('word_merge_protected')
         text, protected = story_snapshot(document)
+        tables = table_snapshot(document, text)
     finally:
         document.Close(False)
         document = None
     if fingerprint(path) != digest:
         raise MergeError('merge_changed', path=path)
-    return Document(path, digest, text, protected)
+    return Document(path, digest, text, protected, tables)
+
+
+def table_snapshot(document, text):
+    positions, offset = [], 0
+    for index, char in enumerate(text):
+        positions.append(offset)
+        if char == '\r' and text[index:index+2] == '\r\x07':
+            continue
+        offset += 2 if ord(char) > 0xffff else 1
+    positions.append(offset)
+    def python_offset(value):
+        return bisect_left(positions, int(value))
+    tables = []
+    for table in document.Tables:
+        start, end = python_offset(table.Range.Start), python_offset(table.Range.End)
+        cells, rows, cols = {}, 0, 0
+        try:
+            rows, cols = int(table.Rows.Count), int(table.Columns.Count)
+            for cell in table.Range.Cells:
+                if cell.Tables.Count > 1:
+                    raise ValueError('Nested table')
+                cells[int(cell.RowIndex), int(cell.ColumnIndex)] = (
+                    python_offset(cell.Range.Start), python_offset(cell.Range.End - 1))
+            if len(cells) != rows * cols:
+                cells = {}
+        except Exception:
+            cells = {}  # Existing text merging still works for irregular tables.
+        tables.append(Table(start, end, rows, cols, cells))
+    return tables
+
+
+def prepare_structure(base, others, folder):
+    aligned = [replace(other, tables=list(other.tables)) for other in others]
+    if any(len(other.tables) != len(base.tables) for other in others):
+        raise MergeError('merge_structure_unsupported')
+    plans = {}
+    for index, table in enumerate(base.tables):
+        models = [base] + others
+        tables = [model.tables[index] for model in models]
+        if any(not item.cells for item in tables):
+            raise MergeError('merge_structure_unsupported')
+        grids = [{pos: model.text[start:end] for pos, (start, end) in item.cells.items()
+                  if model.text[start:end]} for model, item in zip(models, tables)]
+        axes = [(list(range(1, item.rows + 1)), list(range(1, item.cols + 1))) for item in tables]
+        maps, (rows, cols) = align_grids(grids, axes)
+        added_rows, added_cols = added_axes(maps[0][0], rows), added_axes(maps[0][1], cols)
+        if added_rows or added_cols:
+            if touches_protected(base, table.start, table.end):
+                raise MergeError('word_merge_protected')
+            plans[index] = added_rows, added_cols
+        for other, item, (rm, cm) in zip(aligned, tables[1:], maps[1:]):
+            other.tables[index] = replace(item, rows=rows, cols=cols,
+                cells={(rm[r], cm[c]): span for (r, c), span in item.cells.items()})
+    if not plans:
+        return base, aligned
+    os.makedirs(folder, exist_ok=True)
+    fd, path = tempfile.mkstemp(prefix='structure_', suffix=os.path.splitext(base.path)[1], dir=folder)
+    os.close(fd)
+    try:
+        if fingerprint(base.path) != base.digest:
+            raise MergeError('merge_changed', path=base.path)
+        shutil.copy2(base.path, path)
+        with word_app() as app:
+            document = open_document(app, path, readonly=False)
+            try:
+                document.TrackRevisions = False
+                for index, (rows, cols) in plans.items():
+                    table = document.Tables(index + 1)
+                    for row in rows:
+                        if row <= table.Rows.Count:
+                            table.Rows.Add(BeforeRow=table.Rows(row))
+                        else:
+                            table.Rows.Add()
+                    for col in cols:
+                        if col <= table.Columns.Count:
+                            table.Columns.Add(BeforeColumn=table.Columns(col))
+                        else:
+                            table.Columns.Add()
+                document.Save()
+            finally:
+                table = None
+                document.Close(False)
+                document = None
+            prepared = read_document(app, path)
+        prepared.original = base
+        return prepared, aligned
+    except Exception:
+        os.remove(path)
+        raise
 
 
 def similarity(base, other):
@@ -209,7 +312,7 @@ def touches_protected(document, start, end):
                for a, b in document.protected)
 
 
-def edits_for(base, other):
+def edits_for(base, other, add_structure=False):
     """Align paragraphs first so insertions do not shift subsequent choices."""
     left, right = paragraphs(base.text), paragraphs(other.text)
     edits, skipped = [], 0
@@ -218,6 +321,12 @@ def edits_for(base, other):
     for tag, i, j, k, l in matcher.get_opcodes():
         if tag == 'equal':
             continue
+        if add_structure and tag == 'insert':
+            start = left[i].start() if i < len(left) else len(base.text)
+            value = ''.join(p.group() for p in right[k:l])
+            if not CONTROL.search(value) and not touches_protected(base, start, start):
+                edits.append((start, start, value))
+                continue
         if tag != 'replace' or j - i != l - k:
             skipped += 1
             continue
@@ -249,10 +358,46 @@ def edits_for(base, other):
     return edits, skipped
 
 
-def conflicts_for(base, others):
+def structured_edits_for(base, other):
+    """Compare aligned cells independently, so added cells cannot shift choices."""
+    edits, skipped = [], 0
+    a_cursor = b_cursor = 0
+    for left, right in zip(base.tables + [None], other.tables + [None]):
+        a_end = left.start if left else len(base.text)
+        b_end = right.start if right else len(other.text)
+        # Keep protected offsets relative to the non-table segment.
+        def segment(model, start, end):
+            offset = word_offset(model.text, start)
+            protected = [(a-offset, b-offset) for a, b in model.protected]
+            return Document(model.path, model.digest, model.text[start:end], protected)
+        changes, count = edits_for(segment(base, a_cursor, a_end),
+                                   segment(other, b_cursor, b_end), add_structure=True)
+        edits.extend((a+a_cursor, b+a_cursor, value) for a, b, value in changes)
+        skipped += count
+        if left is None:
+            break
+        for pos, (start, end) in left.cells.items():
+            if pos not in right.cells:
+                continue  # A missing source row/column never deletes the original.
+            other_start, other_end = right.cells[pos]
+            value = other.text[other_start:other_end]
+            if value == base.text[start:end]:
+                continue
+            if (CONTROL.search(value + base.text[start:end])
+                    or touches_protected(base, start, end)
+                    or touches_protected(other, other_start, other_end)):
+                skipped += 1
+            else:
+                edits.append((start, end, value))
+        a_cursor, b_cursor = left.end, right.end
+    return edits, skipped
+
+
+def conflicts_for(base, others, add_structure=False):
     proposals, skipped = [], []
     for other in others:
-        edits, count = edits_for(base, other)
+        edits, count = (structured_edits_for(base, other) if add_structure
+                        else edits_for(base, other))
         proposals.extend((start, end, value, source_key(other.path))
                          for start, end, value in edits)
         if count:
@@ -269,7 +414,7 @@ def conflicts_for(base, others):
     for group in groups:
         start, end = min(e[0] for e in group), max(e[1] for e in group)
         original = base.text[start:end]
-        values, sources = [original], [[source_key(base.path)]]
+        values, sources = [original], [[source_key((base.original or base).path)]]
         for other in others:
             source = source_key(other.path)
             value = original
@@ -376,8 +521,11 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
         raise MergeError('merge_unresolved')
     if fingerprint(base.path) != base.digest:
         raise MergeError('merge_changed', path=base.path)
+    target = base.original or base
+    if fingerprint(target.path) != target.digest:
+        raise MergeError('merge_changed', path=target.path)
     changes = sorted((c for c in conflicts if c.selected != 0), key=lambda c: c.start)
-    if not changes:
+    if not changes and base.original is None:
         return
     for index, conflict in enumerate(changes):
         if (not 0 <= conflict.start <= conflict.end <= len(base.text) or
@@ -390,7 +538,7 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
     for conflict in reversed(changes):
         expected = expected[:conflict.start] + conflict.values[conflict.selected] + expected[conflict.end:]
     fd, temporary = tempfile.mkstemp(prefix='DocExplorer_merge_',
-                                     suffix=os.path.splitext(base.path)[1], dir=os.path.dirname(base.path))
+                                     suffix=os.path.splitext(base.path)[1], dir=os.path.dirname(target.path))
     os.close(fd)
     try:
         shutil.copy2(base.path, temporary)
@@ -422,12 +570,13 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
             if verified.text != expected:
                 raise MergeError('word_merge_verify_failed')
             app = None
-        if fingerprint(base.path) != base.digest:
-            raise MergeError('merge_changed', path=base.path)
+        if fingerprint(target.path) != target.digest:
+            raise MergeError('merge_changed', path=target.path)
         if backup_original:
-            shutil.copy2(base.path, merge_backup_path(base.path))
-        os.replace(temporary, base.path)
-        base.text, base.protected, base.digest = verified.text, verified.protected, fingerprint(base.path)
+            shutil.copy2(target.path, merge_backup_path(target.path))
+        os.replace(temporary, target.path)
+        target.text, target.protected, target.digest = verified.text, verified.protected, fingerprint(target.path)
+        target.tables = verified.tables
     finally:
         if os.path.exists(temporary):
             os.remove(temporary)

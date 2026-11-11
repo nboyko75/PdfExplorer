@@ -37,7 +37,7 @@ class SheetTable(gridlib.GridTableBase):
         self.source_colors = {engine.source_key(source): color
                               for source, color in (source_colors or {}).items()}
         self.font_cache = {}
-        self.row_numbers = sorted(engine.populated_rows(sheet))
+        self.row_numbers = sorted(engine.populated_rows(sheet) | {r for r, c in conflicts})
         max_col = max([sheet.cols, min_columns] + [c for r, c in conflicts])
         self.col_numbers = [c for c in range(1, max_col + 1) if c not in sheet.hidden_cols]
         self.row_indices = {number: index for index, number in enumerate(self.row_numbers)}

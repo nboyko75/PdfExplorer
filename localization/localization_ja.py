@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "結合ファイルから新しい行 / 列を追加",
+    'merge_structure_unsupported': "行と列の追加には、結合セルのない対応する表が必要です。",
     'context_create': '新規作成',
     'create_hint': 'このフォルダーにフォルダー、ショートカット、またはドキュメントを作成します',
     'create_shortcut': 'ショートカット',

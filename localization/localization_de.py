@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "Neue Zeilen / Spalten aus Quelldateien hinzufügen",
+    'merge_structure_unsupported': "Neue Zeilen und Spalten erfordern passende Tabellen ohne verbundene Zellen.",
     'context_create': 'Erstellen',
     'create_hint': 'Einen Ordner, eine Verknüpfung oder ein Dokument in diesem Ordner erstellen',
     'create_shortcut': 'Verknüpfung',

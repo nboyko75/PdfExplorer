@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "Adicionar novas linhas / colunas dos arquivos",
+    'merge_structure_unsupported': "Novas linhas e colunas exigem tabelas correspondentes sem células mescladas.",
     'context_create': 'Criar',
     'create_hint': 'Criar uma pasta, um atalho ou um documento nesta pasta',
     'create_shortcut': 'Atalho',

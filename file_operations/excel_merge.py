@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from collections import Counter
 from dataclasses import dataclass, field
+from dataclasses import replace
 import gc
 import hashlib
 import locale
@@ -13,6 +14,7 @@ import tempfile
 import zipfile
 import posixpath
 import xml.etree.ElementTree as ET
+from file_operations.merge_structure import align_grids, added_axes
 
 EXTENSIONS = {'.xlsx', '.xlsm', '.xls', '.xlsb'}
 MAX_CELLS = 200000
@@ -157,6 +159,7 @@ class Book:
     path: str
     digest: str
     sheets: dict
+    original: object = None
 
 
 @dataclass
@@ -177,7 +180,7 @@ def populated_rows(sheet):
             and cell.value is not None and cell.value != ''}
 
 
-def conflicts_for(base, others):
+def conflicts_for(base, others, add_structure=False):
     conflicts = []
     for name, sheet in base.sheets.items():
         related = [book for book in others if name in book.sheets]
@@ -187,10 +190,11 @@ def conflicts_for(base, others):
         for book in related:
             positions.update(book.sheets[name].cells)
         for row, col in sorted(positions):
-            if row not in original_rows or col in sheet.hidden_cols:
+            if ((not add_structure and row not in original_rows)
+                    or row in sheet.hidden_rows or col in sheet.hidden_cols):
                 continue
             original = sheet.cells.get((row, col), EMPTY)
-            values, sources = [original], [[source_key(base.path)]]
+            values, sources = [original], [[source_key((base.original or base).path)]]
             for book in related:
                 if row not in related_rows[id(book)] or col in book.sheets[name].hidden_cols:
                     continue
@@ -207,6 +211,80 @@ def conflicts_for(base, others):
                 conflicts.append(Conflict(name, row, col, values, sources,
                                           1 if len(values) == 2 else None))
     return conflicts
+
+
+def prepare_structure(base, others, folder):
+    """Create a review copy with inserted axes; the source files stay untouched."""
+    aligned = [replace(book, sheets=dict(book.sheets)) for book in others]
+    plans = {}
+    for name, sheet in base.sheets.items():
+        related = [(index, book.sheets[name]) for index, book in enumerate(others)
+                   if name in book.sheets]
+        models = [sheet] + [model for _, model in related]
+        axes, grids = [], []
+        for index, model in enumerate(models):
+            rows = list(range(1, max([model.rows] + [r for r, c in model.cells]) + 1))
+            cols = list(range(1, max([model.cols] + [c for r, c in model.cells]) + 1))
+            if index:
+                rows = [r for r in rows if r not in model.hidden_rows]
+                cols = [c for c in cols if c not in model.hidden_cols]
+            axes.append((rows, cols))
+            row_set, col_set = set(rows), set(cols)
+            grids.append({pos: cell.key for pos, cell in model.cells.items()
+                          if pos[0] in row_set and pos[1] in col_set
+                          and not is_empty_display(cell)})
+        maps, (rows, cols) = align_grids(grids, axes)
+        added_rows, added_cols = added_axes(maps[0][0], rows), added_axes(maps[0][1], cols)
+        if added_rows or added_cols:
+            if rows * cols > MAX_CELLS:
+                raise MergeError('merge_too_large', path=base.path, count=MAX_CELLS)
+            plans[name] = added_rows, added_cols
+        for (index, model), (rm, cm) in zip(related, maps[1:]):
+            aligned[index].sheets[name] = replace(model,
+                cells={(rm[r], cm[c]): cell for (r, c), cell in model.cells.items()
+                       if r in rm and c in cm}, rows=rows, cols=cols,
+                hidden_rows=set(), hidden_cols=set())
+    if not plans:
+        return base, aligned
+    os.makedirs(folder, exist_ok=True)
+    fd, path = tempfile.mkstemp(prefix='structure_', suffix=os.path.splitext(base.path)[1], dir=folder)
+    os.close(fd)
+    try:
+        if fingerprint(base.path) != base.digest:
+            raise MergeError('merge_changed', path=base.path)
+        shutil.copy2(base.path, path)
+        with excel_app() as app:
+            document = open_book(app, path, readonly=False)
+            try:
+                if document.ReadOnly:
+                    raise MergeError('merge_readonly')
+                for name, (rows, cols) in plans.items():
+                    sheet = document.Worksheets(name)
+                    if sheet.ProtectContents:
+                        raise MergeError('merge_protected', sheet=name)
+                    for row in rows:
+                        sheet.Rows(row).Insert()
+                        sheet.Rows(row).Hidden = False
+                    for col in cols:
+                        sheet.Columns(col).Insert()
+                        sheet.Columns(col).Hidden = False
+                document.Save()
+            finally:
+                sheet = None
+                document.Close(False)
+                document = None
+            prepared = read_book(app, path, load_first_style=False)
+        # Newly inserted empty rows must remain visible to the conflict picker.
+        for name, (rows, cols) in plans.items():
+            model = prepared.sheets[name]
+            model.hidden_rows.difference_update(rows)
+            model.rows = max([model.rows] + rows)
+            model.cols = max([model.cols] + cols)
+        prepared.original = base
+        return prepared, aligned
+    except Exception:
+        os.remove(path)
+        raise
 
 
 def similarity(base, other):
@@ -634,12 +712,15 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
         raise MergeError('merge_unresolved')
     if fingerprint(base.path) != base.digest:
         raise MergeError('merge_changed', path=base.path)
+    target = base.original or base
+    if fingerprint(target.path) != target.digest:
+        raise MergeError('merge_changed', path=target.path)
     changes = [c for c in conflicts if c.selected != 0]
-    if not changes:
+    if not changes and base.original is None:
         return
     # Edit a sibling copy; replace the original only after a successful Excel save.
     fd, temporary = tempfile.mkstemp(prefix='DocExplorer_merge_', suffix=os.path.splitext(base.path)[1],
-                                     dir=os.path.dirname(base.path))
+                                     dir=os.path.dirname(target.path))
     os.close(fd)
     try:
         shutil.copy2(base.path, temporary)
@@ -714,12 +795,12 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
             finally:
                 verified.Close(False)
                 verified = None
-        if fingerprint(base.path) != base.digest:
-            raise MergeError('merge_changed', path=base.path)
+        if fingerprint(target.path) != target.digest:
+            raise MergeError('merge_changed', path=target.path)
         if backup_original:
             # Retain the exact source bytes as a recovery copy.
-            shutil.copy2(base.path, merge_backup_path(base.path))
-        os.replace(temporary, base.path)
+            shutil.copy2(target.path, merge_backup_path(target.path))
+        os.replace(temporary, target.path)
         # Keep the in-memory original in step with the file for subsequent saves.
         for conflict in changes:
             model = base.sheets[conflict.sheet]
@@ -733,7 +814,10 @@ def save_merge(base, conflicts, backup_original=True, change_color=None):
                 model.cells.pop((conflict.row, conflict.col), None)
             else:
                 model.cells[conflict.row, conflict.col] = value
-        base.digest = fingerprint(base.path)
+            model.rows = max(model.rows, conflict.row)
+            model.cols = max(model.cols, conflict.col)
+        target.sheets = base.sheets
+        target.digest = fingerprint(target.path)
     finally:
         if os.path.exists(temporary):
             os.remove(temporary)

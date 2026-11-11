@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "Ajouter les nouvelles lignes / colonnes des fichiers",
+    'merge_structure_unsupported': "Les nouvelles lignes et colonnes nécessitent des tableaux correspondants sans cellules fusionnées.",
     'context_create': 'Créer',
     'create_hint': 'Créer un dossier, un raccourci ou un document dans ce dossier',
     'create_shortcut': 'Raccourci',

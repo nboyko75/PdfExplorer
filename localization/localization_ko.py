@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "병합 파일의 새 행 / 열 추가",
+    'merge_structure_unsupported': "새 행과 열을 추가하려면 병합된 셀이 없는 대응 표가 필요합니다.",
     'context_create': '새로 만들기',
     'create_hint': '이 폴더에 폴더, 바로 가기 또는 문서를 만듭니다',
     'create_shortcut': '바로 가기',

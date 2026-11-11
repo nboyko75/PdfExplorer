@@ -121,6 +121,7 @@ class MergeDialog(wx.Dialog):
         self.preview_dir = tempfile.TemporaryDirectory(prefix="docexplorer_merge_")
         self.preview_paths = {}
         self.base = None
+        self.prepared_base = None
         self.matches = []
         self.source_colors = {}
         self.book_cache = {}
@@ -182,6 +183,9 @@ class MergeDialog(wx.Dialog):
         self.mark_changes_checkbox.Bind(wx.EVT_CHECKBOX, self.on_mark_changes)
         mark_bar.Add(self.mark_changes_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         mark_bar.Add(self.change_color_picker, 0, wx.ALIGN_CENTER_VERTICAL)
+        self.add_structure_checkbox = wx.CheckBox(right, label=tr('merge_add_structure'))
+        self.add_structure_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checks)
+        mark_bar.Add(self.add_structure_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 12)
         right_sizer.Add(mark_bar, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 8)
         right.SetSizer(right_sizer)
         splitter.SplitVertically(left, right, 250)
@@ -337,9 +341,11 @@ class MergeDialog(wx.Dialog):
         self.uncheck_all.Enable(not self.busy)
         self.notebook.Enable(not self.busy)
         self.mark_changes_checkbox.Enable(not self.busy)
+        self.add_structure_checkbox.Enable(not self.busy)
         self.on_mark_changes(None)
 
     def on_search(self, event):
+        self.prepared_base = None
         self.compared = False
         self.conflicts = []
         self.matches = []
@@ -367,6 +373,7 @@ class MergeDialog(wx.Dialog):
 
     def on_compare(self, event):
         self.on_checks(None)
+        add_structure = self.add_structure_checkbox.GetValue()
         books = [self.matches[i][0] for i in self.files.GetCheckedItems()]
         # Read the displayed colors, so choice provenance matches the actual
         # rows even after a new search or a change in their ordering.
@@ -384,11 +391,17 @@ class MergeDialog(wx.Dialog):
             with engine.excel_app() as app:
                 formatted_books = [engine.read_book(app, book.path, load_first_style=False)
                                    for book in books]
+            if add_structure:
+                prepared, formatted_books = engine.prepare_structure(
+                    self.base, formatted_books, self.preview_dir.name)
+                return prepared, engine.conflicts_for(prepared, formatted_books, add_structure=True)
             return engine.conflicts_for(self.base, formatted_books)
         def done(conflicts):
             if books != [self.matches[i][0] for i in self.files.GetCheckedItems()]:
                 self.on_checks(None)
                 return
+            if add_structure:
+                self.prepared_base, conflicts = conflicts
             self.conflicts = conflicts
             self.compared = True
             self.show_selected_book()
@@ -397,13 +410,13 @@ class MergeDialog(wx.Dialog):
             for book in books:
                 for name in sorted(set(book.sheets) ^ set(self.base.sheets)):
                     unmatched.append(os.path.basename(book.path) + ': ' + name)
-            if unmatched:
+            if unmatched and not add_structure:
                 wx.MessageBox(tr('merge_unmatched') + '\n' + '\n'.join(unmatched),
                               tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)
         self.run_job(task, done)
 
     def show_book(self, book, target=False):
-        book = self.base  # The review always edits the original workbook.
+        book = self.prepared_base or self.base
         if book is None:
             return
         selection = self.notebook.GetSelection()
@@ -608,6 +621,8 @@ class MergeDialog(wx.Dialog):
         self.on_checks(None)
 
     def on_checks(self, event):
+        had_structure = self.prepared_base is not None
+        self.prepared_base = None
         self.compared = False
         self.conflicts = []
         # Keep the existing pages, scroll positions and loaded formatting.
@@ -633,6 +648,8 @@ class MergeDialog(wx.Dialog):
             finally:
                 grid.EndBatch()
             grid.ForceRefresh()
+        if had_structure:
+            self.show_selected_book()
         self.status.SetLabel(tr('merge_recompare'))
         self.update_buttons()
 
@@ -659,7 +676,7 @@ class MergeDialog(wx.Dialog):
             self.status.SetLabel(tr('merge_saved'))
         def save():
             try:
-                engine.save_merge(self.base, self.conflicts, backup_original=backup,
+                engine.save_merge(self.prepared_base or self.base, self.conflicts, backup_original=backup,
                                   change_color=change_color)
             except Exception:
                 wx.CallAfter(self.save_failed)
@@ -671,6 +688,7 @@ class MergeDialog(wx.Dialog):
         self.saved_changes = True
         self.cancel_button.Enable()
         self.conflicts = []
+        self.prepared_base = None
         self.compared = False
         if self.close_after_save:
             self.close_after_save = False
@@ -709,7 +727,8 @@ class MergeDialog(wx.Dialog):
             self.cancel_button.Disable()
             return
         self.commit_pending_edits()
-        if self.compared and any(c.selected != 0 for c in self.conflicts):
+        if self.compared and (any(c.selected != 0 for c in self.conflicts)
+                              or getattr(getattr(self, 'prepared_base', None), 'original', None) is not None):
             prompt = wx.MessageDialog(
                 self, tr('confirm_save_selected_file') + '\n\n' + self.path,
                 tr('merge_documents'), wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING)
@@ -858,6 +877,7 @@ class WordMergeDialog(MergeDialog):
         self.update_conflicts()
 
     def on_search(self, event):
+        self.prepared_base = None
         self.on_checks(None)
         self.matches = []
         self.files.Clear()
@@ -886,28 +906,33 @@ class WordMergeDialog(MergeDialog):
 
     def on_compare(self, event):
         self.on_checks(None)
+        add_structure = self.add_structure_checkbox.GetValue()
         documents = [self.matches[i][0] for i in self.files.GetCheckedItems()]
         token = uuid.uuid4().hex
         def task():
             for document in [self.base] + documents:
                 if engine.fingerprint(document.path) != document.digest:
                     raise engine.MergeError('merge_changed', path=document.path)
-            conflicts, skipped = word_merge.conflicts_for(self.base, documents)
-            preview = self.render_word(self.base, conflicts, token)
-            return conflicts, skipped, preview
+            prepared, sources = self.base, documents
+            if add_structure:
+                prepared, sources = word_merge.prepare_structure(self.base, documents, self.preview_dir.name)
+            conflicts, skipped = word_merge.conflicts_for(prepared, sources, add_structure=add_structure)
+            preview = self.render_word(prepared, conflicts, token)
+            return prepared, conflicts, skipped, preview
         def done(result):
-            self.conflicts, skipped, self.review_path = result
+            self.prepared_base, self.conflicts, skipped, self.review_path = result
             self.review_token = token
             self.compared = True
             self.show_selected_book()
             self.update_conflicts()
-            if skipped:
+            if skipped and not add_structure:
                 wx.MessageBox(tr('word_merge_skipped') + '\n' + '\n'.join(
                     os.path.basename(path) + ': ' + str(count) for path, count in skipped),
                     tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)
         self.run_job(task, done)
 
     def on_checks(self, event):
+        self.prepared_base = None
         had_comparison = self.compared
         self.compared = False
         self.conflicts = []
@@ -933,7 +958,7 @@ class WordMergeDialog(MergeDialog):
         self.cancel_button.Disable()
         def task():
             try:
-                word_merge.save_merge(self.base, self.conflicts, backup_original=backup,
+                word_merge.save_merge(self.prepared_base or self.base, self.conflicts, backup_original=backup,
                                       change_color=change_color)
             except Exception:
                 wx.CallAfter(self.save_failed)

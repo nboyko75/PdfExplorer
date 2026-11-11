@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "添加合并文件中的新行 / 列",
+    'merge_structure_unsupported': "添加行和列需要相应的不含合并单元格的表格。",
     'context_create': '新建',
     'create_hint': '在此文件夹中新建文件夹、快捷方式或文档',
     'create_shortcut': '快捷方式',

@@ -42,6 +42,7 @@ class MergeCloseTests(unittest.TestCase):
         dialog.saved_changes = dialog.cancel_pending = dialog.close_after_save = False
         dialog.compared = dialog.word_preview_ready = True
         dialog.base = object()
+        dialog.prepared_base = None
         dialog.conflicts = [SimpleNamespace(selected=1)]
         for name in ('status', 'cancel_button', 'backup_checkbox', 'selected_change_color',
                      'update_conflicts', 'run_job', 'show_selected_book', 'load_initial',

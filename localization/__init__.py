@@ -3,6 +3,8 @@ import os
 from typing import Dict
 
 DEFAULT_TRANSLATIONS: Dict[str, str] = {
+    'merge_add_structure': "Add new rows / columns from merged files",
+    'merge_structure_unsupported': "Added rows and columns require matching tables with separate, unmerged cells.",
     "context_properties": 'Properties',
     "properties_failed": 'Unable to open properties for:\n{path}\n\n{error}',
     'help_manual_missing': 'Help file was not found:\n{path}',

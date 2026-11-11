@@ -123,3 +123,8 @@ Optimize now processes all selected PDFs, saves each result, and updates file si
 Create now mirrors Windows Explorer’s New submenu in all four locations, using its registered file types, ordering, separators, and native icons.
 
 Allowed move multiple pages with the move page form.  
+
+Implemented both changes:
+- Backups now use filename.merge-backup.docx, with numbering for additional backups.
+- Text marking now uses Word’s native Text Highlight Color
+- Added "add structure changes" check box to add new rows / cols of merged files

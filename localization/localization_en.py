@@ -1,4 +1,6 @@
 TRANSLATIONS = {
+    'merge_add_structure': "Add new rows / columns from merged files",
+    'merge_structure_unsupported': "Added rows and columns require matching tables with separate, unmerged cells.",
     'context_create': 'Create',
     'create_hint': 'Create a folder, shortcut or document in this folder',
     'create_shortcut': 'Shortcut',

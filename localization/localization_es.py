@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    'merge_add_structure': "Añadir filas / columnas nuevas de los archivos",
+    'merge_structure_unsupported': "Las filas y columnas nuevas requieren tablas correspondientes sin celdas combinadas.",
     'context_create': 'Crear',
     'create_hint': 'Crear una carpeta, un acceso directo o un documento en esta carpeta',
     'create_shortcut': 'Acceso directo',
