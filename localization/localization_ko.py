@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "미리 보기에서 찾기 (Ctrl+F)",
+    "preview_find_previous": "이전 일치 항목 (Shift+F3)",
+    "preview_find_next": "다음 일치 항목 (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "일치하는 항목 없음",
     'merge_add_structure': "병합 파일의 새 행 / 열 추가",
     'merge_structure_unsupported': "새 행과 열을 추가하려면 병합된 셀이 없는 대응 표가 필요합니다.",
     'context_create': '새로 만들기',

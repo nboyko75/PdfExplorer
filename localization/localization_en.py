@@ -1,4 +1,9 @@
 TRANSLATIONS = {
+    "preview_find_hint": "Find in preview (Ctrl+F)",
+    "preview_find_previous": "Previous match (Shift+F3)",
+    "preview_find_next": "Next match (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "No matches",
     'merge_add_structure': "Add new rows / columns from merged files",
     'merge_structure_unsupported': "Added rows and columns require matching tables with separate, unmerged cells.",
     'context_create': 'Create',

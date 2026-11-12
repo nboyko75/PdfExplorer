@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "プレビュー内を検索 (Ctrl+F)",
+    "preview_find_previous": "前の一致 (Shift+F3)",
+    "preview_find_next": "次の一致 (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "一致なし",
     'merge_add_structure': "結合ファイルから新しい行 / 列を追加",
     'merge_structure_unsupported': "行と列の追加には、結合セルのない対応する表が必要です。",
     'context_create': '新規作成',

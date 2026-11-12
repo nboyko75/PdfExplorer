@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "Найти в предпросмотре (Ctrl+F)",
+    "preview_find_previous": "Предыдущее совпадение (Shift+F3)",
+    "preview_find_next": "Следующее совпадение (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "Совпадений нет",
     'merge_add_structure': "Добавлять новые строки / столбцы из объединяемых файлов",
     'merge_structure_unsupported': "Для добавления строк и столбцов нужны соответствующие таблицы без объединённых ячеек.",
     'context_create': 'Создать',

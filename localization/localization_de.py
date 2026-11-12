@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "In Vorschau suchen (Strg+F)",
+    "preview_find_previous": "Vorheriger Treffer (Umschalt+F3)",
+    "preview_find_next": "Nächster Treffer (F3 / Eingabe)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "Keine Treffer",
     'merge_add_structure': "Neue Zeilen / Spalten aus Quelldateien hinzufügen",
     'merge_structure_unsupported': "Neue Zeilen und Spalten erfordern passende Tabellen ohne verbundene Zellen.",
     'context_create': 'Erstellen',

@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "Знайти в попередньому перегляді (Ctrl+F)",
+    "preview_find_previous": "Попередній збіг (Shift+F3)",
+    "preview_find_next": "Наступний збіг (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "Збігів немає",
     'merge_add_structure': "Додавати нові рядки / стовпці з об’єднуваних файлів",
     'merge_structure_unsupported': "Для додавання рядків і стовпців потрібні відповідні таблиці без об’єднаних клітинок.",
     'context_create': 'Створити',

@@ -925,6 +925,9 @@ class ExplorerWorkspace(wx.Panel):
     def on_key(self, event):
         # Handle Ctrl+Z for undo
         try:
+            text_search = getattr(self, "preview_text_search", None)
+            if text_search is not None and text_search.handle_key(event):
+                return
             key_code = event.GetKeyCode()
             if key_code == wx.WXK_F1:
                 self.on_app_manual(event)

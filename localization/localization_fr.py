@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "Rechercher dans l’aperçu (Ctrl+F)",
+    "preview_find_previous": "Résultat précédent (Maj+F3)",
+    "preview_find_next": "Résultat suivant (F3 / Entrée)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "Aucun résultat",
     'merge_add_structure': "Ajouter les nouvelles lignes / colonnes des fichiers",
     'merge_structure_unsupported': "Les nouvelles lignes et colonnes nécessitent des tableaux correspondants sans cellules fusionnées.",
     'context_create': 'Créer',

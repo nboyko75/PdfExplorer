@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "Buscar en la vista previa (Ctrl+F)",
+    "preview_find_previous": "Coincidencia anterior (Mayús+F3)",
+    "preview_find_next": "Coincidencia siguiente (F3 / Intro)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "Sin coincidencias",
     'merge_add_structure': "Añadir filas / columnas nuevas de los archivos",
     'merge_structure_unsupported': "Las filas y columnas nuevas requieren tablas correspondientes sin celdas combinadas.",
     'context_create': 'Crear',

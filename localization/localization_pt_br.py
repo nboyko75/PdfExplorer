@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "Buscar na prévia (Ctrl+F)",
+    "preview_find_previous": "Ocorrência anterior (Shift+F3)",
+    "preview_find_next": "Próxima ocorrência (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "Nenhuma ocorrência",
     'merge_add_structure': "Adicionar novas linhas / colunas dos arquivos",
     'merge_structure_unsupported': "Novas linhas e colunas exigem tabelas correspondentes sem células mescladas.",
     'context_create': 'Criar',

@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 
 TRANSLATIONS = {
+    "preview_find_hint": "在预览中查找 (Ctrl+F)",
+    "preview_find_previous": "上一个匹配项 (Shift+F3)",
+    "preview_find_next": "下一个匹配项 (F3 / Enter)",
+    "preview_find_count": "{current} / {total}",
+    "preview_find_none": "无匹配项",
     'merge_add_structure': "添加合并文件中的新行 / 列",
     'merge_structure_unsupported': "添加行和列需要相应的不含合并单元格的表格。",
     'context_create': '新建',

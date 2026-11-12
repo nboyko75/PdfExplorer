@@ -28,6 +28,7 @@ import file_operations.office_preview as office_preview
 import file_operations.office_html_preview as office_html_preview
 import file_operations.pdf_utils as pdf_utils
 import controls.video_preview as video_preview
+from controls.text_preview_search import TextPreviewSearch
 
 
 from file_operations.document_types import OFFICE_EXTENSIONS, POWERPOINT_EXTENSIONS
@@ -99,6 +100,9 @@ def set_preview_mode(owner, mode):
 
     if hasattr(owner, "preview_text"):
         owner.preview_text.Show(mode_name == "text")
+    text_search = getattr(owner, "preview_text_search", None)
+    if text_search is not None:
+        text_search.set_active(False)
     if hasattr(owner, "pdf_pages_panel"):
         owner.pdf_pages_panel.Show(mode_name == "pages")
     if hasattr(owner, "pdf_preview_container"):
@@ -759,11 +763,12 @@ def build_file_preview_pane(owner, file_splitter):
 
     owner.preview_text = wx.TextCtrl(
         owner.filePreview,
-        style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL | wx.VSCROLL,
+        style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2 | wx.HSCROLL | wx.VSCROLL,
     )
     owner.preview_text.SetValue("")
     owner.preview_text.Hide()
     owner.preview_text.Bind(wx.EVT_CONTEXT_MENU, on_preview_right_click)
+    owner.preview_text_search = TextPreviewSearch(owner.filePreview, owner.preview_text)
 
     owner.pdf_pages_panel = wx.ScrolledWindow(owner.filePreview, style=wx.HSCROLL | wx.VSCROLL)
     owner.pdf_pages_panel.SetScrollRate(10, 10)
@@ -789,6 +794,7 @@ def build_file_preview_pane(owner, file_splitter):
 
     preview_sizer = wx.BoxSizer(wx.VERTICAL)
     preview_sizer.Add(owner.preview_toolbar, 0, wx.EXPAND | wx.ALL, 5)
+    preview_sizer.Add(owner.preview_text_search, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
     preview_sizer.Add(owner.preview_text, 1, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.pdf_pages_panel, 1, wx.EXPAND | wx.ALL, 5)
     preview_sizer.Add(owner.pdf_preview_container, 1, wx.EXPAND | wx.ALL, 5)
@@ -1155,6 +1161,9 @@ def show_text_preview(owner, path):
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
             owner.preview_text.SetValue(handle.read())
         set_preview_mode(owner, "text")
+        text_search = getattr(owner, "preview_text_search", None)
+        if text_search is not None:
+            text_search.set_active(True)
         update_preview_toolbar_visibility(owner, is_pdf=False, is_image=False)
         owner.filePreview.Layout()
     except Exception as exc:
