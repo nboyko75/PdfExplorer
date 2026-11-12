@@ -137,6 +137,7 @@ class MergeDialog(wx.Dialog):
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.display_book = None
         self.building_pages = False
+        settings = load_settings()
         outer = wx.BoxSizer(wx.VERTICAL)
         header = wx.BoxSizer(wx.HORIZONTAL)
         title = wx.StaticText(self, label=self.path.replace("&", "&&"),
@@ -176,15 +177,22 @@ class MergeDialog(wx.Dialog):
         right_sizer.Add(self.notebook, 1, wx.EXPAND)
         mark_bar = wx.BoxSizer(wx.HORIZONTAL)
         self.mark_changes_checkbox = wx.CheckBox(right, label=tr('merge_mark_changes'))
-        self.change_color_picker = wx.ColourPickerCtrl(right, colour=wx.Colour(255, 255, 0))
+        self.mark_changes_checkbox.SetValue(bool(settings.get('merge_mark_changes', False)))
+        color = settings.get('merge_change_color', [255, 255, 0])
+        if (not isinstance(color, (list, tuple)) or len(color) != 3
+                or any(type(channel) is not int or not 0 <= channel <= 255 for channel in color)):
+            color = [255, 255, 0]
+        self.change_color_picker = wx.ColourPickerCtrl(right, colour=wx.Colour(*color))
         self.change_color_picker.SetName(tr('merge_change_color'))
         self.change_color_picker.SetToolTip(tr('merge_change_color'))
         self.change_color_picker.Disable()
         self.mark_changes_checkbox.Bind(wx.EVT_CHECKBOX, self.on_mark_changes)
+        self.change_color_picker.Bind(wx.EVT_COLOURPICKER_CHANGED, self.on_highlight_color)
         mark_bar.Add(self.mark_changes_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         mark_bar.Add(self.change_color_picker, 0, wx.ALIGN_CENTER_VERTICAL)
         self.add_structure_checkbox = wx.CheckBox(right, label=tr('merge_add_structure'))
-        self.add_structure_checkbox.Bind(wx.EVT_CHECKBOX, self.on_checks)
+        self.add_structure_checkbox.SetValue(bool(settings.get('merge_add_structure', False)))
+        self.add_structure_checkbox.Bind(wx.EVT_CHECKBOX, self.on_add_structure)
         mark_bar.Add(self.add_structure_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 12)
         right_sizer.Add(mark_bar, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 8)
         right.SetSizer(right_sizer)
@@ -202,7 +210,7 @@ class MergeDialog(wx.Dialog):
         self.Bind(wx.EVT_TIMER, self.on_progress_timer, self.progress_timer)
         bar = wx.BoxSizer(wx.HORIZONTAL)
         self.backup_checkbox = wx.CheckBox(self, label=tr('merge_backup_original_file'))
-        self.backup_checkbox.SetValue(bool(load_settings().get('merge_backup_original_file', True)))
+        self.backup_checkbox.SetValue(bool(settings.get('merge_backup_original_file', True)))
         self.backup_checkbox.Bind(wx.EVT_CHECKBOX, self.on_backup_checkbox)
         bar.Add(self.backup_checkbox, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
         bar.AddStretchSpacer()
@@ -231,6 +239,16 @@ class MergeDialog(wx.Dialog):
 
     def on_mark_changes(self, event):
         self.change_color_picker.Enable(not self.busy and self.mark_changes_checkbox.GetValue())
+        if event is not None:
+            update_settings({'merge_mark_changes': bool(self.mark_changes_checkbox.GetValue())})
+
+    def on_add_structure(self, event):
+        update_settings({'merge_add_structure': bool(self.add_structure_checkbox.GetValue())})
+        self.on_checks(event)
+
+    def on_highlight_color(self, event):
+        color = self.change_color_picker.GetColour()
+        update_settings({'merge_change_color': [color.Red(), color.Green(), color.Blue()]})
 
     def selected_change_color(self):
         if not self.mark_changes_checkbox.GetValue():
@@ -786,14 +804,11 @@ class WordMergeDialog(MergeDialog):
     instructions_key = 'word_merge_instructions'
     ready_key = 'word_merge_ready'
 
-    def __init__(self, owner, path):
-        super().__init__(owner, path)
-        self.change_color_picker.Bind(wx.EVT_COLOURPICKER_CHANGED, self.on_highlight_color)
-
     def on_highlight_color(self, event):
         color = self.change_color_picker.GetColour()
         index = word_merge.highlight_color_index((color.Red(), color.Green(), color.Blue()))
         self.change_color_picker.SetColour(wx.Colour(*word_merge.HIGHLIGHT_COLORS[index]))
+        super().on_highlight_color(event)
 
     def load_initial(self):
         with word_merge.word_app() as app:
@@ -925,7 +940,7 @@ class WordMergeDialog(MergeDialog):
             self.compared = True
             self.show_selected_book()
             self.update_conflicts()
-            if skipped and not add_structure:
+            if skipped:
                 wx.MessageBox(tr('word_merge_skipped') + '\n' + '\n'.join(
                     os.path.basename(path) + ': ' + str(count) for path, count in skipped),
                     tr('merge_documents'), wx.OK | wx.ICON_INFORMATION, self)

@@ -1,7 +1,7 @@
 """Text-level Word merge, with an Office-rendered, in-place HTML review.
 
 COM objects never leave the worker thread. Only plain snapshots and conflicts
-are passed to the UI. Paragraph/table structure belongs to the original.
+are passed to the UI. Table additions preserve the original merged-cell layout.
 """
 from collections import Counter
 from contextlib import contextmanager
@@ -23,6 +23,7 @@ from file_operations.excel_merge import (MergeError, fingerprint, is_merge_backu
                                         merge_backup_path, source_key)
 from file_operations.office_session import save_word_html
 from file_operations.merge_structure import align_grids, added_axes
+from file_operations.word_table_structure import read_layout, mapped_spans, union_spans, resize_table
 
 EXTENSIONS = {'.doc', '.docx', '.docm'}
 MAX_CHARACTERS = 500000
@@ -69,6 +70,10 @@ class Table:
     rows: int
     cols: int
     cells: dict  # (row, column) -> Python text offsets, excluding cell markers
+    spans: dict = field(default_factory=dict)  # anchor -> (row span, column span)
+
+    def layout(self):
+        return {pos: self.spans.get(pos, (1, 1)) for pos in self.cells}
 
 
 @dataclass
@@ -189,44 +194,72 @@ def table_snapshot(document, text):
     tables = []
     for table in document.Tables:
         start, end = python_offset(table.Range.Start), python_offset(table.Range.End)
-        cells, rows, cols = {}, 0, 0
+        cells, spans, rows, cols = {}, {}, 0, 0
         try:
-            rows, cols = int(table.Rows.Count), int(table.Columns.Count)
-            for cell in table.Range.Cells:
+            # COM Rows/Columns and ColumnIndex are unreliable for merged tables.
+            # XML provides grid positions; COM provides exact story offsets.
+            rows, cols, spans = read_layout(table.Range.WordOpenXML)
+            word_cells = list(table.Range.Cells)
+            if len(word_cells) != len(spans):
+                raise ValueError('Cell layout does not match Word ranges')
+            for pos, cell in zip(sorted(spans), word_cells):
                 if cell.Tables.Count > 1:
                     raise ValueError('Nested table')
-                cells[int(cell.RowIndex), int(cell.ColumnIndex)] = (
+                cells[pos] = (
                     python_offset(cell.Range.Start), python_offset(cell.Range.End - 1))
-            if len(cells) != rows * cols:
-                cells = {}
         except Exception:
             cells = {}  # Existing text merging still works for irregular tables.
-        tables.append(Table(start, end, rows, cols, cells))
+            spans = {}
+        tables.append(Table(start, end, rows, cols, cells, spans))
     return tables
+
+
+def replace_table_xml(document, index, xml):
+    table = document.Tables(index + 1)
+    start = int(table.Range.Start)
+    following = str(document.Range(int(table.Range.End), int(document.Content.End)).Text or '')
+    # InsertXML on a table range nests the new table inside its first cell.
+    # Replace at the collapsed story range, in the temporary document only.
+    table.Delete()
+    document.Range(start, start).InsertXML(xml)
+    end = int(document.Tables(index + 1).Range.End)
+    suffix = str(document.Range(end, int(document.Content.End)).Text or '')
+    # Word appends an empty paragraph when importing a standalone table.
+    # Remove only that verified addition, preserving existing blank paragraphs.
+    if suffix == '\r' + following:
+        document.Range(end, end + 1).Delete()
+    elif suffix != following:
+        raise MergeError('word_merge_verify_failed')
 
 
 def prepare_structure(base, others, folder):
     aligned = [replace(other, tables=list(other.tables)) for other in others]
-    if any(len(other.tables) != len(base.tables) for other in others):
-        raise MergeError('merge_structure_unsupported')
     plans = {}
     for index, table in enumerate(base.tables):
-        models = [base] + others
+        # An irregular table must not prevent additions to other tables or
+        # ordinary text merging. Such tables use the text comparison below.
+        if not table.cells:
+            continue
+        related = [(number, other) for number, other in enumerate(others)
+                   if len(other.tables) == len(base.tables) and other.tables[index].cells]
+        models = [base] + [other for _, other in related]
         tables = [model.tables[index] for model in models]
-        if any(not item.cells for item in tables):
-            raise MergeError('merge_structure_unsupported')
         grids = [{pos: model.text[start:end] for pos, (start, end) in item.cells.items()
                   if model.text[start:end]} for model, item in zip(models, tables)]
         axes = [(list(range(1, item.rows + 1)), list(range(1, item.cols + 1))) for item in tables]
         maps, (rows, cols) = align_grids(grids, axes)
+        layouts = [mapped_spans(item.layout(), rm, cm)
+                   for item, (rm, cm) in zip(tables, maps)]
         added_rows, added_cols = added_axes(maps[0][0], rows), added_axes(maps[0][1], cols)
         if added_rows or added_cols:
             if touches_protected(base, table.start, table.end):
                 raise MergeError('word_merge_protected')
-            plans[index] = added_rows, added_cols
-        for other, item, (rm, cm) in zip(aligned, tables[1:], maps[1:]):
-            other.tables[index] = replace(item, rows=rows, cols=cols,
-                cells={(rm[r], cm[c]): span for (r, c), span in item.cells.items()})
+            merged = any(span != (1, 1) for layout in layouts for span in layout.values())
+            shape = union_spans(layouts, rows, cols) if merged else None
+            plans[index] = added_rows, added_cols, maps[0], (rows, cols), shape
+        for (number, _), item, (rm, cm), layout in zip(related, tables[1:], maps[1:], layouts[1:]):
+            aligned[number].tables[index] = replace(item, rows=rows, cols=cols,
+                cells={(rm[r], cm[c]): span for (r, c), span in item.cells.items()}, spans=layout)
     if not plans:
         return base, aligned
     os.makedirs(folder, exist_ok=True)
@@ -240,8 +273,12 @@ def prepare_structure(base, others, folder):
             document = open_document(app, path, readonly=False)
             try:
                 document.TrackRevisions = False
-                for index, (rows, cols) in plans.items():
+                for index, (rows, cols, (rm, cm), (height, width), shape) in plans.items():
                     table = document.Tables(index + 1)
+                    if shape is not None:
+                        xml = resize_table(table.Range.WordOpenXML, rm, cm, height, width, shape)
+                        replace_table_xml(document, index, xml)
+                        continue
                     for row in rows:
                         if row <= table.Rows.Count:
                             table.Rows.Add(BeforeRow=table.Rows(row))
@@ -258,6 +295,26 @@ def prepare_structure(base, others, folder):
                 document.Close(False)
                 document = None
             prepared = read_document(app, path)
+        # Word can normalize XML on import. Never offer a review with a layout
+        # different from the plan or with missing original cell contents.
+        if len(prepared.tables) != len(base.tables):
+            raise MergeError('word_merge_verify_failed')
+        a_cursor = b_cursor = 0
+        for index, (original, actual) in enumerate(zip(base.tables, prepared.tables)):
+            if (base.text[a_cursor:original.start] != prepared.text[b_cursor:actual.start]
+                    or index not in plans and base.text[original.start:original.end] != prepared.text[actual.start:actual.end]):
+                raise MergeError('word_merge_verify_failed')
+            a_cursor, b_cursor = original.end, actual.end
+        if base.text[a_cursor:] != prepared.text[b_cursor:]:
+            raise MergeError('word_merge_verify_failed')
+        for index, (_, _, (rm, cm), (rows, cols), shape) in plans.items():
+            original, actual = base.tables[index], prepared.tables[index]
+            if shape is not None and (actual.rows != rows or actual.cols != cols or actual.layout() != shape):
+                raise MergeError('word_merge_verify_failed')
+            for (r, c), (start, end) in original.cells.items():
+                span = actual.cells.get((rm[r], cm[c]))
+                if span is None or prepared.text[span[0]:span[1]] != base.text[start:end]:
+                    raise MergeError('word_merge_verify_failed')
         prepared.original = base
         return prepared, aligned
     except Exception:
@@ -360,6 +417,10 @@ def edits_for(base, other, add_structure=False):
 
 def structured_edits_for(base, other):
     """Compare aligned cells independently, so added cells cannot shift choices."""
+    if len(base.tables) != len(other.tables):
+        # Without matching table boundaries, use paragraph/cell-marker anchors.
+        # This reports unsupported table additions instead of dropping content.
+        return edits_for(base, other, add_structure=True)
     edits, skipped = [], 0
     a_cursor = b_cursor = 0
     for left, right in zip(base.tables + [None], other.tables + [None]):
@@ -376,9 +437,19 @@ def structured_edits_for(base, other):
         skipped += count
         if left is None:
             break
+        if not left.cells or not right.cells:
+            changes, count = edits_for(segment(base, left.start, left.end),
+                                       segment(other, right.start, right.end))
+            edits.extend((a+left.start, b+left.start, value) for a, b, value in changes)
+            skipped += count
+            a_cursor, b_cursor = left.end, right.end
+            continue
         for pos, (start, end) in left.cells.items():
             if pos not in right.cells:
                 continue  # A missing source row/column never deletes the original.
+            if left.spans.get(pos, (1, 1)) != right.spans.get(pos, (1, 1)):
+                skipped += 1
+                continue
             other_start, other_end = right.cells[pos]
             value = other.text[other_start:other_end]
             if value == base.text[start:end]:
@@ -389,6 +460,7 @@ def structured_edits_for(base, other):
                 skipped += 1
             else:
                 edits.append((start, end, value))
+        skipped += sum(pos not in left.cells for pos in right.cells)
         a_cursor, b_cursor = left.end, right.end
     return edits, skipped
 

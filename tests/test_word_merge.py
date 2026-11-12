@@ -18,7 +18,90 @@ def document(text, path='original.docx'):
     return m.Document(path, '', text)
 
 
+def table_document(grids, path='original.docx', irregular=()):
+    result = document('', path)
+    for index, grid in enumerate(grids):
+        start, cells = len(result.text), {}
+        for row, values in enumerate(grid, 1):
+            for col, value in enumerate(values, 1):
+                cells[row, col] = len(result.text), len(result.text) + len(value)
+                result.text += value + '\r\x07'
+        result.tables.append(m.Table(start, len(result.text), len(grid), len(grid[0]),
+                                     {} if index in irregular else cells))
+    result.text += '\r'
+    return result
+
+
 class WordMergeTests(unittest.TestCase):
+    def test_structure_option_keeps_text_changes_in_irregular_tables(self):
+        base = table_document([[['Item', 'Color'], ['Car', 'Red']]], irregular=(0,))
+        other = table_document([[['Item', 'Color'], ['Car', 'Blue']]], 'other.docx', (0,))
+        with patch.object(m, 'word_app') as office:
+            prepared, sources = m.prepare_structure(base, [other], 'unused')
+        office.assert_not_called()
+        conflicts, skipped = m.conflicts_for(prepared, sources, add_structure=True)
+        self.assertFalse(skipped)
+        self.assertEqual([c.values for c in conflicts], [['Red', 'Blue']])
+
+    def test_structure_option_reports_uninserted_irregular_rows(self):
+        base = table_document([[['Header'], ['Red']]], irregular=(0,))
+        other = table_document([[['Header'], ['Blue'], ['Added']]], 'other.docx', (0,))
+        prepared, sources = m.prepare_structure(base, [other], 'unused')
+        conflicts, skipped = m.conflicts_for(prepared, sources, add_structure=True)
+        self.assertIs(prepared, base)
+        self.assertTrue(skipped)
+        self.assertNotIn('Added', [value for c in conflicts for value in c.values])
+
+    def test_structure_option_handles_different_table_counts(self):
+        base = table_document([[['Header', 'Red', 'End']]])
+        other = table_document([[['Header', 'Blue', 'End']], [['Extra table']]], 'other.docx')
+        prepared, sources = m.prepare_structure(base, [other], 'unused')
+        conflicts, skipped = m.conflicts_for(prepared, sources, add_structure=True)
+        self.assertIs(prepared, base)
+        self.assertEqual([c.values for c in conflicts], [['Red', 'Blue']])
+        self.assertTrue(skipped)
+
+    def test_irregular_tables_still_respect_protected_text(self):
+        base = table_document([[['Red']]], irregular=(0,))
+        base.protected = [(0, 3)]
+        other = table_document([[['Blue']]], 'other.docx', (0,))
+        prepared, sources = m.prepare_structure(base, [other], 'unused')
+        conflicts, skipped = m.conflicts_for(prepared, sources, add_structure=True)
+        self.assertFalse(conflicts)
+        self.assertTrue(skipped)
+
+    def test_irregular_table_does_not_block_additions_in_regular_table(self):
+        for dimension in ('row', 'column'):
+            with self.subTest(dimension=dimension), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / 'original.docx'
+                path.write_bytes(b'original')
+                regular = [['Header'], ['Last']] if dimension == 'row' else [['Header', 'Last']]
+                extended = [['Header'], ['Added'], ['Last']] if dimension == 'row' else [['Header', 'Added', 'Last']]
+                blank = [['Header'], [''], ['Last']] if dimension == 'row' else [['Header', '', 'Last']]
+                base = table_document([[['Red']], regular], str(path), (0,))
+                base.digest = m.fingerprint(path)
+                other = table_document([[['Blue']], extended], 'other.docx', (0,))
+                original_cells = dict(other.tables[1].cells)
+                prepared_copy = table_document([[['Red']], blank], irregular=(0,))
+                doc = Mock()
+                doc.Tables.return_value.Rows.Count = 2
+                doc.Tables.return_value.Columns.Count = 2
+                @contextmanager
+                def app():
+                    yield object()
+                with patch.object(m, 'word_app', app), patch.object(m, 'open_document', return_value=doc), \
+                        patch.object(m, 'read_document', return_value=prepared_copy):
+                    prepared, sources = m.prepare_structure(base, [other], folder)
+                self.assertIs(prepared.original, base)
+                doc.Tables.assert_called_once_with(2)
+                axis = doc.Tables.return_value.Rows if dimension == 'row' else doc.Tables.return_value.Columns
+                axis.Add.assert_called_once()
+                conflicts, skipped = m.conflicts_for(prepared, sources, add_structure=True)
+                self.assertFalse(skipped)
+                self.assertEqual([c.values for c in conflicts], [['Red', 'Blue'], ['', 'Added']])
+                self.assertEqual(path.read_bytes(), b'original')
+                self.assertEqual(other.tables[1].cells, original_cells)
+
     def test_text_and_table_cell_choices(self):
         base = document('Invoice\rAmount: 100 USD\rItem\r\x07Red\r\x07')
         other = document('Invoice\rAmount: 200 USD\rItem\r\x07Blue\r\x07', 'other.doc')
