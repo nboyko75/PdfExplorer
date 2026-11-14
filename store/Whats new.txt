@@ -127,3 +127,4 @@ Merge similar documents form changes:
 1.0.12.0
 
 Added embedded search for .txt and other text previews
+Added Ctrl+G for Rotate Left and Ctrl+H for Rotate Right

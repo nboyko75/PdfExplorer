@@ -1335,12 +1335,12 @@ def build_rotation_menu(owner, menu):
     if joined_menu_undo.IsOk():
         rotate_all_left_item.SetBitmap(joined_menu_undo)
 
-    rotate_left_item = menu.Append(-1, tr("preview_rotate_left_button"))
+    rotate_left_item = menu.Append(-1, f"{tr('preview_rotate_left_button')}\tCtrl+G")
     left_bitmap = wx.ArtProvider.GetBitmap(wx.ART_UNDO, wx.ART_MENU, (16, 16))
     if left_bitmap.IsOk():
         rotate_left_item.SetBitmap(left_bitmap)
 
-    rotate_right_item = menu.Append(-1, tr("preview_rotate_right_button"))
+    rotate_right_item = menu.Append(-1, f"{tr('preview_rotate_right_button')}\tCtrl+H")
     right_bitmap = wx.ArtProvider.GetBitmap(wx.ART_REDO, wx.ART_MENU, (16, 16))
     if right_bitmap.IsOk():
         rotate_right_item.SetBitmap(right_bitmap)
